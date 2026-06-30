@@ -1,0 +1,232 @@
+version: '3.9'
+
+services:
+  # ─── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: safat_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       safat_db
+      POSTGRES_USER:     safat
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    # FIX: don't expose DB port in production — only internal access
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./scripts/postgres.conf:/etc/postgresql/postgresql.conf:ro
+    command: >
+      postgres
+        -c max_connections=200
+        -c shared_buffers=256MB
+        -c effective_cache_size=768MB
+        -c wal_level=replica
+        -c log_min_duration_statement=1000
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U safat -d safat_db"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+    networks:
+      - internal
+
+  # ─── PgBouncer — connection pooler ───────────────────────────────────────────
+  # FIX: prevents Next.js serverless from exhausting max_connections
+  pgbouncer:
+    image: bitnami/pgbouncer:latest
+    container_name: safat_pgbouncer
+    restart: unless-stopped
+    environment:
+      POSTGRESQL_HOST:        postgres
+      POSTGRESQL_PORT:        5432
+      POSTGRESQL_DATABASE:    safat_db
+      POSTGRESQL_USERNAME:    safat
+      POSTGRESQL_PASSWORD:    ${POSTGRES_PASSWORD:?}
+      PGBOUNCER_POOL_MODE:    transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 200
+      PGBOUNCER_DEFAULT_POOL_SIZE: 20
+      PGBOUNCER_SERVER_IDLE_TIMEOUT: 600
+    expose:
+      - "5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
+  # ─── Redis — app cache (DB 0) ─────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: safat_redis
+    restart: unless-stopped
+    # FIX: 512MB (was 256MB — too small for queues + cache + rate limiting combined)
+    # FIX: volatile-lru eviction — only evict keys that have a TTL set
+    command: >
+      redis-server
+        --maxmemory 512mb
+        --maxmemory-policy volatile-lru
+        --requirepass ${REDIS_PASSWORD:-}
+        --save 900 1
+        --save 300 10
+        --appendonly yes
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test:     ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "ping"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+    networks:
+      - internal
+
+  # ─── Next.js API — 2 replicas for HA ─────────────────────────────────────────
+  api:
+    build:
+      context:    .
+      dockerfile: Dockerfile
+      target:     production
+    image: safat-backend:latest
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+    environment:
+      NODE_ENV:     production
+      PORT:         3001
+      # FIX: connect via PgBouncer, not directly to postgres
+      DATABASE_URL: postgresql://safat:${POSTGRES_PASSWORD}@pgbouncer:5432/safat_db?pgbouncer=true&connection_limit=5
+      REDIS_HOST:   redis
+      REDIS_PORT:   6379
+    env_file: .env
+    expose:
+      - "3001"
+    depends_on:
+      pgbouncer:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:         ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval:     30s
+      timeout:      10s
+      start_period: 15s
+      retries:      3
+    networks:
+      - internal
+      - public
+
+  # ─── Socket.IO Server — 2 replicas (Redis adapter handles sync) ───────────────
+  socket:
+    image: safat-backend:latest
+    restart: unless-stopped
+    command: node dist/socket-server.js
+    deploy:
+      replicas: 2
+    environment:
+      NODE_ENV:     production
+      SOCKET_PORT:  3002
+      DATABASE_URL: postgresql://safat:${POSTGRES_PASSWORD}@pgbouncer:5432/safat_db?pgbouncer=true&connection_limit=3
+      REDIS_HOST:   redis
+      REDIS_PORT:   6379
+    env_file: .env
+    expose:
+      - "3002"
+    depends_on:
+      - pgbouncer
+      - redis
+    networks:
+      - internal
+      - public
+
+  # ─── BullMQ Workers ───────────────────────────────────────────────────────────
+  worker:
+    image: safat-backend:latest
+    restart: unless-stopped
+    command: node dist/workers/index.js
+    deploy:
+      replicas: 1  # FIX: keep at 1 to avoid duplicate cron (distributed lock handles it)
+    environment:
+      NODE_ENV:     production
+      DATABASE_URL: postgresql://safat:${POSTGRES_PASSWORD}@pgbouncer:5432/safat_db?pgbouncer=true&connection_limit=5
+      REDIS_HOST:   redis
+      REDIS_PORT:   6379
+    env_file: .env
+    depends_on:
+      - pgbouncer
+      - redis
+    networks:
+      - internal
+
+  # ─── Nginx Reverse Proxy ──────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: safat_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - api
+      - socket
+    networks:
+      - public
+
+  # ─── PostgreSQL Backup — runs daily, uploads to S3 ──────────────────────────
+  backup:
+    image: prodrigestivill/postgres-backup-local:16
+    container_name: safat_backup
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST:     postgres
+      POSTGRES_DB:       safat_db
+      POSTGRES_USER:     safat
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      SCHEDULE:          "@daily"
+      BACKUP_KEEP_DAYS:  7
+      BACKUP_KEEP_WEEKS: 4
+      BACKUP_KEEP_MONTHS: 3
+      HEALTHCHECK_PORT:  8080
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
+  # ─── pgAdmin (dev profile only) ───────────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: safat_pgadmin
+    profiles: ["dev"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL:    admin@safat.app
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "127.0.0.1:5050:80"  # FIX: bind to localhost only, not 0.0.0.0
+    depends_on:
+      - postgres
+    networks:
+      - internal
+
+volumes:
+  postgres_data:
+  redis_data:
+  nginx_logs:
+
+networks:
+  internal:
+    driver: bridge
+    internal: true   # no external access to internal network
+  public:
+    driver: bridge

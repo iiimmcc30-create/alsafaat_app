@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Expo / React Native
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Next.js (backend)
+.next/
+out/
+
+# Build / native
+frontend/android/app/build/
+frontend/android/build/
+frontend/android/.gradle/
+frontend/ios/build/
+frontend/ios/Pods/
+*.apk
+*.aab
+
+# Logs & OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# TypeScript
+*.tsbuildinfo
+
+# Prisma
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# Uploads / temp
+uploads/
+tmp/
+temp/

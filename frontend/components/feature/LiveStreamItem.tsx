@@ -1,0 +1,310 @@
+// Powered by OnSpace.AI
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from '@/components/ui/AppImage';
+import { LinearGradient } from '@/components/ui/AppLinearGradient';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { inlineEnd, inlineStart, marginStart, rtlRow } from '@/lib/rtl';
+import { LiveStream } from '@/services/types';
+
+interface LiveStreamItemProps {
+  stream: LiveStream;
+  height: number;
+  onOpenProfile?: () => void;
+  onComment?: () => void;
+  onShare?: () => void;
+}
+
+export function LiveStreamItem({ stream, height, onOpenProfile, onComment, onShare }: LiveStreamItemProps) {
+  const [following, setFollowing] = useState(false);
+  const { width } = useWindowDimensions();
+  const commentCount = stream.comments?.length ?? 0;
+
+  return (
+    <View style={[styles.container, { height, width }]}>
+      <Image
+        source={{ uri: stream.thumbnail }}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+        transition={300}
+      />
+      {/* Cinematic dark overlays */}
+      <LinearGradient
+        colors={gradients.liveOverlay}
+        style={StyleSheet.absoluteFill}
+      />
+      <LinearGradient
+        colors={['rgba(6,9,26,0.6)', 'transparent']}
+        style={[StyleSheet.absoluteFill, { height: 180 }]}
+      />
+
+      {/* Top: Live badge & viewers */}
+      <View style={styles.topRow}>
+        <View style={styles.liveBadge}>
+          <View style={styles.liveDot} />
+          <Text style={styles.liveText}>مباشر</Text>
+        </View>
+        <View style={styles.viewerBadge}>
+          <Ionicons name="eye" size={14} color={colors.textPrimary} />
+          <Text style={styles.viewerText}>{(stream.viewers / 1000).toFixed(1)}K</Text>
+        </View>
+        <View style={styles.categoryBadge}>
+          <Text style={styles.categoryText}>{stream.category}</Text>
+        </View>
+      </View>
+
+      {/* Right side actions */}
+      <View style={styles.actionsCol}>
+        <Pressable onPress={onOpenProfile} style={styles.avatarWrap}>
+          <Image source={{ uri: stream.host.avatar }} style={styles.avatar} contentFit="cover" />
+          <Pressable
+            onPress={() => setFollowing((f) => !f)}
+            style={[styles.followBtn, following && styles.followingBtn]}
+          >
+            <Ionicons name={following ? 'checkmark' : 'add'} size={14} color="#fff" />
+          </Pressable>
+        </Pressable>
+
+        <Pressable style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
+          <Ionicons name="heart-outline" size={32} color="#fff" />
+          <Text style={styles.actionText}>{((stream.likes ?? 0) / 1000).toFixed(1)}K</Text>
+        </Pressable>
+
+        <Pressable onPress={onComment} style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
+          <Ionicons name="chatbubble-ellipses-outline" size={30} color="#fff" />
+          <Text style={styles.actionText}>{commentCount}</Text>
+        </Pressable>
+
+        <Pressable style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
+          <MaterialCommunityIcons name="gavel" size={28} color={colors.gold} />
+          <Text style={[styles.actionText, { color: colors.gold }]}>مزايدة</Text>
+        </Pressable>
+
+        <Pressable onPress={onShare} style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
+          <Ionicons name="paper-plane-outline" size={28} color="#fff" />
+          <Text style={styles.actionText}>مشاركة</Text>
+        </Pressable>
+      </View>
+
+      {/* Bottom: host info & comments */}
+      <View style={styles.bottom}>
+        <View style={styles.hostRow}>
+          <Pressable onPress={onOpenProfile} style={styles.hostInfo}>
+            <Text style={styles.hostName}>{stream.host.arabicName}</Text>
+            {stream.host.verified ? (
+              <Ionicons name="checkmark-circle" size={16} color={colors.electricBright} style={marginStart(4)} />
+            ) : null}
+          </Pressable>
+          <View style={styles.topicPill}>
+            <MaterialCommunityIcons name="broadcast" size={12} color={colors.glow} />
+            <Text style={styles.topicText}>{stream.topic}</Text>
+          </View>
+        </View>
+        <Text style={styles.streamArabic} numberOfLines={2}>{stream.arabicTitle}</Text>
+
+        {/* Floating comments */}
+        <View style={styles.commentsArea}>
+          {(stream.comments ?? []).slice(-3).map((c) => (
+            <View key={c.id} style={styles.commentRow}>
+              <Image source={{ uri: c.avatar }} style={styles.commentAvatar} />
+              <View style={[styles.commentBubble, c.isOffer && styles.offerBubble]}>
+                <Text style={styles.commentUser}>{c.arabicUser}</Text>
+                <Text style={styles.commentMsg}>{c.message}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: colors.bgDeep,
+    overflow: 'hidden',
+  },
+  topRow: {
+    position: 'absolute',
+    top: 60,
+    ...inlineStart(spacing.lg),
+    ...rtlRow,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  liveBadge: {
+    ...rtlRow,
+    alignItems: 'center',
+    backgroundColor: colors.liveRed,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    gap: 6,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#fff',
+  },
+  liveText: {
+    ...typography.micro,
+    color: '#fff',
+  },
+  viewerBadge: {
+    ...rtlRow,
+    alignItems: 'center',
+    backgroundColor: 'rgba(6,9,26,0.7)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  viewerText: {
+    ...typography.caption,
+    color: colors.textPrimary,
+  },
+  categoryBadge: {
+    backgroundColor: 'rgba(59,130,246,0.25)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.borderMid,
+  },
+  categoryText: {
+    ...typography.caption,
+    color: colors.glow,
+  },
+  actionsCol: {
+    position: 'absolute',
+    ...inlineEnd(spacing.lg),
+    bottom: 220,
+    alignItems: 'center',
+    gap: spacing.xl,
+  },
+  avatarWrap: {
+    width: 52,
+    height: 64,
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  followBtn: {
+    position: 'absolute',
+    bottom: 0,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.electric,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.bgDeep,
+  },
+  followingBtn: {
+    backgroundColor: colors.success,
+  },
+  actionBtn: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  pressed: {
+    transform: [{ scale: 0.9 }],
+  },
+  actionText: {
+    ...typography.micro,
+    color: '#fff',
+  },
+  bottom: {
+    position: 'absolute',
+    ...inlineStart(spacing.lg),
+    ...inlineEnd(80),
+    bottom: 120,
+  },
+  hostRow: {
+    ...rtlRow,
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  hostInfo: {
+    ...rtlRow,
+    alignItems: 'center',
+  },
+  hostName: {
+    ...typography.bodyStrong,
+    color: '#fff',
+  },
+  topicPill: {
+    ...rtlRow,
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.borderMid,
+    backgroundColor: 'rgba(125,211,252,0.1)',
+  },
+  topicText: {
+    ...typography.micro,
+    color: colors.glow,
+  },
+  streamTitle: {
+    ...typography.h3,
+    color: '#fff',
+    marginBottom: 2,
+  },
+  streamArabic: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+    textAlign: 'right',
+  },
+  commentsArea: {
+    gap: 6,
+  },
+  commentRow: {
+    ...rtlRow,
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  commentAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  commentBubble: {
+    backgroundColor: 'rgba(6,9,26,0.55)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    flex: 1,
+  },
+  offerBubble: {
+    backgroundColor: 'rgba(245,197,106,0.15)',
+    borderColor: 'rgba(245,197,106,0.5)',
+  },
+  commentUser: {
+    ...typography.micro,
+    color: colors.glow,
+  },
+  commentMsg: {
+    ...typography.caption,
+    color: '#fff',
+  },
+});
+
+export default LiveStreamItem;
