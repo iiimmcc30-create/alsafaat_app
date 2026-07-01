@@ -1,15 +1,10 @@
 // Powered by OnSpace.AI
 // SAFAT — Type definitions and configuration metadata
 
-export type Country = 'SA' | 'AE' | 'KW' | 'QA' | 'BH' | 'OM' | 'EG';
+export type Country = 'SA' | 'EG';
 
 export const countries: Record<Country, { en: string; ar: string; flag: string; phoneCode: string; currency: string }> = {
   SA: { en: 'Saudi Arabia', ar: 'السعودية', flag: '🇸🇦', phoneCode: '+966', currency: 'SAR' },
-  AE: { en: 'UAE', ar: 'الإمارات', flag: '🇦🇪', phoneCode: '+971', currency: 'AED' },
-  KW: { en: 'Kuwait', ar: 'الكويت', flag: '🇰🇼', phoneCode: '+965', currency: 'KWD' },
-  QA: { en: 'Qatar', ar: 'قطر', flag: '🇶🇦', phoneCode: '+974', currency: 'QAR' },
-  BH: { en: 'Bahrain', ar: 'البحرين', flag: '🇧🇭', phoneCode: '+973', currency: 'BHD' },
-  OM: { en: 'Oman', ar: 'عُمان', flag: '🇴🇲', phoneCode: '+968', currency: 'OMR' },
   EG: { en: 'Egypt', ar: 'مصر', flag: '🇪🇬', phoneCode: '+20', currency: 'EGP' },
 };
 

@@ -26,11 +26,6 @@ import { Country, countries } from '@/services/types';
 
 const GCC_COUNTRIES: { code: Country; ar: string; flag: string }[] = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦' },
-  { code: 'AE', ar: 'الإمارات', flag: '🇦🇪' },
-  { code: 'KW', ar: 'الكويت', flag: '🇰🇼' },
-  { code: 'QA', ar: 'قطر', flag: '🇶🇦' },
-  { code: 'BH', ar: 'البحرين', flag: '🇧🇭' },
-  { code: 'OM', ar: 'عُمان', flag: '🇴🇲' },
   { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
 ];
 

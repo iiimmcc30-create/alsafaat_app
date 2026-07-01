@@ -189,11 +189,6 @@ function ButcherCard({ butcher, onPress }: { butcher: ButcherProfile; onPress: (
 
 const GCC_COUNTRIES: { code: Country; label: string; flag: string }[] = [
   { code: 'SA', label: 'السعودية', flag: '🇸🇦' },
-  { code: 'AE', label: 'الإمارات', flag: '🇦🇪' },
-  { code: 'KW', label: 'الكويت',   flag: '🇰🇼' },
-  { code: 'QA', label: 'قطر',     flag: '🇶🇦' },
-  { code: 'BH', label: 'البحرين', flag: '🇧🇭' },
-  { code: 'OM', label: 'عُمان',   flag: '🇴🇲' },
   { code: 'EG', label: 'مصر',     flag: '🇪🇬' },
 ];
 

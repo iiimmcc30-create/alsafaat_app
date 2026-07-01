@@ -48,11 +48,6 @@ const CATEGORIES: { id: Category; ar: string; icon: string }[] = [
 
 const GCC_COUNTRIES: { code: Country; ar: string; flag: string; currency: string }[] = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦', currency: 'SAR' },
-  { code: 'AE', ar: 'الإمارات', flag: '🇦🇪', currency: 'AED' },
-  { code: 'KW', ar: 'الكويت', flag: '🇰🇼', currency: 'KWD' },
-  { code: 'QA', ar: 'قطر', flag: '🇶🇦', currency: 'QAR' },
-  { code: 'BH', ar: 'البحرين', flag: '🇧🇭', currency: 'BHD' },
-  { code: 'OM', ar: 'عُمان', flag: '🇴🇲', currency: 'OMR' },
   { code: 'EG', ar: 'مصر', flag: '🇪🇬', currency: 'EGP' },
 ];
 

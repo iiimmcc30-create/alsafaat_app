@@ -34,11 +34,6 @@ import { NativeButchersMap } from '@/components/feature/NativeButchersMap';
 // ─── Map pin layout coordinates (% of map container) ─────────────────────────────
 const GCC_COORDINATES: Record<Country, { x: number; y: number }> = {
   SA: { x: 44, y: 48 },
-  AE: { x: 52, y: 38 },
-  KW: { x: 42, y: 32 },
-  QA: { x: 50, y: 42 },
-  BH: { x: 46, y: 40 },
-  OM: { x: 56, y: 50 },
   EG: { x: 38, y: 28 },
 };
 
@@ -327,11 +322,6 @@ export default function ButchersMapScreen() {
   const GCC: { code: Country | 'all'; flag: string; label: string }[] = [
     { code: 'all', flag: '🌍', label: 'الكل' },
     { code: 'SA',  flag: '🇸🇦', label: 'السعودية' },
-    { code: 'AE',  flag: '🇦🇪', label: 'الإمارات' },
-    { code: 'KW',  flag: '🇰🇼', label: 'الكويت'   },
-    { code: 'QA',  flag: '🇶🇦', label: 'قطر'       },
-    { code: 'BH',  flag: '🇧🇭', label: 'البحرين'   },
-    { code: 'OM',  flag: '🇴🇲', label: 'عُمان'     },
     { code: 'EG',  flag: '🇪🇬', label: 'مصر'       },
   ];
 
@@ -346,7 +336,7 @@ export default function ButchersMapScreen() {
         </Pressable>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={s.headerTitle}>خريطة الملاحم</Text>
-          <Text style={s.headerSub}>{filtered.length} ملحمة في الخليج</Text>
+          <Text style={s.headerSub}>{filtered.length} ملحمة متاحة</Text>
         </View>
         <Pressable onPress={() => router.push('/butchers')} style={s.listBtn}>
           <MaterialCommunityIcons name="view-list" size={20} color={colors.electricBright} />

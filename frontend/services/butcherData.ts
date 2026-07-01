@@ -13,11 +13,6 @@ export type DeliveryType = 'pickup' | 'delivery';
 // ─── GCC Currencies ─────────────────────────────────────────────────────────
 export const gccCurrencies: Record<Country, { code: string; symbol: string; name: string; nameAr: string }> = {
   SA: { code: 'SAR', symbol: 'ر.س', name: 'Saudi Riyal', nameAr: 'ريال سعودي' },
-  AE: { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham', nameAr: 'درهم إماراتي' },
-  KW: { code: 'KWD', symbol: 'د.ك', name: 'Kuwaiti Dinar', nameAr: 'دينار كويتي' },
-  QA: { code: 'QAR', symbol: 'ر.ق', name: 'Qatari Riyal', nameAr: 'ريال قطري' },
-  BH: { code: 'BHD', symbol: 'د.ب', name: 'Bahraini Dinar', nameAr: 'دينار بحريني' },
-  OM: { code: 'OMR', symbol: 'ر.ع', name: 'Omani Rial', nameAr: 'ريال عُماني' },
   EG: { code: 'EGP', symbol: 'ج.م', name: 'Egyptian Pound', nameAr: 'جنيه مصري' },
 };
 

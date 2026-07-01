@@ -27,11 +27,6 @@ import { useGoogleSignIn } from '@/hooks/useGoogleSignIn';
 const COUNTRY_CODES = [
   { flag: '🇸🇦', code: '+966', label: 'السعودية', dbCode: 'SA' },
   { flag: '🇪🇬', code: '+20', label: 'مصر', dbCode: 'EG' },
-  { flag: '🇦🇪', code: '+971', label: 'الإمارات', dbCode: 'AE' },
-  { flag: '🇰🇼', code: '+965', label: 'الكويت', dbCode: 'KW' },
-  { flag: '🇶🇦', code: '+974', label: 'قطر', dbCode: 'QA' },
-  { flag: '🇧🇭', code: '+973', label: 'البحرين', dbCode: 'BH' },
-  { flag: '🇴🇲', code: '+968', label: 'عُمان', dbCode: 'OM' },
 ];
 
 export default function RegisterScreen() {
@@ -79,7 +74,6 @@ export default function RegisterScreen() {
   const [googleId, setGoogleId]       = useState(params.googleId || '');
   const [avatar, setAvatar]           = useState(params.avatar || '');
   const [viaGoogle, setViaGoogle]     = useState(params.via_google === '1');
-  const [selectedRole, setSelectedRole] = useState<'USER' | 'BUTCHER'>('USER');
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const currentCountry = COUNTRY_CODES[countryIdx];
@@ -173,7 +167,7 @@ export default function RegisterScreen() {
         displayName:  displayName.trim(),
         username:     username.trim().toLowerCase(),
         country:      currentCountry.dbCode,
-        role:         selectedRole,
+        role:         'USER',
         // Google details if applicable
         googleId:    googleId || undefined,
         email:       emailInput.trim().toLowerCase() || undefined,
@@ -264,32 +258,11 @@ export default function RegisterScreen() {
                 <Image source={require('@/assets/images/logo.png')} style={styles.logoImage} />
               </View>
               <Text style={styles.title}>انضم إلى الصفاة</Text>
-              <Text style={styles.sub}>أنشئ حسابك وابدأ بيع وشراء المواشي في الخليج</Text>
+              <Text style={styles.sub}>أنشئ حسابك كمستخدم جديد وابدأ تصفح السوق وشراء المواشي</Text>
             </View>
 
             {/* Main Form Card */}
             <View style={styles.card}>
-              
-              {/* Segmented Tabs for Account Type Selection */}
-              <View style={styles.tabsContainer}>
-                <Pressable
-                  style={[styles.tabBtn, selectedRole === 'BUTCHER' && styles.tabBtnActive]}
-                  onPress={() => setSelectedRole('BUTCHER')}
-                >
-                  <Text style={[styles.tabText, selectedRole === 'BUTCHER' && styles.tabTextActive]}>
-                    حساب ملحمة
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  style={[styles.tabBtn, selectedRole === 'USER' && styles.tabBtnActive]}
-                  onPress={() => setSelectedRole('USER')}
-                >
-                  <Text style={[styles.tabText, selectedRole === 'USER' && styles.tabTextActive]}>
-                    حساب عميل
-                  </Text>
-                </Pressable>
-              </View>
 
               {/* الاسم الكامل */}
               <View style={styles.fieldGroup}>
@@ -553,6 +526,12 @@ export default function RegisterScreen() {
                   لديك حساب بالفعل؟ <Text style={styles.footerLinkActive}>تسجيل الدخول</Text>
                 </Text>
               </Pressable>
+
+              <Pressable onPress={() => router.push('/butchers/register')}>
+                <Text style={styles.footerLinkText}>
+                  تريد تسجيل ملحمة؟ <Text style={styles.footerLinkActive}>سجّل ملحمتك هنا</Text>
+                </Text>
+              </Pressable>
               
               <Text style={styles.disclaimerText}>
                 بتسجيل الدخول أو إنشاء حساب فإنك توافق على <Text style={styles.disclaimerLink} onPress={() => router.push('/info/terms')}>شروط وأحكام سوق الصفاة</Text>
@@ -596,16 +575,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#121a2d', borderWidth: 1, borderColor: '#1d273a',
     gap: spacing.md,
   },
-
-  tabsContainer: {
-    flexDirection: 'row', backgroundColor: '#090e1a',
-    borderRadius: 25, padding: 4, height: 48, width: '100%',
-    marginBottom: spacing.xs,
-  },
-  tabBtn: { flex: 1, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  tabBtnActive: { backgroundColor: '#1e6ff1' },
-  tabText: { fontSize: 14, color: '#9ca3af', fontWeight: '600' },
-  tabTextActive: { color: '#ffffff' },
 
   fieldGroup: { gap: 6, width: '100%' },
   fieldLabel: { fontSize: 13, color: '#ffffff', fontWeight: '600', textAlign: 'right' },

@@ -27,11 +27,6 @@ import { useGoogleSignIn } from '@/hooks/useGoogleSignIn';
 const COUNTRY_CODES = [
   { flag: '🇸🇦', code: '+966', label: 'السعودية' },
   { flag: '🇪🇬', code: '+20', label: 'مصر' },
-  { flag: '🇦🇪', code: '+971', label: 'الإمارات' },
-  { flag: '🇰🇼', code: '+965', label: 'الكويت' },
-  { flag: '🇶🇦', code: '+974', label: 'قطر' },
-  { flag: '🇧🇭', code: '+973', label: 'البحرين' },
-  { flag: '🇴🇲', code: '+968', label: 'عُمان' },
 ];
 
 export default function PhoneScreen() {

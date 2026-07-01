@@ -9,7 +9,7 @@ interface CountryChipsProps {
   onChange: (c: Country | 'ALL') => void;
 }
 
-const order: (Country | 'ALL')[] = ['ALL', 'SA', 'EG', 'AE', 'KW', 'QA', 'BH', 'OM'];
+const order: (Country | 'ALL')[] = ['ALL', 'SA', 'EG'];
 
 export function CountryChips({ value, onChange }: CountryChipsProps) {
   return (

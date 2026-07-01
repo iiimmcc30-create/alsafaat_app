@@ -20,8 +20,6 @@ const schema = z.object({
   arabicName:  z.string().min(2).max(50).trim().optional(),
   username:    z.string().min(3).max(30).regex(/^[a-z0-9_]+$/, 'أحرف إنجليزية صغيرة وأرقام وشرطة سفلية فقط'),
   country:     countrySchema.default('SA'),
-  role:        z.enum(['USER', 'BUTCHER']).default('USER'),
-  
   // اختياري (للتسجيل بكلمة مرور)
   password:    z.string().min(6).max(128).optional(),
 
@@ -42,7 +40,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return apiError(res, 400, 'validation_error', 'بيانات غير صحيحة', parsed.error.flatten());
   }
 
-  const { phone, phone_token, displayName, arabicName, username, country, password, googleId, email, avatar, role } = parsed.data;
+  const { phone, phone_token, displayName, arabicName, username, country, password, googleId, email, avatar } = parsed.data;
+
+  if (req.body?.role === 'BUTCHER') {
+    return apiError(res, 400, 'invalid_role', 'تسجيل الملاحم يتم من صفحة تسجيل الملاحم فقط');
+  }
 
   // 1. التحقق من الـ phone_token
   try {
@@ -93,7 +95,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         googleId:     googleId ?? null,
         avatar:       avatar ?? null,
         passwordHash,
-        role:         role as any,
+        role:         'USER',
         isActive:     true,
         verified:     !!googleId,    // حسابات Google تكون موثقة تلقائياً
         subscription: {
@@ -102,21 +104,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             renewDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
           },
         },
-        ...(role === 'BUTCHER' && {
-          butcherProfile: {
-            create: {
-              nameAr:       displayName,
-              nameEn:       username,
-              country:      country as any,
-              city:         'Riyadh',
-              cityAr:       'الرياض',
-              address:      'Default Address',
-              addressAr:    'العنوان الافتراضي',
-              phone:        phone,
-              type:         'regular',
-            }
-          }
-        })
       },
       include: { subscription: true },
     });

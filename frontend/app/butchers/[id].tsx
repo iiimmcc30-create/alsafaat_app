@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
 import { rtlBackIcon } from '@/lib/rtl';
-import { countries } from '@/services/types';
+import { countries, Country } from '@/services/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
 import {
@@ -545,7 +545,7 @@ export default function ButcherProfileScreen() {
 
   const stories = storiesList.filter((s) => s.butcherId === butcher.id);
   const currency = gccCurrencies[butcher.country as Country] || gccCurrencies['SA'];
-  const country = countries[butcher.country as 'SA' | 'AE' | 'KW' | 'QA' | 'BH' | 'OM'] || countries['SA'];
+  const country = countries[butcher.country as Country] || countries['SA'];
 
   const handleOrder = (product: ButcherProduct) => {
     router.push({

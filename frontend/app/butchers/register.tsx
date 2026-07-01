@@ -432,7 +432,8 @@ function StepSubscription({
 }) {
   const currency = gccCurrencies[country] ?? gccCurrencies['SA'];
   const PRICE_MAP: Record<Country, number> = {
-    SA: 299, AE: 309, KW: 89, QA: 309, BH: 109, OM: 109,
+    SA: 299,
+    EG: 999,
   };
   const price = PRICE_MAP[country] ?? 299;
 

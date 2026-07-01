@@ -2,21 +2,11 @@ import { Country } from '@/services/types';
 
 export const GCC_MAP_POSITION: Record<Country, { x: number; y: number }> = {
   SA: { x: 44, y: 48 },
-  AE: { x: 52, y: 38 },
-  KW: { x: 42, y: 32 },
-  QA: { x: 50, y: 42 },
-  BH: { x: 46, y: 40 },
-  OM: { x: 56, y: 50 },
   EG: { x: 38, y: 28 },
 };
 
 export const COUNTRY_MAP_CENTER: Record<Country, { lat: number; lng: number; delta: number }> = {
   SA: { lat: 24.7136, lng: 46.6753, delta: 0.35 },
-  AE: { lat: 25.2048, lng: 55.2708, delta: 0.35 },
-  KW: { lat: 29.3759, lng: 47.9774, delta: 0.25 },
-  QA: { lat: 25.2854, lng: 51.5310, delta: 0.25 },
-  BH: { lat: 26.0667, lng: 50.5577, delta: 0.15 },
-  OM: { lat: 23.5880, lng: 58.3829, delta: 0.45 },
   EG: { lat: 30.0444, lng: 31.2357, delta: 0.45 },
 };
 
