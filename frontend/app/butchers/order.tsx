@@ -111,7 +111,7 @@ export default function ButcherOrderScreen() {
             تعذر العثور على بيانات الملحمة المطلوبة.
           </Text>
           <Pressable style={{ marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.bgSurface, borderRadius: radius.md }} onPress={() => router.back()}>
-            <Text style={{ color: colors.electricBright }}>رجوع</Text>
+            <Text style={{ color: colors.textBrandStrong }}>رجوع</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -464,7 +464,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
-  headerSub: { ...typography.caption, color: colors.glow, marginTop: 1 },
+  headerSub: { ...typography.caption, color: colors.textBrand, marginTop: 1 },
 
   butcherCard: {
     flexDirection: 'row',
@@ -578,7 +578,7 @@ const s = StyleSheet.create({
   },
   deliveryOptionActive: { borderColor: colors.electric, backgroundColor: colors.electric + '11' },
   deliveryLabel: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
-  deliveryLabelActive: { color: colors.electricBright, fontWeight: '600' },
+  deliveryLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
   addressInput: {
     marginTop: spacing.md,
     backgroundColor: colors.bgSurface,

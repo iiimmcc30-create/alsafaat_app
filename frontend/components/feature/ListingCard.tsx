@@ -3,14 +3,18 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, imageCardOverlay, imageCardOverlayStrong, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { inlineEnd, inlineStart, rtlDirection, rtlRow } from '@/lib/rtl';
 import { Listing, countries } from '@/services/types';
+import { UserProfileLink } from '@/components/feature/UserProfileLink';
 
 interface ListingCardProps {
   listing: Listing;
   onPress?: () => void;
   variant?: 'grid' | 'feature' | 'profile';
+  compact?: boolean;
 }
 
 const CATEGORY_ICONS: Record<Listing['category'], string> = {
@@ -29,9 +33,13 @@ function listingImageUri(listing: Listing): string | undefined {
   return first && first.trim().length > 0 ? first : undefined;
 }
 
-export function ListingCard({ listing, onPress, variant = 'grid' }: ListingCardProps) {
+export function ListingCard({ listing, onPress, variant = 'grid', compact = false }: ListingCardProps) {
   const country = countries[listing.country];
   const thumbUri = listingImageUri(listing);
+  const { scheme } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
+  const cardOverlay = imageCardOverlay(scheme);
+  const cardOverlayStrong = imageCardOverlayStrong(scheme);
 
   if (variant === 'profile') {
     return (
@@ -47,7 +55,7 @@ export function ListingCard({ listing, onPress, variant = 'grid' }: ListingCardP
           </View>
         )}
         <LinearGradient
-          colors={['transparent', 'rgba(6,9,26,0.92)']}
+          colors={cardOverlay}
           style={styles.profileOverlay}
         />
         <View style={styles.profileInfo}>
@@ -69,28 +77,37 @@ export function ListingCard({ listing, onPress, variant = 'grid' }: ListingCardP
     return (
       <Pressable
         onPress={onPress}
-        style={({ pressed }) => [styles.feature, rtlDirection, pressed && styles.pressed]}
+        style={({ pressed }) => [
+          styles.feature,
+          compact && styles.featureCompact,
+          rtlDirection,
+          pressed && styles.pressed,
+        ]}
       >
         <Image source={thumbUri ? { uri: thumbUri } : undefined} style={styles.featureImg} contentFit="cover" transition={250} />
         <LinearGradient
-          colors={['transparent', 'rgba(6,9,26,0.95)']}
+          colors={cardOverlayStrong}
           style={StyleSheet.absoluteFill}
         />
         {listing.featured ? (
-          <View style={[styles.featuredBadge, inlineStart(spacing.lg), { top: spacing.lg }]}>
+          <View style={[styles.featuredBadge, inlineStart(spacing.lg), { top: compact ? spacing.md : spacing.lg }]}>
             <Ionicons name="star" size={12} color="#1A1300" />
             <Text style={styles.featuredText}>مميز</Text>
           </View>
         ) : null}
-        <View style={styles.featureContent}>
-          <Text style={styles.featureTitle} numberOfLines={2}>{listing.arabicTitle}</Text>
+        <View style={[styles.featureContent, compact && styles.featureContentCompact]}>
+          <Text style={[styles.featureTitle, compact && styles.featureTitleCompact]} numberOfLines={2}>
+            {listing.arabicTitle}
+          </Text>
           <View style={[styles.row, rtlRow]}>
-            <Text style={styles.featurePrice}>
+            <Text style={[styles.featurePrice, compact && styles.featurePriceCompact]}>
               {listing.price.toLocaleString('ar-SA')} {listing.currency}
             </Text>
             <View style={styles.locationPill}>
               <Text style={styles.flag}>{country.flag}</Text>
-              <Text style={styles.locationText}>{listing.arabicLocation}</Text>
+              <Text style={[styles.locationText, compact && styles.locationTextCompact]} numberOfLines={1}>
+                {listing.arabicLocation}
+              </Text>
             </View>
           </View>
         </View>
@@ -130,19 +147,20 @@ export function ListingCard({ listing, onPress, variant = 'grid' }: ListingCardP
           <Text style={styles.price}>{listing.price.toLocaleString('ar-SA')}</Text>
           <Text style={styles.currency}>{listing.currency}</Text>
         </View>
-        <View style={[styles.sellerRow, rtlRow]}>
+        <UserProfileLink userId={listing.seller.id} style={[styles.sellerRow, rtlRow]}>
           <Image source={uriSource(listing.seller.avatar)} style={styles.sellerAvatar} />
           <Text style={styles.sellerName} numberOfLines={1}>{listing.seller.arabicName}</Text>
           {listing.seller.verified ? (
             <Ionicons name="shield-checkmark" size={12} color={colors.electricBright} />
           ) : null}
-        </View>
+        </UserProfileLink>
       </View>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   pressed: {
     opacity: 0.85,
     transform: [{ scale: 0.98 }],
@@ -214,6 +232,12 @@ const styles = StyleSheet.create({
     borderColor: colors.borderMid,
     backgroundColor: colors.bgSurface,
   },
+  featureCompact: {
+    width: 248,
+    height: 268,
+    borderRadius: radius.xl,
+    marginEnd: spacing.md,
+  },
   featureImg: {
     width: '100%',
     height: '100%',
@@ -225,20 +249,31 @@ const styles = StyleSheet.create({
     right: 0,
     padding: spacing.lg,
   },
+  featureContentCompact: {
+    padding: spacing.md,
+  },
   featureTitle: {
     ...typography.h2,
     color: '#fff',
     marginBottom: 2,
   },
+  featureTitleCompact: {
+    ...typography.h3,
+    marginBottom: 0,
+  },
   featureArabic: {
     ...typography.caption,
-    color: colors.glow,
+    color: colors.textBrand,
     marginBottom: spacing.md,
     textAlign: 'right',
   },
   featurePrice: {
     ...typography.h3,
     color: colors.gold,
+  },
+  featurePriceCompact: {
+    ...typography.bodyStrong,
+    fontSize: 14,
   },
   featuredBadge: {
     position: 'absolute',
@@ -258,7 +293,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(6,9,26,0.5)',
+    backgroundColor: colors.bgOverlay,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: radius.pill,
@@ -268,6 +303,10 @@ const styles = StyleSheet.create({
   locationText: {
     ...typography.caption,
     color: '#fff',
+  },
+  locationTextCompact: {
+    fontSize: 11,
+    maxWidth: 88,
   },
   row: {
     ...rtlRow,
@@ -315,7 +354,7 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: 'rgba(6,9,26,0.7)',
+    backgroundColor: colors.bgOverlay,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -380,6 +419,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     flex: 1,
   },
-});
+  });
+}
 
 export default ListingCard;

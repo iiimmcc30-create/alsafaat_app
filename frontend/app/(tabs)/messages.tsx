@@ -3,17 +3,22 @@
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native';
-import { colors } from '@/constants/theme';
+import { type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { MessagesPanel } from '@/components/feature/MessagesPanel';
 
 export default function MessagesScreen() {
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <MessagesPanel variant="standalone" />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgDeep },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.bgDeep },
+  });
+}

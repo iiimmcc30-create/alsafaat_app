@@ -4,8 +4,8 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { withAuth, withOptionalAuth, apiResponse, apiError, AuthedRequest } from '@/middleware/auth';
 import { apiRateLimit } from '@/middleware/rateLimiter';
-import { addNotification } from '@/lib/queue';
 import { cacheDel, CacheKeys } from '@/lib/redis';
+import { notifyUser } from '@/lib/notifications';
 
 const createSchema = z.object({
   content: z.string().min(1).max(500).trim(),
@@ -77,7 +77,7 @@ async function createComment(req: AuthedRequest, res: NextApiResponse) {
   });
 
   if (post.authorId !== req.user.userId) {
-    addNotification({
+    void notifyUser({
       userId:  post.authorId,
       type:    'comment',
       titleAr: 'تعليق جديد',

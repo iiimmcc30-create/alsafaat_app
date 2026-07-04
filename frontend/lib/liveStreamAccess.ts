@@ -5,6 +5,8 @@ import { API_BASE } from '@/services/api';
 export type LiveStreamEligibility = {
   canStream: boolean;
   listingsCount: number;
+  reason?: string;
+  messageAr?: string;
 };
 
 export async function fetchLiveStreamEligibility(
@@ -23,8 +25,16 @@ export async function fetchLiveStreamEligibility(
       return {
         canStream: Boolean(json.data.canStream),
         listingsCount: json.data.listingsCount ?? 0,
+        reason: json.data.reason,
+        messageAr: json.data.messageAr ?? json.messageAr,
       };
     }
+    return {
+      canStream: false,
+      listingsCount: 0,
+      reason: json.data?.reason ?? json.error,
+      messageAr: json.data?.messageAr ?? json.messageAr,
+    };
   } catch {
     // fall through
   }
@@ -43,6 +53,40 @@ export function showListingRequiredAlert(router: Router) {
   );
 }
 
+export function showLiveStreamEligibilityDeniedAlert(
+  router: Router,
+  eligibility: Pick<LiveStreamEligibility, 'reason' | 'messageAr'> & { listingsCount?: number },
+) {
+  switch (eligibility.reason) {
+    case 'listing_required':
+      showListingRequiredAlert(router);
+      return;
+
+    case 'plan_required':
+      Alert.alert(
+        'البث المباشر غير متاح',
+        'البث المباشر متاح فقط للمشتركين في الباقات المدفوعة.\nقم بترقية اشتراكك لبدء البث.',
+        [
+          { text: 'إلغاء', style: 'cancel' },
+          { text: 'عرض الباقات', onPress: () => router.push('/subscription' as never) },
+        ],
+      );
+      return;
+
+    case 'weekly_limit':
+    case 'live_minutes_limit':
+      Alert.alert('البث المباشر غير متاح', eligibility.messageAr ?? 'لقد استنفدت حصة البث الأسبوعية.');
+      return;
+
+    default:
+      if (eligibility.listingsCount === 0) {
+        showListingRequiredAlert(router);
+        return;
+      }
+      Alert.alert('البث المباشر غير متاح', eligibility.messageAr ?? 'تعذّر التحقق من أهلية البث. حاول مرة أخرى.');
+  }
+}
+
 export async function openLiveCreateIfAllowed(
   router: Router,
   accessToken: string | null,
@@ -53,9 +97,9 @@ export async function openLiveCreateIfAllowed(
     return false;
   }
 
-  const { canStream } = await fetchLiveStreamEligibility(accessToken);
-  if (!canStream) {
-    showListingRequiredAlert(router);
+  const eligibility = await fetchLiveStreamEligibility(accessToken);
+  if (!eligibility.canStream) {
+    showLiveStreamEligibilityDeniedAlert(router, eligibility);
     return false;
   }
 

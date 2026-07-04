@@ -16,9 +16,12 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { STORY_SLIDE_DURATION_SEC } from '@/constants/stories';
 import { Story } from '@/services/types';
+import { UserProfileLink } from '@/components/feature/UserProfileLink';
 
 interface StoriesBarProps {
   stories: Story[];
@@ -39,6 +42,8 @@ interface StoryViewerProps {
 }
 
 function StoryViewer({ stories, startIndex, currentUserId, onClose, onSeen, onDeleteStory }: StoryViewerProps) {
+  const { colors } = useTheme();
+  const sv = useThemedStyles(({ colors }) => createViewerStyles(colors));
   const insets = useSafeAreaInsets();
   const [current, setCurrent] = useState(startIndex);
   const [deleting, setDeleting] = useState(false);
@@ -122,11 +127,13 @@ function StoryViewer({ stories, startIndex, currentUserId, onClose, onSeen, onDe
 
         {/* Header */}
         <View style={[sv.header, { top: insets.top + 24 }]}>
-          <Image source={{ uri: story.user.avatar }} style={sv.avatar} contentFit="cover" />
-          <View style={{ flex: 1 }}>
-            <Text style={sv.username}>{story.user.displayName}</Text>
-            <Text style={sv.arabicName}>{story.user.arabicName}</Text>
-          </View>
+          <UserProfileLink userId={story.user.id} style={sv.headerProfile}>
+            <Image source={{ uri: story.user.avatar }} style={sv.avatar} contentFit="cover" />
+            <View style={{ flex: 1 }}>
+              <Text style={sv.username}>{story.user.displayName}</Text>
+              <Text style={sv.arabicName}>{story.user.arabicName}</Text>
+            </View>
+          </UserProfileLink>
           {story.isLive ? (
             <View style={sv.liveBadge}>
               <View style={sv.liveDot} />
@@ -166,6 +173,7 @@ function StoryViewer({ stories, startIndex, currentUserId, onClose, onSeen, onDe
 }
 
 export function StoriesBar({ stories, myAvatar, currentUserId, onAddStory, onMarkSeen, onDeleteStory }: StoriesBarProps) {
+  const styles = useThemedStyles(({ colors }) => createBarStyles(colors));
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   const openStory = (idx: number) => setViewerIndex(idx);
@@ -237,7 +245,8 @@ export function StoriesBar({ stories, myAvatar, currentUserId, onAddStory, onMar
 
 const CIRCLE = 64;
 
-const styles = StyleSheet.create({
+function createBarStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: {
     flexShrink: 0,
   },
@@ -341,9 +350,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: CIRCLE,
   },
-});
+  });
+}
 
-const sv = StyleSheet.create({
+function createViewerStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
@@ -378,6 +389,12 @@ const sv = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     zIndex: 10,
+  },
+  headerProfile: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   avatar: {
     width: 40,
@@ -456,4 +473,5 @@ const sv = StyleSheet.create({
     ...typography.bodyStrong,
     color: '#fff',
   },
-});
+  });
+}

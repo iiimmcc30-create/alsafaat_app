@@ -5,8 +5,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import crypto from 'crypto';
 import prisma from '@/lib/prisma';
-import { addNotification } from '@/lib/queue';
 import { logger } from '@/lib/logger';
+import { notifyUser } from '@/lib/notifications';
 
 // ── التحقق من توقيع NI ───────────────────────────────────────────────────────
 // NI ترسل رأس: x-signature مع HMAC-SHA256 على الـ body الخام
@@ -209,7 +209,7 @@ async function processNIWebhook(event: any) {
     });
 
     if (processed) {
-      await addNotification({
+      await notifyUser({
         userId,
         type:    'system',
         titleAr: '✅ تم الدفع بنجاح',
@@ -226,7 +226,7 @@ async function processNIWebhook(event: any) {
       data:  { status: 'failed' },
     });
 
-    await addNotification({
+    await notifyUser({
       userId,
       type:    'system',
       titleAr: '❌ فشل الدفع',

@@ -2,7 +2,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, spacing, typography } from '@/constants/theme';
+import { spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { rtlDirection, rtlBackIcon, rtlRow } from '@/lib/rtl';
 
 interface ScreenHeaderProps {
@@ -25,6 +26,10 @@ export function ScreenHeader({
   onSidebar,
 }: ScreenHeaderProps) {
   const router = useRouter();
+  const { styles, colors } = useThemedStyles((theme) => ({
+    styles: createStyles(theme.colors),
+    colors: theme.colors,
+  }));
 
   return (
     <View style={[styles.container, rtlDirection]}>
@@ -56,41 +61,43 @@ export function ScreenHeader({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    ...rtlRow,
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.bgDeep,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSoft,
-  },
-  side: {
-    width: 40,
-  },
-  titleWrap: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  title: {
-    ...typography.h3,
-    color: colors.textPrimary,
-  },
-  arabic: {
-    ...typography.micro,
-    color: colors.glow,
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bgGlass,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      ...rtlRow,
+      alignItems: 'center',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      backgroundColor: colors.bgDeep,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderSoft,
+    },
+    side: {
+      width: 40,
+    },
+    titleWrap: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    title: {
+      ...typography.h3,
+      color: colors.textPrimary,
+    },
+    arabic: {
+      ...typography.micro,
+      color: colors.textBrand,
+    },
+    iconBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.bgGlass,
+      borderWidth: 1,
+      borderColor: colors.borderSoft,
+    },
+  });
+}
 
 export default ScreenHeader;

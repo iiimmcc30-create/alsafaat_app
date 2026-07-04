@@ -14,16 +14,21 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
 import { openLiveCreateIfAllowed } from '@/lib/liveStreamAccess';
 import { LiveStreamItem } from '@/components/feature/LiveStreamItem';
+import { UserProfileLink } from '@/components/feature/UserProfileLink';
 
 const LIVE_CATEGORIES = ['الكل', 'إبل', 'خيول', 'أغنام', 'صقور', 'معز'];
 
 export default function LiveScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { accessToken } = useAuth();
@@ -120,13 +125,13 @@ export default function LiveScreen() {
               <Text style={styles.liveTagText}>LIVE</Text>
             </View>
             <View style={styles.featuredContent}>
-              <View style={styles.hostRow}>
+              <UserProfileLink userId={filtered[0].host?.id} style={styles.hostRow}>
                 <Image source={filtered[0].host?.avatar ? { uri: filtered[0].host.avatar } : undefined} style={styles.hostAvatar} contentFit="cover" />
                 <View>
                   <Text style={styles.hostName}>{filtered[0].host?.arabicName || 'مستخدم صفاة'}</Text>
                   <Text style={styles.hostHandle}>@{filtered[0].host?.username || 'user'}</Text>
                 </View>
-              </View>
+              </UserProfileLink>
               <Text style={styles.featuredTitle} numberOfLines={2}>{filtered[0].arabicTitle}</Text>
               <View style={styles.statsRow}>
                 <View style={styles.stat}>
@@ -175,7 +180,8 @@ export default function LiveScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -256,4 +262,5 @@ const styles = StyleSheet.create({
   },
   fabDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
   fabText: { ...typography.bodyStrong, color: '#fff', fontSize: 13 },
-});
+  });
+}

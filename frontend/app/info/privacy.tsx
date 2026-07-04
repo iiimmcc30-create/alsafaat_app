@@ -5,7 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
 
 const SECTIONS = [
@@ -40,6 +42,8 @@ const SECTIONS = [
 ];
 
 export default function PrivacyScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
 
   return (
@@ -87,7 +91,8 @@ export default function PrivacyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -113,10 +118,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingVertical: spacing.lg,
     borderBottomWidth: 1, borderBottomColor: colors.borderSoft,
   },
-  sectionTitle: { ...typography.bodyStrong, color: colors.electricBright, marginBottom: spacing.sm, textAlign: 'right' },
+  sectionTitle: { ...typography.bodyStrong, color: colors.textBrandStrong, marginBottom: spacing.sm, textAlign: 'right' },
   sectionContent: { ...typography.body, color: colors.textSecondary, lineHeight: 26, textAlign: 'right' },
   contactSection: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.sm },
   contactRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
-  contactLink: { ...typography.body, color: colors.electricBright },
+  contactLink: { ...typography.body, color: colors.textBrandStrong },
   footer: { ...typography.micro, color: colors.textSubtle, textAlign: 'center', marginTop: spacing.xl, paddingHorizontal: spacing.lg },
-});
+  });
+}

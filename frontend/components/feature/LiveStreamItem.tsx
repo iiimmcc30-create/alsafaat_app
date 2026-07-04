@@ -4,21 +4,25 @@ import { Image } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { inlineEnd, inlineStart, marginStart, rtlRow } from '@/lib/rtl';
 import { LiveStream } from '@/services/types';
+import { UserProfileLink } from '@/components/feature/UserProfileLink';
 
 interface LiveStreamItemProps {
   stream: LiveStream;
   height: number;
-  onOpenProfile?: () => void;
   onComment?: () => void;
   onShare?: () => void;
 }
 
-export function LiveStreamItem({ stream, height, onOpenProfile, onComment, onShare }: LiveStreamItemProps) {
+export function LiveStreamItem({ stream, height, onComment, onShare }: LiveStreamItemProps) {
   const [following, setFollowing] = useState(false);
   const { width } = useWindowDimensions();
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const commentCount = stream.comments?.length ?? 0;
 
   return (
@@ -56,7 +60,7 @@ export function LiveStreamItem({ stream, height, onOpenProfile, onComment, onSha
 
       {/* Right side actions */}
       <View style={styles.actionsCol}>
-        <Pressable onPress={onOpenProfile} style={styles.avatarWrap}>
+        <UserProfileLink userId={stream.host.id} style={styles.avatarWrap}>
           <Image source={{ uri: stream.host.avatar }} style={styles.avatar} contentFit="cover" />
           <Pressable
             onPress={() => setFollowing((f) => !f)}
@@ -64,7 +68,7 @@ export function LiveStreamItem({ stream, height, onOpenProfile, onComment, onSha
           >
             <Ionicons name={following ? 'checkmark' : 'add'} size={14} color="#fff" />
           </Pressable>
-        </Pressable>
+        </UserProfileLink>
 
         <Pressable style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
           <Ionicons name="heart-outline" size={32} color="#fff" />
@@ -90,12 +94,12 @@ export function LiveStreamItem({ stream, height, onOpenProfile, onComment, onSha
       {/* Bottom: host info & comments */}
       <View style={styles.bottom}>
         <View style={styles.hostRow}>
-          <Pressable onPress={onOpenProfile} style={styles.hostInfo}>
+          <UserProfileLink userId={stream.host.id} style={styles.hostInfo}>
             <Text style={styles.hostName}>{stream.host.arabicName}</Text>
             {stream.host.verified ? (
               <Ionicons name="checkmark-circle" size={16} color={colors.electricBright} style={marginStart(4)} />
             ) : null}
-          </Pressable>
+          </UserProfileLink>
           <View style={styles.topicPill}>
             <MaterialCommunityIcons name="broadcast" size={12} color={colors.glow} />
             <Text style={styles.topicText}>{stream.topic}</Text>
@@ -120,7 +124,8 @@ export function LiveStreamItem({ stream, height, onOpenProfile, onComment, onSha
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: {
     backgroundColor: colors.bgDeep,
     overflow: 'hidden',
@@ -177,7 +182,7 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     ...typography.caption,
-    color: colors.glow,
+    color: colors.textBrand,
   },
   actionsCol: {
     position: 'absolute',
@@ -258,7 +263,7 @@ const styles = StyleSheet.create({
   },
   topicText: {
     ...typography.micro,
-    color: colors.glow,
+    color: colors.textBrand,
   },
   streamTitle: {
     ...typography.h3,
@@ -299,12 +304,13 @@ const styles = StyleSheet.create({
   },
   commentUser: {
     ...typography.micro,
-    color: colors.glow,
+    color: colors.textBrand,
   },
   commentMsg: {
     ...typography.caption,
     color: '#fff',
   },
-});
+  });
+}
 
 export default LiveStreamItem;

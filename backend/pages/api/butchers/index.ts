@@ -1,28 +1,11 @@
 // pages/api/butchers/index.ts
 import { NextApiRequest, NextApiResponse } from 'next';
-import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { withAuth, withOptionalAuth, apiResponse, apiError, AuthedRequest } from '@/middleware/auth';
 import { apiRateLimit } from '@/middleware/rateLimiter';
-import { cacheGet, cacheSet, cacheDel } from '@/lib/redis';
-import { logger } from '@/lib/logger';
-import { countrySchema } from '@/lib/countries';
+import { cacheGet, cacheSet } from '@/lib/redis';
 
 const PAGE_SIZE = 20;
-
-const registerSchema = z.object({
-  nameAr:    z.string().min(2).max(100).trim(),
-  nameEn:    z.string().min(2).max(100).trim(),
-  country:   countrySchema,
-  city:      z.string().min(2).max(100).trim(),
-  cityAr:    z.string().min(2).max(100).trim(),
-  address:   z.string().min(5).max(300).trim(),
-  addressAr: z.string().min(5).max(300).trim(),
-  phone:     z.string().regex(/^\+?[0-9]{8,15}$/, 'رقم هاتف غير صالح'),
-  type:      z.enum(['regular','verified']).default('regular'),
-  lat:       z.number().min(-90).max(90),
-  lng:       z.number().min(-180).max(180),
-}).strict();
 
 export const config = { api: { bodyParser: { sizeLimit: '16kb' } } };
 
@@ -90,31 +73,11 @@ async function getButchers(req: NextApiRequest, res: NextApiResponse) {
   return apiResponse(res, result);
 }
 
-async function registerButcher(req: AuthedRequest, res: NextApiResponse) {
-  const existing = await prisma.butcher.findUnique({
-    where:  { userId: req.user.userId },
-    select: { id: true },
-  });
-  if (existing) return apiError(res, 409, 'already_registered', 'لديك ملحمة مسجلة بالفعل');
-
-  const parsed = registerSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return apiError(res, 400, 'validation_error', 'بيانات غير صحيحة', parsed.error.flatten());
-  }
-
-  const butcher = await prisma.butcher.create({
-    data: { ...parsed.data, country: parsed.data.country as any, userId: req.user.userId },
-  });
-
-  // TODO(Migration): remove role assignment after Butcher Application workflow ships (capability-only model).
-  await prisma.user.update({
-    where: { id: req.user.userId },
-    data: { role: 'BUTCHER' },
-  });
-
-  // Invalidate butcher list caches
-  await cacheDel('butchers:v2:*').catch(() => {});
-
-  logger.info({ butcherId: butcher.id, userId: req.user.userId }, 'Butcher registered');
-  return apiResponse(res, butcher, 201);
+async function registerButcher(_req: AuthedRequest, res: NextApiResponse) {
+  return apiError(
+    res,
+    403,
+    'application_required',
+    'يجب تقديم طلب تسجيل ملحمة والحصول على موافقة الإدارة. استخدم بوابة طلبات التسجيل في التطبيق.',
+  );
 }

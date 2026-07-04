@@ -14,12 +14,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { usePlans } from '@/hooks/usePlans';
 import { PLAN_ICONS, PlanId } from '@/services/subscriptionPlans';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon, rtlDirection, rtlRow } from '@/lib/rtl';
 
 type Cycle = 'monthly' | 'yearly';
 
 export default function SubscriptionScreen() {
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const { subscription } = useSubscription();
   const { plans, getPlanById } = usePlans();
@@ -222,7 +226,7 @@ export default function SubscriptionScreen() {
           <MaterialCommunityIcons name="shield-check" size={18} color={colors.success} />
           <Text style={styles.paymentBadgeText}>
             مدفوعات آمنة عبر{' '}
-            <Text style={{ color: colors.glow, fontWeight: '700' }}>Network International</Text>
+            <Text style={{ color: colors.textBrand, fontWeight: '700' }}>Network International</Text>
             {' '}· مدى · فيزا · آبل باي · STC Pay
           </Text>
         </View>
@@ -273,7 +277,8 @@ export default function SubscriptionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bgDeep },
   header: {
     flexDirection: 'row',
@@ -288,7 +293,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.borderSoft,
   },
   headerTitle: { ...typography.h2, color: colors.textPrimary },
-  headerSub: { ...typography.caption, color: colors.glow },
+  headerSub: { ...typography.caption, color: colors.textBrand },
 
   toggleRow: {
     flexDirection: 'row',
@@ -381,7 +386,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.success + '66',
   },
-  currentText: { fontSize: 10, fontWeight: '700', color: colors.success },
+  currentText: { fontSize: 10, fontWeight: '700', color: colors.textBrandSuccess },
 
   priceBlock: { alignItems: 'flex-end', minWidth: 70 },
   priceFree: { ...typography.h3, color: colors.textMuted },
@@ -455,4 +460,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   ctaSecondaryText: { ...typography.bodyStrong, color: colors.textMuted },
-});
+  });
+}

@@ -5,8 +5,8 @@ import prisma from '@/lib/prisma';
 import { withAuth, apiResponse, apiError, AuthedRequest } from '@/middleware/auth';
 import { apiRateLimit } from '@/middleware/rateLimiter';
 import { cacheDel } from '@/lib/redis';
-import { addNotification } from '@/lib/queue';
 import { logger } from '@/lib/logger';
+import { notifyUser } from '@/lib/notifications';
 
 export const config = { api: { bodyParser: { sizeLimit: '4kb' } } };
 
@@ -56,17 +56,13 @@ async function toggleFollow(req: AuthedRequest, res: NextApiResponse) {
       select: { arabicName: true, avatar: true },
     });
 
-    try {
-      await addNotification({
-        userId: targetId,
-        type: 'follow',
-        titleAr: 'متابع جديد',
-        bodyAr: `${follower?.arabicName || 'مستخدم'} بدأ متابعتك`,
-        data: { actorId: followerId, actorAvatar: follower?.avatar },
-      });
-    } catch {
-      // Non-critical — don't fail the follow action
-    }
+    void notifyUser({
+      userId: targetId,
+      type: 'follow',
+      titleAr: 'متابع جديد',
+      bodyAr: `${follower?.arabicName || 'مستخدم'} بدأ متابعتك`,
+      data: { actorId: followerId, actorAvatar: follower?.avatar },
+    });
 
     await cacheDel(`user:${targetId}`);
     logger.info({ followerId, targetId }, 'User followed');

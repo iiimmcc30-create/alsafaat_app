@@ -9,6 +9,7 @@ import {
   ButcherProfile,
   ButcherStory,
   Country,
+  mapButcherFromApi,
   rankButchers,
 } from '@/services/butcherData';
 
@@ -53,41 +54,12 @@ export function useButcher() {
         ]);
         if (resB.ok) {
           const json = await resB.json();
-          if (json.success && Array.isArray(json.data)) {
-            const mapped = json.data.map((b: any) => ({
-              id: b.id,
-              name: b.nameEn || b.nameAr || '',
-              nameAr: b.nameAr || '',
-              logo: b.logo || undefined,
-              cover: b.cover || undefined,
-              type: b.type || 'regular',
-              country: b.country || 'SA',
-              city: b.city || '',
-              cityAr: b.cityAr || '',
-              address: b.address || '',
-              addressAr: b.addressAr || '',
-              lat: b.lat || 0,
-              lng: b.lng || 0,
-              phone: b.phone || '',
-              rating: b.rating ?? 5.0,
-              reviewCount: b.reviewCount ?? 0,
-              orderCompletionRate: b.orderCompletionRate ?? 100,
-              workingHours: {
-                open: b.openTime || '08:00',
-                close: b.closeTime || '22:00',
-                isOpen: b.isOpen ?? true,
-              },
-              bio: b.bioEn || '',
-              bioAr: b.bioAr || '',
-              specialties: b.specialties || [],
-              subscriptionActive: b.subscriptionActive ?? false,
-              subscriptionExpiry: b.subscriptionExpiry,
-              commercialReg: b.commercialReg,
-              activityScore: b.activityScore ?? 100,
-              totalOrders: b.totalOrders ?? 0,
-              joinedAt: b.createdAt,
-            }));
-            setButchers(mapped);
+          const rawButchers = Array.isArray(json.data)
+            ? json.data
+            : json.data?.butchers;
+
+          if (json.success && Array.isArray(rawButchers)) {
+            setButchers(rawButchers.map((b: Record<string, unknown>) => mapButcherFromApi(b)));
           }
         }
         if (resS.ok) {

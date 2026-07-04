@@ -1,24 +1,28 @@
 const { spawn, execFile } = require('child_process');
 const path = require('path');
-const net = require('net');
 const { networkInterfaces } = require('os');
 
 const API_PORT = 3001;
 const SOCKET_PORT = 3002;
-const EXPO_PORTS = [8081, 8082, 8083];
 const EXPO_PORT = process.env.EXPO_PORT || '8081';
-const ADB_TIMEOUT_MS = 20000;
-const RETRY_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 2000;
+const ADB_TIMEOUT_MS = 45000;
 
-const ADB =
-  process.env.ANDROID_HOME
-    ? path.join(process.env.ANDROID_HOME, 'platform-tools', process.platform === 'win32' ? 'adb.exe' : 'adb')
-    : 'adb';
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function resolveAdbPath() {
+  if (process.env.ANDROID_HOME) {
+    return path.join(
+      process.env.ANDROID_HOME,
+      'platform-tools',
+      process.platform === 'win32' ? 'adb.exe' : 'adb',
+    );
+  }
+  if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
+    const winSdk = path.join(process.env.LOCALAPPDATA, 'Android', 'Sdk', 'platform-tools', 'adb.exe');
+    if (require('fs').existsSync(winSdk)) return winSdk;
+  }
+  return 'adb';
 }
+
+const ADB = resolveAdbPath();
 
 function runAdb(args, { allowFailure = false } = {}) {
   return new Promise((resolve, reject) => {
@@ -52,14 +56,23 @@ function parseDevices(output) {
 }
 
 async function getDeviceState() {
-  const output = await runAdb(['devices']);
-  const devices = parseDevices(output);
-  if (devices.length === 0) return { kind: 'none' };
-  if (devices.some((d) => d.state === 'unauthorized')) return { kind: 'unauthorized' };
-  if (devices.some((d) => d.state === 'offline')) return { kind: 'offline' };
-  const ready = devices.find((d) => d.state === 'device');
-  if (ready) return { kind: 'ready', id: ready.id };
-  return { kind: 'unknown', devices };
+  try {
+    const output = await runAdb(['devices']);
+    const devices = parseDevices(output);
+    if (devices.length === 0) return { kind: 'none' };
+    const unauthorized = devices.filter((d) => d.state === 'unauthorized');
+    if (unauthorized.length > 0) {
+      return { kind: 'unauthorized', ids: unauthorized.map((d) => d.id) };
+    }
+    const ready = devices.filter((d) => d.state === 'device');
+    if (ready.length > 0) {
+      return { kind: 'ready', ids: ready.map((d) => d.id) };
+    }
+    if (devices.some((d) => d.state === 'offline')) return { kind: 'offline' };
+    return { kind: 'unknown', devices };
+  } catch {
+    return { kind: 'unknown', devices: [] };
+  }
 }
 
 function getLanIp() {
@@ -75,8 +88,11 @@ function getLanIp() {
 
 function printUsbHelp(state) {
   if (state.kind === 'unauthorized') {
-    console.error('[start:usb] الموبايل متصل لكن غير مصرّح.');
-    console.error('[start:usb] افتح الموبايل ووافق على "Allow USB debugging" ثم أعد المحاولة.');
+    console.error('[start:usb] موبايل/موبايلين متصلين لكن غير مصرّح.');
+    if (state.ids?.length) {
+      console.error(`[start:usb] الأجهزة: ${state.ids.join(', ')}`);
+    }
+    console.error('[start:usb] افتح كل موبايل ووافق على "Allow USB debugging" ثم أعد المحاولة.');
     return;
   }
   if (state.kind === 'offline') {
@@ -96,71 +112,119 @@ function printLanFallback() {
   console.error(`[start:usb] وتأكد أن EXPO_PUBLIC_API_URL=http://${lanIp}:${API_PORT}`);
 }
 
-async function setupUsbReverse() {
-  await runAdb(['start-server'], { allowFailure: true });
+async function applyUsbReverse(deviceId) {
+  await runAdb(['-s', deviceId, 'reverse', `tcp:${API_PORT}`, `tcp:${API_PORT}`]);
+  await runAdb(['-s', deviceId, 'reverse', `tcp:${SOCKET_PORT}`, `tcp:${SOCKET_PORT}`]);
+  await runAdb(['-s', deviceId, 'reverse', `tcp:${EXPO_PORT}`, `tcp:${EXPO_PORT}`]);
+}
 
-  for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
-    const state = await getDeviceState();
+async function applyUsbReverseAll(deviceIds) {
+  for (const id of deviceIds) {
+    await applyUsbReverse(id);
+  }
+}
 
-    if (state.kind === 'ready') {
-      await runAdb(['reverse', `tcp:${API_PORT}`, `tcp:${API_PORT}`]);
-      await runAdb(['reverse', `tcp:${SOCKET_PORT}`, `tcp:${SOCKET_PORT}`]);
-      for (const port of EXPO_PORTS) {
-        await runAdb(['reverse', `tcp:${port}`, `tcp:${port}`], { allowFailure: true });
-      }
-      console.log(`[start:usb] adb reverse OK (${state.id}) — API :${API_PORT}, socket :${SOCKET_PORT}`);
-      return {
-        apiUrl: `http://127.0.0.1:${API_PORT}`,
-        socketUrl: `http://127.0.0.1:${SOCKET_PORT}`,
-      };
-    }
-
-    if (attempt < RETRY_ATTEMPTS) {
-      console.warn(`[start:usb] محاولة ${attempt}/${RETRY_ATTEMPTS} — في انتظار الموبايل...`);
-      await sleep(RETRY_DELAY_MS);
-    } else {
-      printUsbHelp(state);
-      printLanFallback();
-      throw new Error('no_ready_device');
-    }
+async function setupUsbReverse(state) {
+  if (state.kind === 'ready') {
+    await applyUsbReverseAll(state.ids);
+    const label = state.ids.length === 1 ? state.ids[0] : `${state.ids.length} devices (${state.ids.join(', ')})`;
+    console.log(`[start:usb] adb reverse OK (${label}) — API :${API_PORT}, socket :${SOCKET_PORT}`);
+    return {
+      apiUrl: `http://127.0.0.1:${API_PORT}`,
+      socketUrl: `http://127.0.0.1:${SOCKET_PORT}`,
+      deviceIds: state.ids,
+    };
   }
 
   throw new Error('no_ready_device');
 }
 
-function isPortFree(port) {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once('error', () => resolve(false));
-    server.once('listening', () => server.close(() => resolve(true)));
-    server.listen(port, '127.0.0.1');
-  });
+async function openAppOnAllDevices(deviceIds = []) {
+  if (!deviceIds.length) return;
+
+  for (const id of deviceIds) {
+    console.log(`[start:usb] Opening app on ${id}...`);
+
+    try {
+      await runAdb([
+        '-s',
+        id,
+        'shell',
+        'monkey',
+        '-p',
+        'com.safat.app',
+        '1',
+      ]);
+
+      console.log(`[start:usb] App opened on ${id}`);
+    } catch (e) {
+      console.warn(
+        `[start:usb] Failed on ${id}: ${
+          e instanceof Error ? e.message : e
+        }`,
+      );
+    }
+  }
 }
 
-async function pickExpoPort() {
-  const preferred = Number(process.env.EXPO_PORT) || EXPO_PORTS[0];
-  const candidates = [preferred, ...EXPO_PORTS.filter((p) => p !== preferred)];
-  for (const port of candidates) {
-    if (await isPortFree(port)) return String(port);
+function watchMetroReadyAndOpen(expo, deviceIds) {
+  let opened = false;
+
+  function handle(chunk, stream) {
+    const text = chunk.toString();
+
+    stream.write(chunk);
+
+    if (opened) return;
+
+    if (
+      text.includes('Metro waiting on') ||
+      text.includes('Logs for your project will appear below')
+    ) {
+      opened = true;
+
+      setTimeout(() => {
+        openAppOnAllDevices(deviceIds).catch(console.error);
+      }, 1000);
+    }
   }
-  return String(preferred);
+
+  expo.stdout?.on('data', (c) => handle(c, process.stdout));
+  expo.stderr?.on('data', (c) => handle(c, process.stderr));
 }
 
 async function main() {
-  let urls;
+  let state;
   try {
-    urls = await setupUsbReverse();
-  } catch {
+    state = await getDeviceState();
+  } catch (err) {
+    console.error('[start:usb] adb error:', err instanceof Error ? err.message : err);
     process.exit(1);
   }
 
-  const expoPort = await pickExpoPort();
+  if (state.kind !== 'ready') {
+    printUsbHelp(state);
+    printLanFallback();
+    process.exit(1);
+  }
+
+  let urls;
+  try {
+    urls = await setupUsbReverse(state);
+  } catch (err) {
+    console.error('[start:usb] adb error:', err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
+
+  const expoPort = EXPO_PORT;
+
   console.log('[start:usb] Starting Expo on port', expoPort);
+
   const expo = spawn(
     'npx',
-    ['expo', 'start', '--localhost', '--clear', '--port', expoPort],
+    ['expo', 'start', '--dev-client', '--localhost', '--clear', '--port', expoPort],
     {
-      stdio: 'inherit',
+      stdio: ['inherit', 'pipe', 'pipe'],
       shell: true,
       cwd: path.join(__dirname, '..'),
       env: {
@@ -171,7 +235,59 @@ async function main() {
     },
   );
 
+  watchMetroReadyAndOpen(expo, urls.deviceIds ?? []);
+
   expo.on('exit', (code) => process.exit(code ?? 0));
 }
 
-main();
+/** Best-effort USB reverse (Metro / dev). Does not exit the process on failure. */
+async function trySetupUsbReverse() {
+  if (process.env.SAFAT_USB_REVERSE_DONE === '1') {
+    return {
+      apiUrl: `http://127.0.0.1:${API_PORT}`,
+      socketUrl: `http://127.0.0.1:${SOCKET_PORT}`,
+    };
+  }
+  try {
+    const state = await getDeviceState();
+    return state.kind === 'ready' ? await setupUsbReverse(state) : null;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg !== 'no_ready_device') {
+      console.warn('[usb] adb reverse:', msg);
+    }
+    return null;
+  }
+}
+
+const DEBUG_APK = path.join(__dirname, '..', 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+
+/** Install the debug APK on every connected authorized device. */
+async function installApkOnAllDevices(apkPath = DEBUG_APK) {
+  const fs = require('fs');
+  if (!fs.existsSync(apkPath)) {
+    throw new Error(`APK not found: ${apkPath}`);
+  }
+  const state = await getDeviceState();
+  if (state.kind !== 'ready') {
+    throw new Error('no_ready_device');
+  }
+  for (const id of state.ids) {
+    console.log(`[start:usb] installing APK on ${id}...`);
+    await runAdb(['-s', id, 'install', '-r', '-d', apkPath]);
+  }
+  return state.ids;
+}
+
+module.exports = {
+  setupUsbReverse,
+  trySetupUsbReverse,
+  applyUsbReverse,
+  applyUsbReverseAll,
+  getDeviceState,
+  installApkOnAllDevices,
+};
+
+if (require.main === module) {
+  main();
+}

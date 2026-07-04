@@ -6,7 +6,9 @@ import { Image } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { ButcherProfile, gccCurrencies } from '@/services/butcherData';
 import { countries } from '@/services/types';
 
@@ -19,6 +21,11 @@ interface ButcherCardProps {
 
 export function ButcherCard({ butcher, variant = 'full', onPress }: ButcherCardProps) {
   const router = useRouter();
+  const { colors } = useTheme();
+  const { c, f } = useThemedStyles(({ colors }) => ({
+    c: createCompactStyles(colors),
+    f: createFullStyles(colors),
+  }));
   const currency = gccCurrencies[butcher.country];
   const country = countries[butcher.country];
 
@@ -146,7 +153,8 @@ export function ButcherCard({ butcher, variant = 'full', onPress }: ButcherCardP
 }
 
 // ─── Compact styles ───────────────────────────────────────────────────────────
-const c = StyleSheet.create({
+function createCompactStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -171,10 +179,12 @@ const c = StyleSheet.create({
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textSubtle },
   rating: { ...typography.micro, color: colors.gold, fontWeight: '700' },
   statusDot: { width: 9, height: 9, borderRadius: 5 },
-});
+  });
+}
 
 // ─── Full card styles ─────────────────────────────────────────────────────────
-const f = StyleSheet.create({
+function createFullStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   card: {
     marginBottom: spacing.lg,
     backgroundColor: colors.bgSurface,
@@ -237,7 +247,7 @@ const f = StyleSheet.create({
     backgroundColor: colors.bgElevated,
     borderWidth: 1, borderColor: colors.borderSoft,
   },
-  chipText: { ...typography.micro, color: colors.glow },
+  chipText: { ...typography.micro, color: colors.textBrand },
   statsRow: {
     flexDirection: 'row', alignItems: 'center',
     marginTop: spacing.md, paddingTop: spacing.md,
@@ -248,4 +258,5 @@ const f = StyleSheet.create({
   statText: { ...typography.micro, color: colors.textMuted, flex: 1 },
   statDivider: { width: 1, height: 14, backgroundColor: colors.borderSoft },
   currencyText: { ...typography.micro, color: colors.textMuted },
-});
+  });
+}

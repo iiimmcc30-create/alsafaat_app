@@ -6,8 +6,11 @@ import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 import admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
+import util from 'util';
 import { getRedis } from '@/lib/redis';
 import type { NotificationJob, EmailJob, PushJob, FeeCheckJob } from '@/lib/queue';
+import { persistNotificationAndEnqueuePush } from '@/lib/queue';
+import { notifyUser } from '@/lib/notifications';
 
 // FIX: workers use DB 1 (same as queues) — not DB 0 (app cache)
 const connection = {
@@ -41,10 +44,7 @@ const transporter = nodemailer.createTransport({
 const notificationWorker = new Worker<NotificationJob>(
   'notifications',
   async (job) => {
-    const { userId, type, titleAr, bodyAr, data } = job.data;
-    await prisma.notification.create({
-      data: { userId, type: type as any, titleAr, bodyAr, data: data || {} },
-    });
+    await persistNotificationAndEnqueuePush(job.data);
   },
   { connection, concurrency: 10 }
 );
@@ -103,6 +103,7 @@ const feeCheckWorker = new Worker<FeeCheckJob>(
   'fee-checks',
   async (job) => {
     const { listingFeeId, userId, amount } = job.data;
+    let overdueListingId: string | null = null;
 
     // FIX: atomic transaction — check and update in one operation
     await prisma.$transaction(async (tx) => {
@@ -122,18 +123,24 @@ const feeCheckWorker = new Worker<FeeCheckJob>(
           where: { id: fee.listingId },
           data:  { status: 'pending_fee' },
         });
-        await tx.notification.create({
-          data: {
-            userId,
-            type:    'fee_due',
-            titleAr: 'رسوم متأخرة',
-            bodyAr:  `رسوم إعلانك (${amount} ريال) متأخرة. سيُوقف الإعلان حتى السداد.`,
-            data:    { feeId: listingFeeId, amount: String(amount) },
-          },
-        });
+        overdueListingId = fee.listingId;
         logger.warn({ listingFeeId, userId }, 'Fee marked overdue');
       }
     });
+
+    if (overdueListingId) {
+      await notifyUser({
+        userId,
+        type:    'fee_due',
+        titleAr: 'رسوم متأخرة',
+        bodyAr:  `رسوم إعلانك (${amount} ريال) متأخرة. سيُوقف الإعلان حتى السداد.`,
+        data:    {
+          feeId: listingFeeId,
+          listingId: overdueListingId,
+          amount,
+        },
+      });
+    }
   },
   { connection, concurrency: 5 }
 );
@@ -142,7 +149,16 @@ const feeCheckWorker = new Worker<FeeCheckJob>(
 [notificationWorker, pushWorker, emailWorker, feeCheckWorker].forEach((w) => {
   w.on('completed', (job) => logger.debug({ queue: w.name, jobId: job.id }, 'Job done'));
   w.on('failed', (job, err) => logger.error({ queue: w.name, jobId: job?.id, err: err.message }, 'Job failed'));
-  w.on('error', (err) => logger.error({ queue: w.name, err: err.message }, 'Worker error'));
+  w.on('error', (error) => {
+    const diagnosticError = error as any;
+    console.error({ queue: w.name, event: 'worker error' });
+    console.error(error);
+    console.error(diagnosticError?.stack);
+    console.error(util.inspect(error, { depth: null }));
+    console.error(typeof error);
+    console.error(diagnosticError?.constructor?.name);
+    console.error(Object.keys(diagnosticError ?? {}));
+  });
 });
 
 logger.info('🔧 Workers started');

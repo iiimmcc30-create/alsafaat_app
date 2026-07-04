@@ -26,6 +26,7 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useApp } from '@/hooks/useApp';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
+import { UserProfileLink } from '@/components/feature/UserProfileLink';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -220,7 +221,7 @@ export default function WatchScreen() {
 
             {/* Host info */}
             {stream && (
-              <View style={styles.hostRow}>
+              <UserProfileLink userId={stream.host.id} style={styles.hostRow}>
                 {stream.host.avatar && (
                   <Image source={{ uri: stream.host.avatar }} style={styles.hostAvatar} contentFit="cover" />
                 )}
@@ -228,7 +229,7 @@ export default function WatchScreen() {
                   <Text style={styles.hostName}>{stream.host.arabicName}</Text>
                   <Text style={styles.hostHandle}>@{stream.host.username}</Text>
                 </View>
-              </View>
+              </UserProfileLink>
             )}
 
             {/* Viewer count */}
@@ -260,7 +261,9 @@ export default function WatchScreen() {
           keyExtractor={(c) => c.id}
           renderItem={({ item }) => (
             <View style={[styles.bubble, item.isOffer && styles.offerBubble]}>
-              <Text style={styles.bubbleUser}>{item.arabicName ?? item.username}</Text>
+              <UserProfileLink userId={item.userId} disabled={!item.userId}>
+                <Text style={styles.bubbleUser}>{item.arabicName ?? item.username}</Text>
+              </UserProfileLink>
               {item.isOffer && item.offerAmount && (
                 <Text style={styles.offerAmt}>عرض: {item.offerAmount.toLocaleString('ar-SA')} ر.س</Text>
               )}
@@ -360,7 +363,7 @@ const styles = StyleSheet.create({
     padding: spacing.sm, marginBottom: 6, alignSelf: 'flex-start',
   },
   offerBubble:  { backgroundColor: 'rgba(200,40,40,0.7)', borderWidth: 1, borderColor: colors.liveRed },
-  bubbleUser:   { color: colors.electricBright, fontSize: 11, fontWeight: '700', marginBottom: 2 },
+  bubbleUser:   { color: colors.textBrandStrong, fontSize: 11, fontWeight: '700', marginBottom: 2 },
   offerAmt:     { color: '#FFD700', fontSize: 13, fontWeight: '700' },
   bubbleText:   { color: '#fff', fontSize: 13 },
 

@@ -7,7 +7,9 @@ import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, imageCardOverlayStrong, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlForwardIcon, rtlRow } from '@/lib/rtl';
 import {
   ButcherStory,
@@ -35,6 +37,9 @@ export function ButcherMiniSection({
   showStories = true,
 }: ButcherMiniSectionProps) {
   const router = useRouter();
+  const { scheme } = useTheme();
+  const s = useThemedStyles(({ colors }) => createButcherMiniStyles(colors));
+  const cardOverlay = imageCardOverlayStrong(scheme);
   const { filteredButchers, stories, loading } = useButcher();
   const ranked = filteredButchers.slice(0, limit);
 
@@ -110,7 +115,18 @@ export function ButcherMiniSection({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.cardsRow}
       >
-        {ranked.map((butcher) => {
+        {loading && ranked.length === 0 ? (
+          <View style={s.emptyCard}>
+            <Text style={s.emptyText}>جاري تحميل الملاحم...</Text>
+          </View>
+        ) : ranked.length === 0 ? (
+          <Pressable style={s.emptyCard} onPress={() => router.push('/butchers')}>
+            <Ionicons name="storefront-outline" size={22} color={colors.electricBright} />
+            <Text style={s.emptyText}>لا توجد ملاحم معروضة حالياً</Text>
+            <Text style={s.emptyLink}>استكشف الملاحم</Text>
+          </Pressable>
+        ) : (
+          ranked.map((butcher) => {
           const currency = gccCurrencies[butcher.country];
           const country = countries[butcher.country];
 
@@ -126,7 +142,7 @@ export function ButcherMiniSection({
               <View style={s.miniCoverWrap}>
                 <Image source={uriSource(butcher.cover)} style={s.miniCover} contentFit="cover" />
                 <LinearGradient
-                  colors={['transparent', 'rgba(6,9,26,0.85)']}
+                  colors={cardOverlay}
                   style={StyleSheet.absoluteFill}
                 />
                 {butcher.subscriptionActive && (
@@ -166,7 +182,8 @@ export function ButcherMiniSection({
               </View>
             </Pressable>
           );
-        })}
+        })
+        )}
       </ScrollView>
     </View>
   );
@@ -174,7 +191,8 @@ export function ButcherMiniSection({
 
 const STORY_SIZE = 54;
 
-const s = StyleSheet.create({
+function createButcherMiniStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   wrapper: { marginVertical: spacing.lg },
 
   header: {
@@ -186,7 +204,7 @@ const s = StyleSheet.create({
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   title: { ...typography.h3, color: colors.textPrimary },
-  subtitle: { ...typography.micro, color: colors.glow, marginTop: 1 },
+  subtitle: { ...typography.micro, color: colors.textBrand, marginTop: 1 },
   seeAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -198,7 +216,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.electricBright + '44',
   },
-  seeAllText: { ...typography.micro, color: colors.electricBright },
+  seeAllText: { ...typography.micro, color: colors.textBrandStrong },
 
   // Stories
   storiesRow: {
@@ -309,4 +327,19 @@ const s = StyleSheet.create({
   miniDivider: { width: 1, height: 10, backgroundColor: colors.borderSoft },
   miniCurrency: { ...typography.micro, color: colors.textMuted },
   miniOrders: { ...typography.micro, color: colors.textMuted, flex: 1 },
-});
+  emptyCard: {
+    minWidth: 220,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.bgSurface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  emptyText: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
+  emptyLink: { ...typography.caption, color: colors.textBrandStrong, fontWeight: '700' },
+  });
+}

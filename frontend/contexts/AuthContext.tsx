@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerAuthFetch } from '@/services/authFetch';
 import { fetchWithTimeout } from '@/services/fetchWithTimeout';
 import { API_BASE } from '@/services/api';
+import { clearPushTokenOnLogout } from '@/lib/notifications';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface AuthUser {
@@ -158,9 +159,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const parsedUser = JSON.parse(userJson);
           setUser(parsedUser);
           if (mode === 'USER' || mode === 'BUTCHER') {
-            setActiveMode(mode);
+            setActiveMode('USER');
           } else if (parsedUser.role === 'BUTCHER') {
-            setActiveMode('BUTCHER');
+            setActiveMode('USER');
           }
           // Validate stored session and pick up rotated refresh tokens
           if (refresh) {
@@ -185,9 +186,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(access);
     setUser(userData);
 
-    const initialMode = userData.role === 'BUTCHER' ? 'BUTCHER' : 'USER';
-    setActiveMode(initialMode);
-    await AsyncStorage.setItem('safat_active_mode', initialMode);
+    setActiveMode('USER');
+    await AsyncStorage.setItem('safat_active_mode', 'USER');
   }, []);
 
   // ── تبديل الوضع ────────────────────────────────────────────────────────────
@@ -300,9 +300,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: true };
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        return { success: false, error: 'انتهت مهلة الاتصال بالخادم' };
+        return {
+          success: false,
+          error: __DEV__
+            ? `انتهت مهلة الاتصال بالخادم (${API_BASE}). تأكدي أن الباك إند شغال (npm run dev:all) وعلى USB استخدمي npm run android:usb`
+            : 'انتهت مهلة الاتصال بالخادم',
+        };
       }
-      return { success: false, error: 'تعذّر الاتصال بالخادم' };
+      return {
+        success: false,
+        error: __DEV__
+          ? `تعذّر الاتصال بالخادم (${API_BASE})`
+          : 'تعذّر الاتصال بالخادم',
+      };
     }
   }, [saveSession]);
 
@@ -352,6 +362,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     try {
       const refresh = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+      if (user?.id && accessToken) {
+        await clearPushTokenOnLogout(user.id, accessToken);
+      }
       if (refresh && accessToken) {
         fetch(`${API_BASE}/api/auth/logout`, {
           method:  'POST',
@@ -362,7 +375,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       await clearSession();
     }
-  }, [accessToken, clearSession]);
+  }, [accessToken, clearSession, user?.id]);
 
   return (
     <AuthContext.Provider value={{

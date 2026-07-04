@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   },
   coordsText: {
     ...typography.caption,
-    color: colors.success,
+    color: colors.textBrandSuccess,
     textAlign: 'right',
   },
   hint: { ...typography.caption, color: colors.textMuted, textAlign: 'right' },

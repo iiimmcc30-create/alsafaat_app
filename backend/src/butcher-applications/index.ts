@@ -12,7 +12,6 @@ export {
   assertNotModified,
   assertUserHasNoButcher,
   assertApplicationOwner,
-  assertDraftStatus,
 } from './helpers/transaction';
 
 export {
@@ -20,15 +19,21 @@ export {
   assertTransition,
   timelineActionForTransition,
   assertEditableStatus,
-  assertSubmittedStatus,
-  assertWithdrawableStatus,
-  assertRejectableStatus,
-  assertApprovableStatus,
-  assertSubmittableStatus,
-  getAllowedTransitionsFrom,
 } from './helpers/stateTransitions';
 
-export { appendTimelineEvent, appendTimelineEvents } from './helpers/timeline';
+export { appendTimelineEvent } from './helpers/timeline';
+export type { TimelineEventWithActor } from './helpers/timeline';
+
+export { handleButcherApplicationError } from './helpers/httpError';
+
+export {
+  assertValidHhMm,
+  validateSnapshotFormat,
+  validatePersistedSnapshotTimes,
+  isSupportedCountry,
+  SUPPORTED_COUNTRIES,
+} from './helpers/snapshotValidation';
+export type { SnapshotFormatField } from './helpers/snapshotValidation';
 
 export {
   validateSubmitSnapshot,
@@ -47,11 +52,11 @@ export {
   toTimelineEventDto,
 } from './mappers';
 
+export { findAllAdminUserIds, createButcher } from './repositories/application.repository';
+
 export {
   butcherApplicationUserService,
   ButcherApplicationUserService,
-  userHasButcherProfile,
-  getApplicationIfOwned,
 } from './services/application.service';
 
 export {
@@ -62,4 +67,5 @@ export {
 export {
   butcherApplicationAdminService,
   ButcherApplicationAdminService,
+  buildButcherCreateInput,
 } from './services/admin.service';

@@ -16,7 +16,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, headerFadeGradient, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { useApp } from '@/hooks/useApp';
 import { StoriesBar } from '@/components/feature/StoriesBar';
 import { PostItem } from '@/components/feature/PostItem';
@@ -27,9 +29,13 @@ import { ListingCard } from '@/components/feature/ListingCard';
 import { requireAuth, sharePost, showPostMenu } from '@/lib/postInteractions';
 import { fetchLiveStreamEligibility } from '@/lib/liveStreamAccess';
 import { CreatePostFab } from '@/components/feature/CreatePostFab';
+import { NotificationBellButton } from '@/components/notifications/NotificationBellButton';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { scheme } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createHomeStyles(colors));
+  const headerFade = headerFadeGradient(scheme);
   const { me, posts, listings, likedPosts, repostedPosts, toggleLike, toggleRepost, deletePost, addComment } = useApp();
   const { accessToken, isAuthenticated } = useAuth();
   const [seenStories, setSeenStories] = useState<Set<string>>(new Set());
@@ -106,9 +112,10 @@ export default function HomeScreen() {
     .slice(0, 12);
 
   return (
+    <View style={styles.root}>
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
-      <LinearGradient colors={['rgba(6,9,26,0.98)', 'rgba(6,9,26,0)']} style={styles.headerGradient} pointerEvents="none" />
+      <LinearGradient colors={headerFade} style={styles.headerGradient} pointerEvents="none" />
       <View style={styles.header}>
         <Pressable
           onPress={() => router.push('/sidebar')}
@@ -139,13 +146,7 @@ export default function HomeScreen() {
           >
             <Ionicons name="search" size={22} color={colors.textPrimary} />
           </Pressable>
-          <Pressable
-            style={styles.iconBtn}
-            hitSlop={8}
-            onPress={() => router.push({ pathname: '/(tabs)/profile', params: { tab: 'messages' } })}
-          >
-            <Ionicons name="chatbubble-outline" size={22} color={colors.textPrimary} />
-          </Pressable>
+          <NotificationBellButton />
         </View>
       </View>
 
@@ -208,6 +209,7 @@ export default function HomeScreen() {
                   <ListingCard
                     listing={listing}
                     variant="feature"
+                    compact
                     onPress={() => router.push(`/listing/${listing.id}`)}
                   />
                 </View>
@@ -251,13 +253,16 @@ export default function HomeScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+    </SafeAreaView>
 
       <CreatePostFab />
-    </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
+function createHomeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bgDeep },
   container: { flex: 1, backgroundColor: colors.bgDeep },
   headerGradient: {
     position: 'absolute', top: 0, left: 0, right: 0, height: 100, zIndex: 1,
@@ -307,17 +312,18 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   sectionTitle: { ...typography.h3, color: colors.textPrimary },
-  sectionLink: { ...typography.caption, color: colors.electricBright, fontWeight: '600' },
+  sectionLink: { ...typography.caption, color: colors.textBrandStrong, fontWeight: '600' },
   listingsRow: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
     gap: spacing.md,
   },
-  listingItem: { width: 280 },
+  listingItem: { width: 248 },
   divider: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.md,
   },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.borderSoft },
   dividerText: { ...typography.micro, color: colors.textMuted },
-});
+  });
+}

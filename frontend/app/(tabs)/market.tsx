@@ -15,7 +15,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { rtlDirection, rtlRow } from '@/lib/rtl';
 import { countries, Country } from '@/services/types';
 import { ListingCard } from '@/components/feature/ListingCard';
@@ -36,6 +37,7 @@ const CATEGORIES = [
 
 export default function MarketScreen() {
   const router = useRouter();
+  const styles = useThemedStyles(({ colors }) => createMarketStyles(colors));
   const { listings } = useApp();
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -165,7 +167,8 @@ export default function MarketScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createMarketStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   searchRow: {
     ...rtlRow,
@@ -213,7 +216,7 @@ const styles = StyleSheet.create({
   catChipActive: { backgroundColor: colors.royal, borderColor: colors.electric },
   catIcon: { fontSize: 14 },
   catLabel: { ...typography.caption, color: colors.textMuted },
-  catLabelActive: { color: colors.electricBright },
+  catLabelActive: { color: colors.textBrandStrong },
   sectionWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.md },
   sectionHeader: {
     ...rtlRow,
@@ -234,4 +237,5 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingVertical: spacing.xxxl, gap: spacing.md },
   emptyIcon: { fontSize: 40 },
   emptyText: { ...typography.body, color: colors.textMuted },
-});
+  });
+}

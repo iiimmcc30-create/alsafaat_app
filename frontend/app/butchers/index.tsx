@@ -15,7 +15,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { countries } from '@/services/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
@@ -50,6 +52,8 @@ function StoriesRow({ stories, onStoryPress }: {
   stories: ButcherStory[];
   onStoryPress: (story: ButcherStory) => void;
 }) {
+  const { colors } = useTheme();
+  const st = useThemedStyles(({ colors }) => createStoryStyles(colors));
   return (
     <ScrollView
       horizontal
@@ -93,6 +97,8 @@ function StoriesRow({ stories, onStoryPress }: {
 }
 
 function ButcherCard({ butcher, onPress }: { butcher: ButcherProfile; onPress: () => void }) {
+  const { colors } = useTheme();
+  const bc = useThemedStyles(({ colors }) => createCardStyles(colors));
   const currency = gccCurrencies[butcher.country];
   const country = countries[butcher.country];
 
@@ -193,6 +199,8 @@ const GCC_COUNTRIES: { code: Country; label: string; flag: string }[] = [
 ];
 
 export default function ButchersScreen() {
+  const { colors, gradients } = useTheme();
+  const s = useThemedStyles(({ colors }) => createScreenStyles(colors));
   const router = useRouter();
   const { accessToken, isAuthenticated } = useAuth();
   const [butchersList, setButchersList] = useState<ButcherProfile[]>([]);
@@ -328,7 +336,7 @@ export default function ButchersScreen() {
       >
         {/* ── Sticky Header ── */}
         <View style={s.stickyHeader}>
-          <LinearGradient colors={['#06091A', '#0B1330']} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={[colors.bgDeep, colors.bgPrimary]} style={StyleSheet.absoluteFill} />
           <View style={s.headerRow}>
             <View>
               <Text style={s.headerTitle}>الملاحم 🥩</Text>
@@ -427,7 +435,7 @@ export default function ButchersScreen() {
                   router.push('/auth/phone');
                   return;
                 }
-                router.push('/butchers/register');
+                router.push('/butchers/apply');
               }}
             >
               <Ionicons name="add" size={14} color={colors.electricBright} />
@@ -466,7 +474,8 @@ export default function ButchersScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+function createScreenStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bgDeep },
   scroll: { paddingBottom: 20 },
 
@@ -486,7 +495,7 @@ const s = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   headerTitle: { ...typography.h1, color: colors.textPrimary },
-  headerSub: { ...typography.caption, color: colors.glow, marginTop: 1 },
+  headerSub: { ...typography.caption, color: colors.textBrand, marginTop: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   filterBtn: {
     flexDirection: 'row',
@@ -592,7 +601,7 @@ const s = StyleSheet.create({
     borderColor: colors.electricBright + '66',
     backgroundColor: colors.electric + '11',
   },
-  addBtnText: { ...typography.micro, color: colors.electricBright },
+  addBtnText: { ...typography.micro, color: colors.textBrandStrong },
 
   // Empty state
   emptyState: {
@@ -603,10 +612,12 @@ const s = StyleSheet.create({
   emptyIcon: { fontSize: 48 },
   emptyTitle: { ...typography.h3, color: colors.textPrimary },
   emptySub: { ...typography.caption, color: colors.textMuted },
-});
+  });
+}
 
 // Stories
-const st = StyleSheet.create({
+function createStoryStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   storiesContent: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
@@ -674,10 +685,12 @@ const st = StyleSheet.create({
     textAlign: 'center',
     maxWidth: STORY_CIRCLE + 8,
   },
-});
+  });
+}
 
 // Butcher card
-const bc = StyleSheet.create({
+function createCardStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   card: {
     marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
@@ -770,7 +783,7 @@ const bc = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderSoft,
   },
-  chipText: { ...typography.micro, color: colors.glow },
+  chipText: { ...typography.micro, color: colors.textBrand },
 
   statsRow: {
     flexDirection: 'row',
@@ -784,4 +797,5 @@ const bc = StyleSheet.create({
   stat: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 },
   statText: { ...typography.micro, color: colors.textMuted, flex: 1 },
   statDivider: { width: 1, height: 14, backgroundColor: colors.borderSoft },
-});
+  });
+}

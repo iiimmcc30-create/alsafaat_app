@@ -1,8 +1,8 @@
 // Powered by OnSpace.AI
 // SAFAT — Posts Tab (المنشورات)
 
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useState, useEffect } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -11,7 +11,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useApp } from '@/hooks/useApp';
 import { useAuth } from '@/contexts/AuthContext';
 import { PostItem } from '@/components/feature/PostItem';
@@ -22,6 +23,11 @@ import { requireAuth, sharePost, showPostMenu } from '@/lib/postInteractions';
 
 export default function PostsScreen() {
   const router = useRouter();
+  const styles = useThemedStyles(({ colors }) => createPostsStyles(colors));
+  const { postId, openComments } = useLocalSearchParams<{
+    postId?: string;
+    openComments?: string;
+  }>();
   const { isAuthenticated } = useAuth();
   const {
     me,
@@ -36,11 +42,19 @@ export default function PostsScreen() {
   const [activeCategory, setActiveCategory] = useState<CategoryKey>('all');
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!postId) return;
+    if (openComments === '1') {
+      setCommentsPostId(postId);
+    }
+  }, [postId, openComments]);
+
   const displayedPosts = activeCategory !== 'all'
     ? posts.filter((p) => p.arabicContent.includes(activeCategory) || p.content.toLowerCase().includes(activeCategory))
     : posts;
 
   return (
+    <View style={styles.root}>
     <SafeAreaView style={styles.container} edges={['top']}>
       <CategoryChips value={activeCategory} onChange={setActiveCategory} />
 
@@ -72,8 +86,9 @@ export default function PostsScreen() {
         )}
         <View style={{ height: 100 }} />
       </ScrollView>
+    </SafeAreaView>
 
-      <CreatePostFab bottomOffset={24} />
+      <CreatePostFab />
 
       <PostCommentsModal
         visible={!!commentsPostId}
@@ -83,11 +98,13 @@ export default function PostsScreen() {
           commentsPostId ? addComment(commentsPostId, content) : Promise.resolve(false)
         }
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
+function createPostsStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bgDeep },
   container: { flex: 1, backgroundColor: colors.bgDeep },
   scroll: { paddingBottom: spacing.md },
   empty: {
@@ -105,5 +122,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.electric,
   },
-  emptyBtnText: { ...typography.bodyStrong, color: colors.electricBright },
-});
+  emptyBtnText: { ...typography.bodyStrong, color: colors.textBrandStrong },
+  });
+}

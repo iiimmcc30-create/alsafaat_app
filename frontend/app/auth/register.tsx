@@ -20,7 +20,10 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
+import { AppLogo } from '@/components/ui/AppLogo';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGoogleSignIn } from '@/hooks/useGoogleSignIn';
 
@@ -30,6 +33,8 @@ const COUNTRY_CODES = [
 ];
 
 export default function RegisterScreen() {
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const params = useLocalSearchParams<{
     phone?: string;
@@ -253,9 +258,7 @@ export default function RegisterScreen() {
 
             {/* Header section with Circular Logo */}
             <View style={styles.header}>
-              <View style={styles.logoOuter}>
-                <Image source={require('@/assets/images/logo.png')} style={styles.logoImage} />
-              </View>
+              <AppLogo size={90} />
               <Text style={styles.title}>انضم إلى الصفاة</Text>
               <Text style={styles.sub}>أنشئ حسابك كمستخدم جديد وابدأ تصفح السوق وشراء المواشي</Text>
             </View>
@@ -480,7 +483,7 @@ export default function RegisterScreen() {
                   disabled={loading}
                 >
                   <LinearGradient
-                    colors={['#1e6ff1', '#1099ec']}
+                    colors={[colors.electric, colors.electricBright]}
                     style={styles.submitGrad}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                   >
@@ -542,8 +545,9 @@ export default function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0c1322' },
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bgDeep },
   safe: { flex: 1 },
   kav: { flex: 1 },
   scroll: { paddingHorizontal: spacing.xl, paddingTop: 40, paddingBottom: 30, alignItems: 'center' },
@@ -551,52 +555,44 @@ const styles = StyleSheet.create({
   backBtn: {
     position: 'absolute', top: 16, right: spacing.xl,
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#131e35', borderWidth: 1, borderColor: '#1d273a',
+    backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.borderHairline,
     alignItems: 'center', justifyContent: 'center', zIndex: 10,
   },
 
   header: { alignItems: 'center', marginBottom: 25, gap: 10, width: '100%' },
-  logoOuter: {
-    width: 90, height: 90, borderRadius: 45,
-    backgroundColor: '#131e35', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: '#1d273a',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 6, elevation: 5,
-  },
-  logoImage: { width: 66, height: 66, borderRadius: 33 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#ffffff', textAlign: 'center' },
-  sub: { fontSize: 13, color: '#9ca3af', textAlign: 'center', paddingHorizontal: 20, lineHeight: 18 },
+  title: { fontSize: 24, fontWeight: 'bold', color: colors.textPrimary, textAlign: 'center' },
+  sub: { fontSize: 13, color: colors.textMuted, textAlign: 'center', paddingHorizontal: 20, lineHeight: 18 },
 
   card: {
     width: '100%', borderRadius: 24, padding: spacing.xl,
-    backgroundColor: '#121a2d', borderWidth: 1, borderColor: '#1d273a',
+    backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.borderHairline,
     gap: spacing.md,
   },
 
   fieldGroup: { gap: 6, width: '100%' },
-  fieldLabel: { fontSize: 13, color: '#ffffff', fontWeight: '600', textAlign: 'right' },
+  fieldLabel: { fontSize: 13, color: colors.textPrimary, fontWeight: '600', textAlign: 'right' },
   
   inputWrap: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#0c1322', borderRadius: 12,
-    borderWidth: 1.2, borderColor: '#1d273a',
+    backgroundColor: colors.bgDeep, borderRadius: 12,
+    borderWidth: 1.2, borderColor: colors.borderHairline,
     paddingHorizontal: spacing.md, height: 50, width: '100%',
   },
   inputWrapError: { borderColor: colors.danger },
   inputIcon: { marginLeft: 8 },
-  input: { flex: 1, fontSize: 14, color: '#ffffff', height: '100%', textAlign: 'right' },
-  atSign: { fontSize: 14, color: '#9ca3af', fontWeight: 'bold', marginLeft: 8 },
+  input: { flex: 1, fontSize: 14, color: colors.textPrimary, height: '100%', textAlign: 'right' },
+  atSign: { fontSize: 14, color: colors.textMuted, fontWeight: 'bold', marginLeft: 8 },
   
   fieldError: { fontSize: 11, color: colors.danger, textAlign: 'right', marginTop: 2 },
-  fieldHint: { fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: 2, lineHeight: 16 },
-  fieldHintLink: { color: '#1099ec', fontWeight: '500' },
+  fieldHint: { fontSize: 11, color: colors.textMuted, textAlign: 'right', marginTop: 2, lineHeight: 16 },
+  fieldHintLink: { color: colors.textBrandStrong, fontWeight: '500' },
 
-  pickerValueText: { flex: 1, fontSize: 14, color: '#ffffff', textAlign: 'right', marginRight: 8 },
+  pickerValueText: { flex: 1, fontSize: 14, color: colors.textPrimary, textAlign: 'right', marginRight: 8 },
   pickerValueFlag: { fontSize: 16 },
 
   pickerDropdown: {
-    backgroundColor: '#0c1322', borderRadius: 12,
-    borderWidth: 1, borderColor: '#1d273a',
+    backgroundColor: colors.bgDeep, borderRadius: 12,
+    borderWidth: 1, borderColor: colors.borderHairline,
     marginTop: 4, overflow: 'hidden', width: '100%',
   },
   pickerItem: {
@@ -606,43 +602,43 @@ const styles = StyleSheet.create({
   },
   pickerItemActive: { backgroundColor: 'rgba(30,111,241,0.1)' },
   pickerFlag: { fontSize: 16 },
-  pickerLabel: { flex: 1, fontSize: 13, color: '#ffffff', textAlign: 'right', marginRight: 10 },
-  pickerCode: { fontSize: 13, color: '#9ca3af' },
+  pickerLabel: { flex: 1, fontSize: 13, color: colors.textPrimary, textAlign: 'right', marginRight: 10 },
+  pickerCode: { fontSize: 13, color: colors.textMuted },
 
   agreeRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',
     gap: 8, width: '100%', marginVertical: 4,
   },
-  agreeText: { fontSize: 13, color: '#9ca3af', textAlign: 'right' },
-  agreeLink: { color: '#1099ec', fontWeight: 'bold' },
+  agreeText: { fontSize: 13, color: colors.textMuted, textAlign: 'right' },
+  agreeLink: { color: colors.textBrandStrong, fontWeight: 'bold' },
   checkbox: {
     width: 20, height: 20, borderRadius: 5,
-    borderWidth: 1.5, borderColor: '#1d273a',
-    backgroundColor: '#0c1322', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: colors.borderHairline,
+    backgroundColor: colors.bgDeep, alignItems: 'center', justifyContent: 'center',
   },
-  checkboxChecked: { backgroundColor: '#1e6ff1', borderColor: '#1e6ff1' },
+  checkboxChecked: { backgroundColor: colors.electric, borderColor: colors.electric },
 
   submitBtn: { width: '100%', borderRadius: 25, overflow: 'hidden', marginTop: 5 },
   submitGrad: { height: 50, alignItems: 'center', justifyContent: 'center' },
-  submitText: { fontSize: 16, fontWeight: 'bold', color: '#ffffff' },
+  submitText: { fontSize: 16, fontWeight: 'bold', color: colors.textPrimary },
 
   otpVerifyContainer: {
     backgroundColor: 'rgba(30,111,241,0.05)', borderRadius: 12,
     borderWidth: 1, borderColor: 'rgba(30,111,241,0.15)',
     padding: spacing.md, gap: spacing.sm, width: '100%',
   },
-  otpInput: { flex: 1, fontSize: 18, color: '#ffffff', height: '100%', letterSpacing: 8, textAlign: 'center', fontWeight: 'bold' },
+  otpInput: { flex: 1, fontSize: 18, color: colors.textPrimary, height: '100%', letterSpacing: 8, textAlign: 'center', fontWeight: 'bold' },
   otpActionsRow: { flexDirection: 'row-reverse', gap: spacing.md, width: '100%' },
   otpVerifyBtn: {
-    backgroundColor: '#1e6ff1', borderRadius: 12,
+    backgroundColor: colors.electric, borderRadius: 12,
     height: 44, alignItems: 'center', justifyContent: 'center', flex: 2,
   },
-  otpVerifyText: { fontSize: 13, color: '#ffffff', fontWeight: 'bold' },
+  otpVerifyText: { fontSize: 13, color: colors.textPrimary, fontWeight: 'bold' },
   otpEditBtn: {
-    borderWidth: 1, borderColor: '#1d273a', borderRadius: 12,
+    borderWidth: 1, borderColor: colors.borderHairline, borderRadius: 12,
     height: 44, alignItems: 'center', justifyContent: 'center', flex: 1,
   },
-  otpEditText: { fontSize: 12, color: '#9ca3af' },
+  otpEditText: { fontSize: 12, color: colors.textMuted },
 
   errorContainer: {
     flexDirection: 'row-reverse', alignItems: 'center', gap: 6,
@@ -653,12 +649,12 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 12, color: colors.danger, textAlign: 'right', flex: 1 },
 
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 15, width: '100%' },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#1d273a' },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.borderHairline },
   dividerText: { marginHorizontal: 12, fontSize: 12, color: '#6b7280' },
 
   googleBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#ffffff', height: 48, borderRadius: 24, gap: 10, width: '100%',
+    backgroundColor: colors.textPrimary, height: 48, borderRadius: 24, gap: 10, width: '100%',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1, shadowRadius: 2, elevation: 2,
   },
@@ -666,8 +662,9 @@ const styles = StyleSheet.create({
   googleText: { fontSize: 14, fontWeight: '600', color: '#374151' },
 
   footer: { alignItems: 'center', marginTop: 25, gap: 15, width: '100%' },
-  footerLinkText: { fontSize: 14, color: '#9ca3af', textAlign: 'center' },
-  footerLinkActive: { color: '#1099ec', fontWeight: 'bold' },
+  footerLinkText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
+  footerLinkActive: { color: colors.textBrandStrong, fontWeight: 'bold' },
   disclaimerText: { fontSize: 11, color: '#6b7280', textAlign: 'center', paddingHorizontal: 20, lineHeight: 16 },
-  disclaimerLink: { color: '#1099ec', textDecorationLine: 'underline' },
-});
+  disclaimerLink: { color: colors.textBrandStrong, textDecorationLine: 'underline' },
+  });
+}

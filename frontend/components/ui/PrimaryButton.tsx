@@ -1,7 +1,8 @@
 // SAFAT — Premium Button (v2) with rim-light, glow & scale press
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
-import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { colors, gradients, radius, shadow, typography } from '@/constants/theme';
+import { Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
+import { radius, typography, type ThemeColors, type ThemeGradients } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 
 interface PrimaryButtonProps {
   title: string;
@@ -20,6 +21,13 @@ export function PrimaryButton({
   small,
   disabled,
 }: PrimaryButtonProps) {
+  const { styles, colors, gradients, shadow } = useThemedStyles((theme) => ({
+    styles: createStyles(theme.colors),
+    colors: theme.colors,
+    gradients: theme.gradients,
+    shadow: theme.shadow,
+  }));
+
   if (variant === 'ghost' || variant === 'outline') {
     const isOutline = variant === 'outline';
     return (
@@ -33,7 +41,7 @@ export function PrimaryButton({
           style,
         ]}
       >
-        <Text style={[styles.label, { color: isOutline ? colors.glow : colors.textPrimary }]}>
+        <Text style={[styles.label, { color: isOutline ? colors.textBrand : colors.textPrimary }]}>
           {title}
         </Text>
       </Pressable>
@@ -71,58 +79,60 @@ export function PrimaryButton({
   );
 }
 
-const styles = StyleSheet.create({
-  shell: {
-    borderRadius: radius.pill,
-  },
-  btn: {
-    paddingVertical: 14,
-    paddingHorizontal: 26,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 50,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  rim: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-  },
-  ghost: {
-    paddingVertical: 12,
-    paddingHorizontal: 22,
-    borderRadius: radius.pill,
-    backgroundColor: colors.bgGlass,
-    borderWidth: 1,
-    borderColor: colors.borderMid,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  outline: {
-    paddingVertical: 12,
-    paddingHorizontal: 22,
-    borderRadius: radius.pill,
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: colors.glow,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  small: {
-    paddingVertical: 9,
-    paddingHorizontal: 18,
-    minHeight: 38,
-  },
-  label: {
-    ...typography.bodyStrong,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    writingDirection: 'rtl',
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    shell: {
+      borderRadius: radius.pill,
+    },
+    btn: {
+      paddingVertical: 14,
+      paddingHorizontal: 26,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 50,
+      overflow: 'hidden',
+      position: 'relative',
+    },
+    rim: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 1,
+    },
+    ghost: {
+      paddingVertical: 12,
+      paddingHorizontal: 22,
+      borderRadius: radius.pill,
+      backgroundColor: colors.bgGlass,
+      borderWidth: 1,
+      borderColor: colors.borderMid,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    outline: {
+      paddingVertical: 12,
+      paddingHorizontal: 22,
+      borderRadius: radius.pill,
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      borderColor: colors.glow,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    small: {
+      paddingVertical: 9,
+      paddingHorizontal: 18,
+      minHeight: 38,
+    },
+    label: {
+      ...typography.bodyStrong,
+      color: '#FFFFFF',
+      textAlign: 'center',
+      writingDirection: 'rtl',
+    },
+  });
+}
 
 export default PrimaryButton;

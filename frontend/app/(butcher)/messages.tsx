@@ -14,17 +14,19 @@ import {
   View,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
-import { API_BASE } from '@/services/api';
-import { authFetch } from '@/services/authFetch';
+import { fetchNotifications } from '@/services/notifications';
 import { useMessageThreads } from '@/hooks/useMessageThreads';
+import { UserProfileLink } from '@/components/feature/UserProfileLink';
 
 type Tab = 'messages' | 'activity';
 
 export default function ButcherMessagesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const listBottomPadding = 58 + Math.max(insets.bottom, 8) + 6 + spacing.xl;
   const { accessToken } = useAuth();
   const { threads, loading: threadsLoading, error: threadsError } = useMessageThreads(accessToken);
   const [activeTab, setActiveTab] = useState<Tab>('messages');
@@ -32,21 +34,16 @@ export default function ButcherMessagesScreen() {
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchNotifications = async () => {
+    const loadNotifications = async () => {
       if (!accessToken) return;
       try {
-        const res = await authFetch(`${API_BASE}/api/notifications`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && json.data?.notifications) {
-            setNotificationsList(json.data.notifications);
-          }
-        }
+        const page = await fetchNotifications();
+        setNotificationsList(page.notifications);
       } catch (err) {
         console.warn('[ButcherMessagesScreen] Failed to fetch notifications:', err);
       }
     };
-    fetchNotifications();
+    loadNotifications();
   }, [accessToken]);
 
   const activityItems = notificationsList.map((n) => {
@@ -59,6 +56,7 @@ export default function ButcherMessagesScreen() {
       id: n.id,
       type: mapType(n.type),
       user: {
+        id: n.data?.actorId || undefined,
         avatar: n.data?.actorAvatar || undefined,
         arabicName: n.titleAr || 'إشعار صفاة',
       },
@@ -131,7 +129,10 @@ export default function ButcherMessagesScreen() {
       </View>
 
       {activeTab === 'messages' ? (
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: listBottomPadding }}
+        >
           {/* Search */}
           <View style={styles.searchRow}>
             <Ionicons name="search" size={16} color={colors.textMuted} />
@@ -160,31 +161,32 @@ export default function ButcherMessagesScreen() {
               const p = chat.participant;
               if (!p) return null;
               return (
-            <Pressable
-              key={chat.id}
-              style={({ pressed }) => [styles.chatRow, pressed && { backgroundColor: colors.bgSurface }]}
-              onPress={() => router.push({
-                pathname: '/butchers/chat',
-                params: {
-                  threadId: chat.id,
-                  receiverId: p.id,
-                  receiverName: p.arabicName,
-                  receiverAvatar: p.avatar ?? '',
-                },
-              } as any)}
-            >
-              <View style={styles.avatarWrap}>
-                <Image source={{ uri: p.avatar }} style={styles.avatar} contentFit="cover" />
-                <View style={styles.onlineDot} />
-              </View>
-              <View style={styles.chatContent}>
+            <View key={chat.id} style={styles.chatRow}>
+              <UserProfileLink userId={p.id}>
+                <View style={styles.avatarWrap}>
+                  <Image source={{ uri: p.avatar }} style={styles.avatar} contentFit="cover" />
+                  <View style={styles.onlineDot} />
+                </View>
+              </UserProfileLink>
+              <Pressable
+                style={({ pressed }) => [styles.chatContent, pressed && { opacity: 0.85 }]}
+                onPress={() => router.push({
+                  pathname: '/butchers/chat',
+                  params: {
+                    threadId: chat.id,
+                    receiverId: p.id,
+                    receiverName: p.arabicName,
+                    receiverAvatar: p.avatar ?? '',
+                  },
+                } as any)}
+              >
                 <View style={styles.chatTop}>
-                  <View style={styles.chatName}>
+                  <UserProfileLink userId={p.id} style={styles.chatName}>
                     <Text style={styles.displayName}>{p.arabicName}</Text>
                     {p.verified && (
                       <Ionicons name="checkmark-circle" size={13} color={colors.electricBright} />
                     )}
-                  </View>
+                  </UserProfileLink>
                   <Text style={styles.chatTime}>
                     {new Date(chat.lastMessageAt).toLocaleDateString('ar-SA')}
                   </Text>
@@ -199,8 +201,8 @@ export default function ButcherMessagesScreen() {
                     </View>
                   )}
                 </View>
-              </View>
-            </Pressable>
+              </Pressable>
+            </View>
               );
             })
           )}
@@ -211,10 +213,12 @@ export default function ButcherMessagesScreen() {
               <Text style={styles.emptyText}>لا توجد رسائل من العملاء</Text>
             </View>
           )}
-          <View style={{ height: 80 }} />
         </ScrollView>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.activityList}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.activityList, { paddingBottom: listBottomPadding }]}
+        >
           {activityItems.map((item) => (
             <Pressable
               key={item.id}
@@ -227,17 +231,20 @@ export default function ButcherMessagesScreen() {
                   color={ACTIVITY_COLORS[item.type]}
                 />
               </View>
-              <Image source={{ uri: item.user.avatar }} style={styles.activityAvatar} contentFit="cover" />
+              <UserProfileLink userId={item.user.id}>
+                <Image source={{ uri: item.user.avatar }} style={styles.activityAvatar} contentFit="cover" />
+              </UserProfileLink>
               <View style={styles.activityContent}>
-                <Text style={styles.activityText}>
-                  <Text style={styles.activityUser}>{item.user.arabicName}</Text>
-                  {'  '}{item.arabicText}
-                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                  <UserProfileLink userId={item.user.id}>
+                    <Text style={styles.activityUser}>{item.user.arabicName}</Text>
+                  </UserProfileLink>
+                  <Text style={styles.activityText}>{item.arabicText}</Text>
+                </View>
                 <Text style={styles.activityTime}>{item.time}</Text>
               </View>
             </Pressable>
           ))}
-          <View style={{ height: 80 }} />
         </ScrollView>
       )}
     </SafeAreaView>
@@ -263,7 +270,7 @@ const styles = StyleSheet.create({
   tab: { paddingVertical: spacing.md, marginRight: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: 6 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: colors.electricBright },
   tabLabel: { ...typography.body, color: colors.textMuted },
-  tabLabelActive: { color: colors.electricBright, fontWeight: '600' },
+  tabLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
   tabDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.electricBright },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,

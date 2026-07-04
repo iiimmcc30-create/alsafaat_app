@@ -13,11 +13,15 @@ import {
   View,
   ActivityIndicator,
 } from 'react-native';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
-import { API_BASE } from '@/services/api';
-import { authFetch } from '@/services/authFetch';
+import { fetchNotifications, type AppNotification } from '@/services/notifications';
 import { useMessageThreads } from '@/hooks/useMessageThreads';
+import { handleNotificationNavigation } from '@/lib/notifications';
+import { UserProfileLink } from '@/components/feature/UserProfileLink';
 
 type Tab = 'messages' | 'activity';
 
@@ -28,29 +32,32 @@ interface MessagesPanelProps {
 }
 
 export function MessagesPanel({ variant = 'standalone', showHeader = true }: MessagesPanelProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
-  const { accessToken } = useAuth();
+  const insets = useSafeAreaInsets();
+  const tabBarClearance = 58 + Math.max(insets.bottom, 8) + 6;
+  const listBottomPadding =
+    variant === 'embedded'
+      ? spacing.lg
+      : tabBarClearance + spacing.xl;
+  const { accessToken, user } = useAuth();
   const { threads, loading: threadsLoading, error: threadsError } = useMessageThreads(accessToken);
   const [activeTab, setActiveTab] = useState<Tab>('messages');
   const [search, setSearch] = useState('');
-  const [notificationsList, setNotificationsList] = useState<any[]>([]);
+  const [notificationsList, setNotificationsList] = useState<AppNotification[]>([]);
 
   useEffect(() => {
-    const fetchNotifications = async () => {
+    const loadNotifications = async () => {
       if (!accessToken) return;
       try {
-        const res = await authFetch(`${API_BASE}/api/notifications`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && json.data?.notifications) {
-            setNotificationsList(json.data.notifications);
-          }
-        }
+        const page = await fetchNotifications();
+        setNotificationsList(page.notifications);
       } catch (err) {
         console.warn('[MessagesPanel] Failed to fetch notifications:', err);
       }
     };
-    fetchNotifications();
+    loadNotifications();
   }, [accessToken]);
 
   const activityItems = notificationsList.map((n) => {
@@ -62,8 +69,10 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
     return {
       id: n.id,
       type: mapType(n.type),
+      notification: n,
       user: {
-        avatar: n.data?.actorAvatar || undefined,
+        id: (n.data?.actorId as string | undefined) || undefined,
+        avatar: (n.data?.actorAvatar as string | undefined) || undefined,
         arabicName: n.titleAr || 'إشعار صفاة',
       },
       arabicText: n.bodyAr,
@@ -144,23 +153,24 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
               const p = chat.participant;
               if (!p) return null;
               return (
-                <Pressable
-                  key={chat.id}
-                  style={({ pressed }) => [styles.chatRow, pressed && { backgroundColor: colors.bgSurface }]}
-                  onPress={() => openChat(chat)}
-                >
-                  <View style={styles.avatarWrap}>
-                    <Image source={{ uri: p.avatar }} style={styles.avatar} contentFit="cover" />
-                    <View style={styles.onlineDot} />
-                  </View>
-                  <View style={styles.chatContent}>
+                <View key={chat.id} style={styles.chatRow}>
+                  <UserProfileLink userId={p.id}>
+                    <View style={styles.avatarWrap}>
+                      <Image source={{ uri: p.avatar }} style={styles.avatar} contentFit="cover" />
+                      <View style={styles.onlineDot} />
+                    </View>
+                  </UserProfileLink>
+                  <Pressable
+                    style={({ pressed }) => [styles.chatContent, pressed && { opacity: 0.85 }]}
+                    onPress={() => openChat(chat)}
+                  >
                     <View style={styles.chatTop}>
-                      <View style={styles.chatName}>
+                      <UserProfileLink userId={p.id} style={styles.chatName}>
                         <Text style={styles.displayName}>{p.arabicName}</Text>
                         {p.verified && (
                           <Ionicons name="checkmark-circle" size={13} color={colors.electricBright} />
                         )}
-                      </View>
+                      </UserProfileLink>
                       <Text style={styles.chatTime}>
                         {new Date(chat.lastMessageAt).toLocaleDateString('ar-SA')}
                       </Text>
@@ -175,8 +185,8 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
                         </View>
                       )}
                     </View>
-                  </View>
-                </Pressable>
+                  </Pressable>
+                </View>
               );
             })
           )}
@@ -194,6 +204,12 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
             <Pressable
               key={item.id}
               style={({ pressed }) => [styles.activityRow, pressed && { backgroundColor: colors.bgSurface }]}
+              onPress={() => {
+                handleNotificationNavigation(
+                  { type: item.notification.type, data: item.notification.data },
+                  { router, isAdmin: user?.role === 'ADMIN' },
+                );
+              }}
             >
               <View style={[styles.activityIcon, { backgroundColor: `${ACTIVITY_COLORS[item.type]}20` }]}>
                 <Ionicons
@@ -202,12 +218,16 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
                   color={ACTIVITY_COLORS[item.type]}
                 />
               </View>
-              <Image source={{ uri: item.user.avatar }} style={styles.activityAvatar} contentFit="cover" />
+              <UserProfileLink userId={item.user.id}>
+                <Image source={{ uri: item.user.avatar }} style={styles.activityAvatar} contentFit="cover" />
+              </UserProfileLink>
               <View style={styles.activityContent}>
-                <Text style={styles.activityText}>
-                  <Text style={styles.activityUser}>{item.user.arabicName}</Text>
-                  {'  '}{item.arabicText}
-                </Text>
+                <View style={styles.activityTextRow}>
+                  <UserProfileLink userId={item.user.id}>
+                    <Text style={styles.activityUser}>{item.user.arabicName}</Text>
+                  </UserProfileLink>
+                  <Text style={styles.activityText}>{item.arabicText}</Text>
+                </View>
                 <Text style={styles.activityTime}>{item.time}</Text>
               </View>
             </Pressable>
@@ -250,6 +270,7 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
       <View style={styles.embeddedWrap}>
         {tabSwitcher}
         {messagesContent}
+        <View style={{ height: listBottomPadding }} />
       </View>
     );
   }
@@ -267,15 +288,18 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
         </View>
       )}
       {tabSwitcher}
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: listBottomPadding }}
+      >
         {messagesContent}
-        <View style={{ height: 80 }} />
       </ScrollView>
     </>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   embeddedWrap: {
     marginHorizontal: -spacing.lg,
   },
@@ -300,7 +324,7 @@ const styles = StyleSheet.create({
   tab: { paddingVertical: spacing.md, marginRight: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: 6 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: colors.electricBright },
   tabLabel: { ...typography.body, color: colors.textMuted },
-  tabLabelActive: { color: colors.electricBright, fontWeight: '600' },
+  tabLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
   tabDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.electricBright },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
@@ -349,7 +373,9 @@ const styles = StyleSheet.create({
   },
   activityAvatar: { width: 40, height: 40, borderRadius: 20 },
   activityContent: { flex: 1 },
-  activityText: { ...typography.caption, color: colors.textSecondary, lineHeight: 18, textAlign: 'right' },
+  activityTextRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
+  activityText: { ...typography.caption, color: colors.textSecondary, lineHeight: 18, textAlign: 'right', flex: 1 },
   activityUser: { ...typography.caption, color: colors.textPrimary, fontWeight: '700' },
   activityTime: { ...typography.micro, color: colors.textMuted, marginTop: 2 },
-});
+  });
+}

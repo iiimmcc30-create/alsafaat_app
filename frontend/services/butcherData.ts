@@ -161,6 +161,53 @@ export interface ButcherReview {
 }
 
 // ─── Ranking Utility ─────────────────────────────────────────────────────────
+export function mapButcherFromApi(b: Record<string, unknown>): ButcherProfile {
+  const count = b._count as { orders?: number } | undefined;
+  const user = b.user as { id?: string; username?: string; avatar?: string } | undefined;
+
+  return {
+    id: String(b.id ?? ''),
+    name: String(b.nameEn || b.nameAr || ''),
+    nameAr: String(b.nameAr || ''),
+    logo: (b.logo as string | undefined) || undefined,
+    cover: (b.cover as string | undefined) || undefined,
+    type: (b.type as ButcherType) || 'regular',
+    country: (b.country as Country) || 'SA',
+    city: String(b.city || ''),
+    cityAr: String(b.cityAr || ''),
+    address: String(b.address || ''),
+    addressAr: String(b.addressAr || ''),
+    lat: Number(b.lat) || 0,
+    lng: Number(b.lng) || 0,
+    phone: String(b.phone || ''),
+    rating: Number(b.rating ?? 5.0),
+    reviewCount: Number(b.reviewCount ?? 0),
+    orderCompletionRate: Number(b.orderCompletionRate ?? 100),
+    workingHours: {
+      open: String(b.openTime || '06:00'),
+      close: String(b.closeTime || '22:00'),
+      isOpen: Boolean(b.isOpen ?? true),
+      closedOn: (b.closedDays as string[] | undefined) || [],
+    },
+    bio: String(b.bioEn || ''),
+    bioAr: String(b.bioAr || ''),
+    specialties: (b.specialties as string[]) || [],
+    subscriptionActive: Boolean(b.subscriptionActive ?? false),
+    subscriptionExpiry: b.subscriptionExpiry as string | undefined,
+    commercialReg: b.commercialReg as string | undefined,
+    activityScore: Number(b.activityScore ?? 50),
+    totalOrders: Number(count?.orders ?? b.totalOrders ?? 0),
+    joinedAt: String(b.createdAt || new Date().toISOString()),
+    user: user?.id
+      ? {
+          id: user.id,
+          username: user.username,
+          avatar: user.avatar,
+        }
+      : undefined,
+  };
+}
+
 export function rankButchers(butchers: ButcherProfile[]): ButcherProfile[] {
   return [...butchers].sort((a, b) => {
     // 1. Verified first

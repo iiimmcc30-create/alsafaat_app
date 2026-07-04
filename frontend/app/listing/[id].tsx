@@ -4,22 +4,62 @@ import { Image } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
 import { useApp } from '@/hooks/useApp';
 import { countries } from '@/services/types';
 import { LocationMapPreview } from '@/components/feature/LocationMapPreview';
 import { openLiveCreateIfAllowed } from '@/lib/liveStreamAccess';
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchUserProfile, toggleFollowUser } from '@/services/users';
+import { openUserProfile } from '@/lib/openUserProfile';
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { accessToken } = useAuth();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const { listings, me, removeListing } = useApp();
   const listing = listings.find((l) => l.id === id);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+
+  useEffect(() => {
+    if (!listing || listing.seller.id === me.id) return;
+    fetchUserProfile(listing.seller.id).then((profile) => {
+      if (profile) setIsFollowing(profile.isFollowing);
+    });
+  }, [listing?.seller.id, me.id]);
+
+  const openSellerChat = () => {
+    if (!listing) return;
+    router.push({
+      pathname: '/butchers/chat',
+      params: {
+        receiverId: listing.seller.id,
+        receiverName: listing.seller.arabicName,
+        receiverAvatar: listing.seller.avatar ?? '',
+      },
+    } as any);
+  };
+
+  const handleFollowSeller = async () => {
+    if (!listing || !accessToken) {
+      Alert.alert('تسجيل الدخول', 'يجب تسجيل الدخول للمتابعة');
+      return;
+    }
+    setFollowLoading(true);
+    const result = await toggleFollowUser(listing.seller.id);
+    if (result) setIsFollowing(result.following);
+    else Alert.alert('خطأ', 'تعذّرت المتابعة');
+    setFollowLoading(false);
+  };
 
   if (!listing) {
     return (
@@ -174,7 +214,10 @@ export default function ListingDetailScreen() {
 
           {/* Seller */}
           <Text style={styles.section}>Seller · البائع</Text>
-          <View style={styles.sellerCard}>
+          <Pressable
+            style={styles.sellerCard}
+            onPress={() => openUserProfile(router, listing.seller.id)}
+          >
             <Image source={{ uri: listing.seller.avatar }} style={styles.sellerAvatar} contentFit="cover" />
             <View style={{ flex: 1 }}>
               <View style={styles.sellerNameRow}>
@@ -191,8 +234,21 @@ export default function ListingDetailScreen() {
                 <Text style={styles.sellerStat}>{listing.seller.followers.toLocaleString()} followers</Text>
               </View>
             </View>
-            <PrimaryButton title="Follow" variant="ghost" small />
-          </View>
+            {!isOwner ? (
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  handleFollowSeller();
+                }}
+                disabled={followLoading}
+                style={[styles.followPill, isFollowing && styles.followingPill]}
+              >
+                <Text style={[styles.followPillText, isFollowing && styles.followingPillText]}>
+                  {isFollowing ? 'متابَع' : 'متابعة'}
+                </Text>
+              </Pressable>
+            ) : null}
+          </Pressable>
 
           {/* Trust */}
           <View style={styles.trustCard}>
@@ -209,7 +265,7 @@ export default function ListingDetailScreen() {
       {!isOwner ? (
         <SafeAreaView edges={['bottom']} style={styles.ctaBar}>
           <Pressable
-            onPress={() => router.push({ pathname: '/(tabs)/profile', params: { tab: 'messages' } })}
+            onPress={openSellerChat}
             style={({ pressed }) => [styles.ctaIcon, pressed && { opacity: 0.7 }]}
           >
             <Ionicons name="chatbubbles" size={22} color="#fff" />
@@ -223,9 +279,7 @@ export default function ListingDetailScreen() {
                   { text: 'إلغاء', style: 'cancel' },
                   {
                     text: 'إرسال العرض',
-                    onPress: () => {
-                      router.push({ pathname: '/(tabs)/profile', params: { tab: 'messages' } });
-                    },
+                    onPress: openSellerChat,
                   },
                 ]
               );
@@ -242,6 +296,8 @@ export default function ListingDetailScreen() {
 
 interface SpecProps { icon: keyof typeof MaterialCommunityIcons.glyphMap; label: string; value: string }
 function Spec({ icon, label, value }: SpecProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   return (
     <View style={styles.specCard}>
       <MaterialCommunityIcons name={icon} size={18} color={colors.glow} />
@@ -251,7 +307,8 @@ function Spec({ icon, label, value }: SpecProps) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bgDeep },
   notFound: { ...typography.body, color: colors.textMuted, textAlign: 'center', marginTop: 80 },
   heroWrap: { width: '100%', aspectRatio: 4 / 5, backgroundColor: colors.bgSurface },
@@ -279,7 +336,7 @@ const styles = StyleSheet.create({
   featuredText: { ...typography.micro, color: '#1A1300' },
   body: { padding: spacing.lg, gap: spacing.md },
   title: { ...typography.h1, color: colors.textPrimary },
-  arabicTitle: { fontSize: 17, color: colors.glow, textAlign: 'right' },
+  arabicTitle: { fontSize: 17, color: colors.textBrand, textAlign: 'right' },
   priceRow: {
     flexDirection: 'row', alignItems: 'baseline', gap: 6,
     marginTop: spacing.sm,
@@ -339,10 +396,23 @@ const styles = StyleSheet.create({
   sellerAvatar: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: colors.electric },
   sellerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   sellerName: { ...typography.bodyStrong, color: colors.textPrimary },
-  sellerArabic: { ...typography.caption, color: colors.glow, textAlign: 'right' },
+  sellerArabic: { ...typography.caption, color: colors.textBrand, textAlign: 'right' },
   sellerStats: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   sellerStat: { ...typography.caption, color: colors.textSecondary },
   dot: { color: colors.textMuted },
+  followPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.electric,
+  },
+  followingPill: {
+    backgroundColor: colors.bgElevated,
+    borderWidth: 1,
+    borderColor: colors.borderMid,
+  },
+  followPillText: { ...typography.caption, color: '#fff', fontWeight: '700' },
+  followingPillText: { color: colors.textPrimary },
   trustCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     padding: spacing.md,
@@ -429,7 +499,8 @@ const styles = StyleSheet.create({
   },
   ownerSecBtnText: {
     ...typography.caption,
-    color: colors.electricBright,
+    color: colors.textBrandStrong,
     fontWeight: '600',
   },
-});
+  });
+}

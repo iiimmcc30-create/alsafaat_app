@@ -11,8 +11,8 @@ import { apiRateLimit } from '@/middleware/rateLimiter';
 import { logger } from '@/lib/logger';
 import { generateViewerToken, streamIdToChannel } from '@/lib/agora';
 import { cacheDel, CacheKeys } from '@/lib/redis';
-import { addNotification } from '@/lib/queue';
 import { checkLiveStreamAccess } from '@/lib/liveStreamAccess';
+import { notifyUsers } from '@/lib/notifications';
 
 export const config = { api: { bodyParser: { sizeLimit: '4kb' } } };
 
@@ -226,15 +226,13 @@ async function notifyFollowers(
     take:   500, // cap to avoid huge fan-out
   });
 
-  await Promise.allSettled(
-    followers.map((f) =>
-      addNotification({
-        userId:  f.followerId,
-        type:    'live_start',
-        titleAr: 'بث مباشر جديد',
-        bodyAr:  `${stream.arabicTitle} — ابدأ المشاهدة الآن`,
-        data:    { streamId: stream.id },
-      }),
-    ),
+  await notifyUsers(
+    followers.map((f) => f.followerId),
+    {
+      type:    'live_start',
+      titleAr: 'بث مباشر جديد',
+      bodyAr:  `${stream.arabicTitle} — ابدأ المشاهدة الآن`,
+      data:    { streamId: stream.id },
+    },
   );
 }

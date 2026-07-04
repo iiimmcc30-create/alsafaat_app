@@ -4,9 +4,10 @@
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, gradients } from '@/constants/theme';
+import { radius } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlDirection } from '@/lib/rtl';
 import type { ComponentProps } from 'react';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
@@ -30,6 +31,7 @@ function AddListingTabButton({
   accessibilityState,
 }: BottomTabBarButtonProps) {
   const router = useRouter();
+  const { colors, gradients, scheme } = useTheme();
 
   return (
     <Pressable
@@ -39,7 +41,10 @@ function AddListingTabButton({
       onPress={() => router.push('/create/listing')}
       style={[style, styles.addTabWrap]}
     >
-      <LinearGradient colors={gradients.royal} style={styles.addTabBtn}>
+      <LinearGradient
+        colors={scheme === 'light' ? gradients.electric : gradients.royal}
+        style={[styles.addTabBtn, { borderColor: colors.bgPrimary }]}
+      >
         <Ionicons name="add" size={34} color="#fff" />
       </LinearGradient>
     </Pressable>
@@ -48,14 +53,28 @@ function AddListingTabButton({
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const { colors, scheme } = useTheme();
   const tabBarBottom = Math.max(insets.bottom, 8) + 6;
 
   return (
     <Tabs
+      key={scheme}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.electricBright,
         tabBarInactiveTintColor: colors.textMuted,
+        tabBarLabel: ({ focused, children }) => (
+          <Text
+            style={{
+              color: focused ? colors.textBrandStrong : colors.textMuted,
+              fontSize: 10,
+              fontWeight: '600',
+              writingDirection: 'rtl',
+            }}
+          >
+            {children}
+          </Text>
+        ),
         tabBarStyle: {
           backgroundColor: colors.bgPrimary,
           borderTopColor: colors.borderSoft,
@@ -146,7 +165,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: colors.bgPrimary,
     marginTop: -10,
   },
 });

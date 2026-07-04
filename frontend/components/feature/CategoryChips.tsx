@@ -1,7 +1,8 @@
 // Powered by OnSpace.AI
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 
 export type CategoryKey =
   | 'all'
@@ -39,6 +40,11 @@ interface Props {
 }
 
 export function CategoryChips({ value, onChange }: Props) {
+  const { styles, colors } = useThemedStyles((theme) => ({
+    styles: createStyles(theme.colors),
+    colors: theme.colors,
+  }));
+
   return (
     <View style={styles.wrap}>
       <ScrollView
@@ -72,41 +78,43 @@ export function CategoryChips({ value, onChange }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    minHeight: 50,
-    paddingVertical: spacing.sm,
-  },
-  content: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 8,
-    height: 38,
-    borderRadius: radius.pill,
-    backgroundColor: colors.bgGlass,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-  },
-  chipSelected: {
-    backgroundColor: colors.royal,
-    borderColor: colors.electricBright,
-  },
-  text: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  textSelected: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    wrap: {
+      minHeight: 50,
+      paddingVertical: spacing.sm,
+    },
+    content: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.lg,
+      gap: spacing.sm,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 8,
+      height: 38,
+      borderRadius: radius.pill,
+      backgroundColor: colors.bgGlass,
+      borderWidth: 1,
+      borderColor: colors.borderSoft,
+    },
+    chipSelected: {
+      backgroundColor: colors.electric,
+      borderColor: colors.electricBright,
+    },
+    text: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    textSelected: {
+      color: '#fff',
+      fontWeight: '700',
+    },
+  });
+}
 
 export default CategoryChips;

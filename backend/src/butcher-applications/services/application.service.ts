@@ -4,15 +4,12 @@ import {
   USER_PAGE_SIZE_MAX,
 } from '../constants';
 import {
-  findButcherByUserId,
   findActiveApplicationByUserAndStatus,
   createApplication,
-  findApplicationById,
   getApplicationByIdOrThrow,
   updateApplicationSnapshot,
   updateApplicationStatus,
   listUserApplications,
-  type ApplicationEntity,
   type ApplicationSummaryEntity,
 } from '../repositories/application.repository';
 import {
@@ -24,8 +21,7 @@ import {
 import { appendTimelineEvent } from '../helpers/timeline';
 import {
   assertEditableStatus,
-  assertSubmittableStatus,
-  assertWithdrawableStatus,
+  assertTransition,
   timelineActionForTransition,
 } from '../helpers/stateTransitions';
 import {
@@ -34,6 +30,7 @@ import {
   collectChangedFields,
   buildPaginatedResult,
 } from '../helpers/validation';
+import { validateSnapshotFormat } from '../helpers/snapshotValidation';
 import {
   toApplicationDetail,
   toApplicationSummaryFromEntity,
@@ -50,6 +47,11 @@ import type {
   SubmitInput,
   WithdrawInput,
 } from '../types';
+import { logger } from '@/lib/logger';
+import {
+  notifyAfterApplicationSubmit,
+  notifyApplicationWithdrawn,
+} from '../notifications';
 
 function resolveUserLimit(limit?: number): number {
   if (!limit) return USER_PAGE_SIZE_DEFAULT;
@@ -61,6 +63,8 @@ export class ButcherApplicationUserService {
     userId: string,
     data: ApplicationSnapshotInput = {},
   ): Promise<ApplicationDetailDto> {
+    validateSnapshotFormat(data);
+
     try {
       return await runInTransaction(async (tx) => {
         await assertUserHasNoButcher(tx, userId);
@@ -119,6 +123,8 @@ export class ButcherApplicationUserService {
     data: ApplicationSnapshotInput,
     expectedUpdatedAt?: Date | string,
   ): Promise<ApplicationDetailDto> {
+    validateSnapshotFormat(data);
+
     return runInTransaction(async (tx) => {
       const existing = await getApplicationByIdOrThrow(applicationId, tx);
       assertApplicationOwner(existing.userId, userId);
@@ -157,12 +163,12 @@ export class ButcherApplicationUserService {
     }
 
     try {
-      return await runInTransaction(async (tx) => {
+      const result = await runInTransaction(async (tx) => {
         await assertUserHasNoButcher(tx, userId);
 
         const existing = await getApplicationByIdOrThrow(applicationId, tx);
         assertApplicationOwner(existing.userId, userId);
-        assertSubmittableStatus(existing.status);
+        assertTransition(existing.status, 'SUBMITTED');
 
         validateSubmitSnapshot(existing);
         validateRequiredDocuments(existing);
@@ -182,6 +188,12 @@ export class ButcherApplicationUserService {
 
         return toApplicationDetail(updated);
       });
+
+      void notifyAfterApplicationSubmit(result, userId).catch((err) =>
+        logger.warn({ err, applicationId, userId }, 'Submit notification side effect failed'),
+      );
+
+      return result;
     } catch (err) {
       const mapped = mapPrismaUniqueViolation(err);
       if (mapped) throw mapped;
@@ -195,10 +207,10 @@ export class ButcherApplicationUserService {
     applicationId: string,
     input: WithdrawInput = {},
   ): Promise<ApplicationDetailDto> {
-    return runInTransaction(async (tx) => {
+    const result = await runInTransaction(async (tx) => {
       const existing = await getApplicationByIdOrThrow(applicationId, tx);
       assertApplicationOwner(existing.userId, userId);
-      assertWithdrawableStatus(existing.status);
+      assertTransition(existing.status, 'WITHDRAWN');
 
       const now = new Date();
       const updated = await updateApplicationStatus(tx, applicationId, {
@@ -215,32 +227,14 @@ export class ButcherApplicationUserService {
 
       return toApplicationDetail(updated);
     });
+
+    void notifyApplicationWithdrawn(result, userId).catch((err) =>
+      logger.warn({ err, applicationId, userId }, 'Withdraw notification side effect failed'),
+    );
+
+    return result;
   }
 
-  async requireEditableApplication(
-    userId: string,
-    applicationId: string,
-  ): Promise<ApplicationEntity> {
-    const application = await getApplicationByIdOrThrow(applicationId);
-    assertApplicationOwner(application.userId, userId);
-    assertEditableStatus(application.status);
-    return application;
-  }
 }
 
 export const butcherApplicationUserService = new ButcherApplicationUserService();
-
-export async function userHasButcherProfile(userId: string): Promise<boolean> {
-  const butcher = await findButcherByUserId(userId);
-  return Boolean(butcher);
-}
-
-export async function getApplicationIfOwned(
-  userId: string,
-  applicationId: string,
-): Promise<ApplicationEntity> {
-  const application = await findApplicationById(applicationId);
-  if (!application) throw new ButcherApplicationError('APPLICATION_NOT_FOUND');
-  assertApplicationOwner(application.userId, userId);
-  return application;
-}

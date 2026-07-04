@@ -16,10 +16,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
 import { CATEGORY_LABELS, MeatCategory } from '@/services/butcherData';
+import { UserProfileLink } from '@/components/feature/UserProfileLink';
 
 type ProfileTab = 'info' | 'products' | 'reviews';
 
@@ -29,15 +32,10 @@ const PROFILE_TABS = [
   { id: 'reviews' as const, label: 'التقييمات', icon: 'star-outline' },
 ];
 
-const CARD = {
-  backgroundColor: colors.bgSurface,
-  borderRadius: radius.xl,
-  borderWidth: 1,
-  borderColor: colors.borderSoft,
-} as const;
-
 export default function ButcherProfileScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const { accessToken } = useAuth();
   const [activeTab, setActiveTab] = useState<ProfileTab>('info');
   const [butcher, setButcher] = useState<any>(null);
@@ -104,7 +102,7 @@ export default function ButcherProfileScreen() {
               borderRadius: radius.xl,
               backgroundColor: colors.electric,
             }}
-            onPress={() => router.push('/butchers/register')}
+            onPress={() => router.push('/butchers/apply')}
           >
             <Text style={{ ...typography.bodyStrong, color: '#fff' }}>سجل ملحمتك الآن</Text>
           </Pressable>
@@ -276,7 +274,7 @@ export default function ButcherProfileScreen() {
                         : <Text style={styles.productPrice}>{p.priceFixed?.toLocaleString()} ر.س</Text>
                       }
                       <View style={[styles.stockTag, { backgroundColor: p.inStock ? `${colors.success}22` : `${colors.danger}22` }]}>
-                        <Text style={[styles.stockTagText, { color: p.inStock ? colors.success : colors.danger }]}>
+                        <Text style={[styles.stockTagText, { color: p.inStock ? colors.textBrandSuccess : colors.danger }]}>
                           {p.inStock ? 'متوفر' : 'نفد'}
                         </Text>
                       </View>
@@ -299,15 +297,19 @@ export default function ButcherProfileScreen() {
               {reviews.map((rev: any) => (
                 <View key={rev.id} style={styles.reviewItem}>
                   <View style={styles.reviewHeader}>
-                    {rev.reviewer?.avatar ? (
-                      <Image source={{ uri: rev.reviewer.avatar }} style={styles.reviewAvatar} contentFit="cover" />
-                    ) : (
-                      <View style={[styles.reviewAvatar, { backgroundColor: colors.bgElevated, alignItems: 'center', justifyContent: 'center' }]}>
-                        <Ionicons name="person" size={18} color={colors.textMuted} />
-                      </View>
-                    )}
+                    <UserProfileLink userId={rev.reviewer?.id}>
+                      {rev.reviewer?.avatar ? (
+                        <Image source={{ uri: rev.reviewer.avatar }} style={styles.reviewAvatar} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.reviewAvatar, { backgroundColor: colors.bgElevated, alignItems: 'center', justifyContent: 'center' }]}>
+                          <Ionicons name="person" size={18} color={colors.textMuted} />
+                        </View>
+                      )}
+                    </UserProfileLink>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.reviewAuthor}>{rev.reviewer?.arabicName || rev.reviewer?.displayName || 'عميل صفاة'}</Text>
+                      <UserProfileLink userId={rev.reviewer?.id}>
+                        <Text style={styles.reviewAuthor}>{rev.reviewer?.arabicName || rev.reviewer?.displayName || 'عميل صفاة'}</Text>
+                      </UserProfileLink>
                       <Text style={styles.reviewTime}>
                         {new Date(rev.createdAt).toLocaleDateString('ar-SA')}
                       </Text>
@@ -342,7 +344,15 @@ export default function ButcherProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  const CARD = {
+    backgroundColor: colors.bgSurface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  } as const;
+
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   scrollView: { flex: 1 },
   scroll: { paddingBottom: spacing.md },
@@ -451,7 +461,7 @@ const styles = StyleSheet.create({
   },
   englishName: {
     ...typography.body,
-    color: colors.glow,
+    color: colors.textBrand,
   },
   handle: {
     ...typography.caption,
@@ -539,7 +549,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   tabLabelActive: {
-    color: colors.electricBright,
+    color: colors.textBrandStrong,
     fontWeight: '700',
   },
   tabIndicator: {
@@ -671,4 +681,5 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 40 },
   emptyText: { ...typography.body, color: colors.textMuted },
   bottomSpacer: { height: 100 },
-});
+  });
+}

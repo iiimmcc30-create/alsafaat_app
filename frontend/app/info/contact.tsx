@@ -7,10 +7,14 @@ import { useRouter } from 'expo-router';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
 
 export default function ContactScreen() {
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
@@ -143,7 +147,8 @@ export default function ContactScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -191,4 +196,5 @@ const styles = StyleSheet.create({
   },
   sendBtnText: { ...typography.bodyStrong, color: '#fff' },
   footer: { ...typography.caption, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xl, paddingHorizontal: spacing.lg },
-});
+  });
+}

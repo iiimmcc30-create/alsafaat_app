@@ -503,7 +503,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
-  headerSub: { ...typography.caption, color: colors.glow, marginTop: 1 },
+  headerSub: { ...typography.caption, color: colors.textBrand, marginTop: 1 },
   listBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: colors.bgGlass,
@@ -725,7 +725,7 @@ const bc = StyleSheet.create({
     backgroundColor: colors.electric + '11',
     borderWidth: 1, borderColor: colors.electricBright + '33',
   },
-  completionText: { ...typography.micro, color: colors.electricBright },
+  completionText: { ...typography.micro, color: colors.textBrandStrong },
   currencyText: { ...typography.caption, color: colors.textMuted, marginLeft: 'auto' as any },
   chipsRow: { flexDirection: 'row', gap: 6 },
   chip: {
@@ -734,7 +734,7 @@ const bc = StyleSheet.create({
     backgroundColor: colors.bgElevated,
     borderWidth: 1, borderColor: colors.borderSoft,
   },
-  chipText: { ...typography.micro, color: colors.glow },
+  chipText: { ...typography.micro, color: colors.textBrand },
   actions: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
   chatBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -743,7 +743,7 @@ const bc = StyleSheet.create({
     borderWidth: 1, borderColor: colors.electricBright + '66',
     backgroundColor: colors.electric + '11',
   },
-  chatBtnText: { ...typography.caption, color: colors.electricBright, fontWeight: '600' },
+  chatBtnText: { ...typography.caption, color: colors.textBrandStrong, fontWeight: '600' },
   orderBtn: { flex: 1, borderRadius: radius.xl, overflow: 'hidden' },
   orderBtnGrad: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -757,5 +757,5 @@ const bc = StyleSheet.create({
     borderWidth: 1, borderColor: colors.borderSoft,
     backgroundColor: colors.bgElevated,
   },
-  profileBtnText: { ...typography.micro, color: colors.electricBright },
+  profileBtnText: { ...typography.micro, color: colors.textBrandStrong },
 });

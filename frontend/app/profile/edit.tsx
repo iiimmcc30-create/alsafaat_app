@@ -19,7 +19,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
 import { useApp } from '@/hooks/useApp';
 import { Country, countries } from '@/services/types';
@@ -30,6 +32,8 @@ const GCC_COUNTRIES: { code: Country; ar: string; flag: string }[] = [
 ];
 
 export default function EditProfileScreen() {
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const { me, updateMe } = useApp();
 
@@ -240,7 +244,8 @@ export default function EditProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -301,7 +306,7 @@ const styles = StyleSheet.create({
   countryChipActive: { borderColor: colors.electric, backgroundColor: `${colors.electric}20` },
   countryFlag: { fontSize: 16 },
   countryLabel: { ...typography.caption, color: colors.textMuted },
-  countryLabelActive: { color: colors.electricBright },
+  countryLabelActive: { color: colors.textBrandStrong },
   sectionDivider: {
     paddingVertical: spacing.md, marginTop: spacing.sm,
     borderTopWidth: 1, borderTopColor: colors.borderSoft,
@@ -327,4 +332,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignSelf: 'flex-end',
   },
-});
+  });
+}

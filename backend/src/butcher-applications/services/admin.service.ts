@@ -1,13 +1,15 @@
+import type { Prisma } from '@prisma/client';
 import {
   ADMIN_PAGE_SIZE_DEFAULT,
   ADMIN_PAGE_SIZE_MAX,
 } from '../constants';
 import {
   countSubmittedApplications,
+  createButcher,
   getApplicationByIdOrThrow,
   listAdminApplications,
-  provisionButcherFromApplication,
   updateApplicationStatus,
+  type ApplicationEntity,
 } from '../repositories/application.repository';
 import { approveUploadedDocuments } from '../repositories/document.repository';
 import {
@@ -16,8 +18,7 @@ import {
 } from '../helpers/transaction';
 import { appendTimelineEvent } from '../helpers/timeline';
 import {
-  assertApprovableStatus,
-  assertRejectableStatus,
+  assertTransition,
   timelineActionForTransition,
 } from '../helpers/stateTransitions';
 import { buildPaginatedResult } from '../helpers/validation';
@@ -41,10 +42,43 @@ import type {
   RejectInput,
   TimelineEventDto,
 } from '../types';
+import { logger } from '@/lib/logger';
+import {
+  notifyApplicationApproved,
+  notifyApplicationRejected,
+} from '../notifications';
 
 function resolveAdminLimit(limit?: number): number {
   if (!limit) return ADMIN_PAGE_SIZE_DEFAULT;
   return Math.min(Math.max(limit, 1), ADMIN_PAGE_SIZE_MAX);
+}
+
+/** Maps an approved application snapshot into butcher persistence input (AdminService-owned). */
+export function buildButcherCreateInput(
+  application: ApplicationEntity,
+): Prisma.ButcherUncheckedCreateInput {
+  return {
+    userId: application.userId,
+    nameAr: application.nameAr!,
+    nameEn: application.nameEn!,
+    country: application.country!,
+    city: application.city!,
+    cityAr: application.cityAr!,
+    address: application.address!,
+    addressAr: application.addressAr!,
+    lat: application.lat,
+    lng: application.lng,
+    phone: application.shopPhone!,
+    bioAr: application.bioAr,
+    bioEn: application.bioEn,
+    specialties: application.specialties,
+    commercialReg: application.commercialReg,
+    openTime: application.openTime,
+    closeTime: application.closeTime,
+    closedDays: [],
+    type: 'regular',
+    sourceApplicationId: application.id,
+  };
 }
 
 export class ButcherApplicationAdminService {
@@ -80,7 +114,7 @@ export class ButcherApplicationAdminService {
     input: ApproveInput = {},
   ): Promise<ApproveResultDto> {
     try {
-      return await runInTransaction(async (tx) => {
+      const result = await runInTransaction(async (tx) => {
         const existing = await getApplicationByIdOrThrow(applicationId, tx);
 
         if (existing.status === 'APPROVED' && existing.sourcedButcher) {
@@ -93,14 +127,15 @@ export class ButcherApplicationAdminService {
               id: existing.sourcedButcher.id,
               sourceApplicationId: applicationId,
             },
+            isNewApproval: false as const,
           };
         }
 
-        assertApprovableStatus(existing.status);
+        assertTransition(existing.status, 'APPROVED');
         await assertUserHasNoButcher(tx, existing.userId);
 
         const now = new Date();
-        const butcher = await provisionButcherFromApplication(tx, existing);
+        const butcher = await createButcher(tx, buildButcherCreateInput(existing));
 
         await approveUploadedDocuments(tx, applicationId, adminUserId, now);
 
@@ -123,8 +158,22 @@ export class ButcherApplicationAdminService {
             includeUser: true,
           }),
           butcher,
+          isNewApproval: true as const,
         };
       });
+
+      if (result.isNewApproval) {
+        void notifyApplicationApproved(
+          result.application,
+          result.application.user!.id,
+          result.butcher.id,
+        ).catch((err) =>
+          logger.warn({ err, applicationId }, 'Approve notification side effect failed'),
+        );
+      }
+
+      const { isNewApproval: _, ...approveResult } = result;
+      return approveResult;
     } catch (err) {
       const mapped = mapPrismaUniqueViolation(err);
       if (mapped) throw mapped;
@@ -141,15 +190,17 @@ export class ButcherApplicationAdminService {
       throw new ButcherApplicationError('REJECTION_REASON_REQUIRED');
     }
 
-    return runInTransaction(async (tx) => {
+    const rejectionReason = input.rejectionReason.trim();
+
+    const result = await runInTransaction(async (tx) => {
       const existing = await getApplicationByIdOrThrow(applicationId, tx);
-      assertRejectableStatus(existing.status);
+      assertTransition(existing.status, 'REJECTED');
 
       const now = new Date();
       const updated = await updateApplicationStatus(tx, applicationId, {
         status: 'REJECTED',
         rejectedAt: now,
-        rejectionReason: input.rejectionReason.trim(),
+        rejectionReason,
       });
 
       await appendTimelineEvent(tx, {
@@ -157,7 +208,7 @@ export class ButcherApplicationAdminService {
         action: timelineActionForTransition('REJECTED'),
         createdBy: adminUserId,
         comment: input.comment ?? null,
-        metadata: { rejectionReason: input.rejectionReason.trim() },
+        metadata: { rejectionReason },
       });
 
       return toApplicationDetail(updated, {
@@ -165,6 +216,12 @@ export class ButcherApplicationAdminService {
         includeUser: true,
       });
     });
+
+    void notifyApplicationRejected(result, result.user!.id).catch((err) =>
+      logger.warn({ err, applicationId }, 'Reject notification side effect failed'),
+    );
+
+    return result;
   }
 
   async addComment(
@@ -179,17 +236,11 @@ export class ButcherApplicationAdminService {
     return runInTransaction(async (tx) => {
       await getApplicationByIdOrThrow(applicationId, tx);
 
-      const event = await tx.butcherApplicationTimelineEvent.create({
-        data: {
-          applicationId,
-          action: 'COMMENT',
-          createdBy: adminUserId,
-          comment: input.comment.trim(),
-          metadata: {},
-        },
-        include: {
-          actor: { select: { id: true, username: true } },
-        },
+      const event = await appendTimelineEvent(tx, {
+        applicationId,
+        action: 'COMMENT',
+        createdBy: adminUserId,
+        comment: input.comment.trim(),
       });
 
       return toTimelineEventDto(event);

@@ -163,7 +163,7 @@ const s = StyleSheet.create({
   stepLineDone: {},
   stepNum: { ...typography.micro, color: colors.textMuted },
   stepLabel: { ...typography.caption, color: colors.textMuted, flex: 1 },
-  stepLabelDone: { color: colors.success, fontWeight: '600' },
+  stepLabelDone: { color: colors.textBrandSuccess, fontWeight: '600' },
   chatBtn: { width: '100%', borderRadius: radius.xl, overflow: 'hidden' },
   chatBtnGrad: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

@@ -1,6 +1,7 @@
 // Powered by OnSpace.AI
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { rtlDirection, rtlRow } from '@/lib/rtl';
 import { Country, countries } from '@/services/types';
 
@@ -12,6 +13,8 @@ interface CountryChipsProps {
 const order: (Country | 'ALL')[] = ['ALL', 'SA', 'EG'];
 
 export function CountryChips({ value, onChange }: CountryChipsProps) {
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
+
   return (
     <View style={[styles.wrap, rtlDirection]}>
       <ScrollView
@@ -43,44 +46,46 @@ export function CountryChips({ value, onChange }: CountryChipsProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    minHeight: 50,
-    paddingVertical: spacing.sm,
-  },
-  content: {
-    ...rtlRow,
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
-  },
-  chip: {
-    ...rtlRow,
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 8,
-    borderRadius: radius.pill,
-    backgroundColor: colors.bgGlass,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    height: 36,
-  },
-  chipSelected: {
-    backgroundColor: colors.electric,
-    borderColor: colors.glow,
-  },
-  flag: {
-    fontSize: 14,
-  },
-  chipText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  chipTextSelected: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    wrap: {
+      minHeight: 50,
+      paddingVertical: spacing.sm,
+    },
+    content: {
+      ...rtlRow,
+      alignItems: 'center',
+      paddingHorizontal: spacing.lg,
+      gap: spacing.sm,
+    },
+    chip: {
+      ...rtlRow,
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 8,
+      borderRadius: radius.pill,
+      backgroundColor: colors.bgGlass,
+      borderWidth: 1,
+      borderColor: colors.borderSoft,
+      height: 36,
+    },
+    chipSelected: {
+      backgroundColor: colors.electric,
+      borderColor: colors.glow,
+    },
+    flag: {
+      fontSize: 14,
+    },
+    chipText: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    chipTextSelected: {
+      color: '#fff',
+      fontWeight: '700',
+    },
+  });
+}
 
 export default CountryChips;

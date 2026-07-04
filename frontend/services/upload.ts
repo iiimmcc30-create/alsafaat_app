@@ -3,7 +3,14 @@
 import { Platform } from 'react-native';
 import { API_BASE } from './api';
 
-type UploadFolder = 'avatars' | 'listings' | 'stories' | 'butchers' | 'posts' | 'temp';
+type UploadFolder =
+  | 'avatars'
+  | 'listings'
+  | 'stories'
+  | 'butchers'
+  | 'posts'
+  | 'temp'
+  | 'butcher-applications';
 
 type S3UploadSlot = {
   provider?: 's3';
@@ -29,12 +36,28 @@ type LocalUploadSlot = {
 
 type UploadSlot = S3UploadSlot | CloudinaryUploadSlot | LocalUploadSlot;
 
+export type ButcherApplicationFileUploadResult = {
+  fileKey: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  originalFileName: string;
+};
+
+type PresignSlot = UploadSlot & { fileKey?: string };
+
 function guessMime(uri: string): string {
   const lower = uri.toLowerCase();
+  if (lower.endsWith('.pdf')) return 'application/pdf';
   if (lower.endsWith('.png')) return 'image/png';
   if (lower.endsWith('.webp')) return 'image/webp';
   if (lower.endsWith('.gif')) return 'image/gif';
   return 'image/jpeg';
+}
+
+function fileNameFromUri(uri: string): string {
+  const parts = uri.split(/[\\/]/);
+  const name = parts[parts.length - 1];
+  return name && name.length > 0 ? name : 'document';
 }
 
 function fileExtension(mimetype: string): string {
@@ -173,4 +196,87 @@ export async function uploadImageFromUri(
   }
 
   return uploadToS3(slot, localUri, mimetype);
+}
+
+async function readLocalFileMeta(
+  localUri: string,
+  mimetype: string,
+): Promise<{ blob: Blob; fileSizeBytes: number }> {
+  const fileRes = await fetch(localUri);
+  const blob = await fileRes.blob();
+  return { blob, fileSizeBytes: blob.size };
+}
+
+async function uploadBlobToSlot(
+  slot: UploadSlot,
+  accessToken: string,
+  localUri: string,
+  mimetype: string,
+  blob?: Blob,
+): Promise<void> {
+  if (slot.provider === 'local') {
+    await uploadToLocal(accessToken, slot as LocalUploadSlot, localUri, mimetype);
+    return;
+  }
+  if (slot.provider === 'cloudinary' || 'signature' in slot) {
+    await uploadToCloudinary(slot as CloudinaryUploadSlot, localUri, mimetype);
+    return;
+  }
+  if (!slot.cdnUrl) {
+    throw new Error('استجابة الرفع غير صالحة');
+  }
+  const body = blob ?? (await (await fetch(localUri)).blob());
+  const putRes = await fetch(slot.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': mimetype },
+    body,
+  });
+  if (!putRes.ok) {
+    throw new Error('فشل رفع الملف');
+  }
+}
+
+/** Presign + upload for butcher-application documents; returns storage fileKey for API registration. */
+export async function uploadButcherApplicationFileFromUri(
+  accessToken: string,
+  localUri: string,
+  options: { originalFileName?: string; mimeType?: string } = {},
+): Promise<ButcherApplicationFileUploadResult> {
+  const mimetype = options.mimeType ?? guessMime(localUri);
+  const originalFileName = options.originalFileName ?? fileNameFromUri(localUri);
+  const { blob, fileSizeBytes } = await readLocalFileMeta(localUri, mimetype);
+
+  const presignRes = await fetch(`${API_BASE}/api/upload/presign`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ mimetype, folder: 'butcher-applications', count: 1 }),
+  });
+
+  const presignJson = await presignRes.json().catch(() => ({}));
+  if (!presignRes.ok || !presignJson.success) {
+    throw new Error(
+      presignJson.messageAr ||
+        presignJson.message ||
+        (presignRes.status === 503
+          ? 'خدمة رفع الملفات غير مُعدّة على السيرفر'
+          : 'فشل تجهيز الرفع'),
+    );
+  }
+
+  const slot = presignJson.data?.urls?.[0] as PresignSlot | undefined;
+  if (!slot?.uploadUrl || !slot.fileKey) {
+    throw new Error('استجابة الرفع غير صالحة');
+  }
+
+  await uploadBlobToSlot(slot, accessToken, localUri, mimetype, blob);
+
+  return {
+    fileKey: slot.fileKey,
+    mimeType: mimetype,
+    fileSizeBytes,
+    originalFileName,
+  };
 }

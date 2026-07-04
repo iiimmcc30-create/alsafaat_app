@@ -25,13 +25,47 @@ export function canTransition(
   return ALLOWED_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
+/**
+ * Single status-transition gate. Maps duplicate/wrong-state attempts to Phase C error codes.
+ */
 export function assertTransition(
   from: ButcherApplicationStatus,
   to: ButcherApplicationStatus,
 ): void {
-  if (!canTransition(from, to)) {
-    throw new ButcherApplicationError('INVALID_STATUS_TRANSITION', { from, to });
+  if (from === to) {
+    switch (to) {
+      case 'SUBMITTED':
+        throw new ButcherApplicationError('APPLICATION_ALREADY_SUBMITTED');
+      case 'APPROVED':
+        throw new ButcherApplicationError('APPLICATION_ALREADY_APPROVED');
+      case 'REJECTED':
+        throw new ButcherApplicationError('APPLICATION_ALREADY_REJECTED');
+      case 'WITHDRAWN':
+        throw new ButcherApplicationError('APPLICATION_ALREADY_WITHDRAWN');
+      default:
+        throw new ButcherApplicationError('INVALID_STATUS_TRANSITION', { from, to });
+    }
   }
+
+  if (canTransition(from, to)) return;
+
+  if (from === 'APPROVED') {
+    throw new ButcherApplicationError('APPLICATION_ALREADY_APPROVED');
+  }
+  if (from === 'REJECTED') {
+    throw new ButcherApplicationError('APPLICATION_ALREADY_REJECTED');
+  }
+  if (from === 'WITHDRAWN') {
+    throw new ButcherApplicationError('APPLICATION_ALREADY_WITHDRAWN');
+  }
+  if (from === 'SUBMITTED' && to === 'SUBMITTED') {
+    throw new ButcherApplicationError('APPLICATION_ALREADY_SUBMITTED');
+  }
+  if (from !== 'DRAFT' && to === 'SUBMITTED') {
+    throw new ButcherApplicationError('APPLICATION_ALREADY_SUBMITTED');
+  }
+
+  throw new ButcherApplicationError('INVALID_STATUS_TRANSITION', { from, to });
 }
 
 export function timelineActionForTransition(
@@ -44,56 +78,9 @@ export function timelineActionForTransition(
   return action;
 }
 
+/** Draft-only guard for edits/uploads — not a lifecycle transition. */
 export function assertEditableStatus(status: ButcherApplicationStatus): void {
   if (status !== 'DRAFT') {
     throw new ButcherApplicationError('APPLICATION_NOT_EDITABLE');
   }
-}
-
-export function assertSubmittedStatus(status: ButcherApplicationStatus): void {
-  if (status !== 'SUBMITTED') {
-    if (status === 'APPROVED') throw new ButcherApplicationError('APPLICATION_ALREADY_APPROVED');
-    if (status === 'REJECTED') throw new ButcherApplicationError('APPLICATION_ALREADY_REJECTED');
-    if (status === 'WITHDRAWN') throw new ButcherApplicationError('APPLICATION_ALREADY_WITHDRAWN');
-    if (status === 'DRAFT') throw new ButcherApplicationError('INVALID_STATUS_TRANSITION');
-    throw new ButcherApplicationError('INVALID_STATUS_TRANSITION');
-  }
-}
-
-export function assertWithdrawableStatus(status: ButcherApplicationStatus): void {
-  if (status === 'WITHDRAWN') {
-    throw new ButcherApplicationError('APPLICATION_ALREADY_WITHDRAWN');
-  }
-  if (status !== 'SUBMITTED') {
-    throw new ButcherApplicationError('INVALID_STATUS_TRANSITION');
-  }
-}
-
-export function assertRejectableStatus(status: ButcherApplicationStatus): void {
-  if (status === 'REJECTED') {
-    throw new ButcherApplicationError('APPLICATION_ALREADY_REJECTED');
-  }
-  assertSubmittedStatus(status);
-}
-
-export function assertApprovableStatus(status: ButcherApplicationStatus): void {
-  if (status === 'APPROVED') {
-    return;
-  }
-  assertSubmittedStatus(status);
-}
-
-export function assertSubmittableStatus(status: ButcherApplicationStatus): void {
-  if (status === 'SUBMITTED') {
-    throw new ButcherApplicationError('APPLICATION_ALREADY_SUBMITTED');
-  }
-  if (status !== 'DRAFT') {
-    throw new ButcherApplicationError('INVALID_STATUS_TRANSITION');
-  }
-}
-
-export function getAllowedTransitionsFrom(
-  from: ButcherApplicationStatus,
-): ButcherApplicationStatus[] {
-  return [...ALLOWED_TRANSITIONS[from]];
 }

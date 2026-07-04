@@ -4,13 +4,6 @@ import type { TransactionClient } from '../helpers/transaction';
 import { ButcherApplicationError } from '../errors';
 import type { DocumentUploadInput, DocumentReplaceInput } from '../types';
 
-export async function findDocumentById(
-  id: string,
-  tx: TransactionClient | typeof prisma = prisma,
-) {
-  return tx.butcherApplicationDocument.findUnique({ where: { id } });
-}
-
 export async function findDocumentByIdAndApplication(
   documentId: string,
   applicationId: string,
@@ -28,16 +21,6 @@ export async function findDocumentByApplicationAndType(
 ) {
   return tx.butcherApplicationDocument.findFirst({
     where: { applicationId, type },
-  });
-}
-
-export async function listDocumentsByApplicationId(
-  applicationId: string,
-  tx: TransactionClient | typeof prisma = prisma,
-) {
-  return tx.butcherApplicationDocument.findMany({
-    where: { applicationId },
-    orderBy: { createdAt: 'asc' },
   });
 }
 

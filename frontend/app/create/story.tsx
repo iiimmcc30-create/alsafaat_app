@@ -19,7 +19,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
@@ -27,14 +29,17 @@ import { uploadImageFromUri } from '@/services/upload';
 
 type ButcherStoryType = 'daily_slaughter' | 'offer' | 'new_stock' | 'update';
 
-const BUTCHER_TYPES: { id: ButcherStoryType; label: string; icon: string; color: string }[] = [
-  { id: 'daily_slaughter', label: 'ذبح يومي',   icon: '🔪', color: colors.danger   },
-  { id: 'new_stock',       label: 'مخزون جديد', icon: '📦', color: colors.success  },
-  { id: 'offer',           label: 'عرض اليوم',  icon: '🏷️', color: colors.amber    },
-  { id: 'update',          label: 'تحديث عام',  icon: '📢', color: colors.electric },
-];
-
 export default function CreateStoryScreen() {
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
+
+  const BUTCHER_TYPES: { id: ButcherStoryType; label: string; icon: string; color: string }[] = [
+    { id: 'daily_slaughter', label: 'ذبح يومي',   icon: '🔪', color: colors.danger   },
+    { id: 'new_stock',       label: 'مخزون جديد', icon: '📦', color: colors.textBrandSuccess  },
+    { id: 'offer',           label: 'عرض اليوم',  icon: '🏷️', color: colors.amber    },
+    { id: 'update',          label: 'تحديث عام',  icon: '📢', color: colors.textBrandAlt },
+  ];
+
   const router = useRouter();
   const { accessToken, user, activeMode } = useAuth();
   const params = useLocalSearchParams<{ type?: string; mode?: string }>();
@@ -228,7 +233,8 @@ export default function CreateStoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   header: {
     flexDirection: 'row',
@@ -328,4 +334,5 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textPrimary,
   },
-});
+  });
+}

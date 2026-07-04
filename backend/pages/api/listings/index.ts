@@ -9,9 +9,10 @@ import { withAuth, withOptionalAuth, apiResponse, apiError, AuthedRequest } from
 import { apiRateLimit } from '@/middleware/rateLimiter';
 import { cacheGet, cacheSet, cacheDel, getRedis } from '@/lib/redis';
 import { calculateCommission, ListingCat } from '@/lib/commissions';
-import { addNotification, scheduleFeeCheck } from '@/lib/queue';
+import { scheduleFeeCheck } from '@/lib/queue';
 import { logger } from '@/lib/logger';
 import { countrySchema } from '@/lib/countries';
+import { notifyUser } from '@/lib/notifications';
 
 const PAGE_SIZE = 20;
 
@@ -171,7 +172,7 @@ async function createListing(req: AuthedRequest, res: NextApiResponse) {
     const delayMs = dueDate.getTime() - Date.now() + 60_000;
     await scheduleFeeCheck({ listingFeeId: listing.fee!.id, userId: req.user.userId, amount: commission }, delayMs);
 
-    await addNotification({
+    await notifyUser({
       userId:   req.user.userId,
       type:     'fee_due',
       titleAr:  '✅ تم نشر إعلانك',

@@ -5,7 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing, typography } from '@/constants/theme';
+import { spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
 
 const TERMS = [
@@ -44,6 +46,8 @@ const TERMS = [
 ];
 
 export default function TermsScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
 
   return (
@@ -93,7 +97,8 @@ export default function TermsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -126,12 +131,13 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     ...typography.micro,
     textAlign: 'center',
-    color: colors.electricBright,
+    color: colors.textBrandStrong,
   },
   sectionTitle: { ...typography.bodyStrong, color: colors.gold, textAlign: 'right' },
   sectionContent: { ...typography.body, color: colors.textSecondary, lineHeight: 26, textAlign: 'right' },
   contactSection: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.sm },
   contactRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
-  contactLink: { ...typography.body, color: colors.electricBright },
+  contactLink: { ...typography.body, color: colors.textBrandStrong },
   footer: { ...typography.micro, color: colors.textSubtle, textAlign: 'center', marginTop: spacing.xl, paddingHorizontal: spacing.lg },
-});
+  });
+}

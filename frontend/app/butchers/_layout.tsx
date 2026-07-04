@@ -2,12 +2,15 @@
 // SAFAT — Butchers Section Layout
 
 import { Stack } from 'expo-router';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlDirection } from '@/lib/rtl';
 
 export default function ButchersLayout() {
+  const { colors, scheme } = useTheme();
+
   return (
     <Stack
+      key={scheme}
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.bgDeep, ...rtlDirection },
@@ -20,6 +23,10 @@ export default function ButchersLayout() {
       <Stack.Screen name="order-success" options={{ animation: 'fade' }} />
       <Stack.Screen name="chat" />
       <Stack.Screen name="register" />
+      <Stack.Screen name="apply" />
+      <Stack.Screen name="my-application" />
+      <Stack.Screen name="application/[id]" />
+      <Stack.Screen name="application/edit/[id]" />
       <Stack.Screen name="edit" />
       <Stack.Screen name="dashboard" />
       <Stack.Screen name="manage" />

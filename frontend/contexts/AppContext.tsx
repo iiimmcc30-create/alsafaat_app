@@ -15,7 +15,8 @@ const DEFAULT_USER: User = {
   avatar: undefined,
   verified: false,
   followers: 0,
-  rating: 5.0,
+  rating: null,
+  reviewCount: 0,
   country: 'SA',
   bio: '',
 };
@@ -58,7 +59,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       avatar: u.avatar || undefined,
       verified: u.verified ?? false,
       followers: u.followersCount ?? 0,
-      rating: u.rating ?? 5.0,
+      rating: typeof u.rating === 'number' ? u.rating : null,
+      reviewCount: u.reviewCount ?? 0,
       country: u.country || 'SA',
       bio: u.bio || '',
     };

@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   offerBubble: { backgroundColor: 'rgba(200,40,40,0.65)' },
-  bubbleUser: { color: colors.electricBright, fontSize: 11, fontWeight: '700' },
+  bubbleUser: { color: colors.textBrandStrong, fontSize: 11, fontWeight: '700' },
   bubbleText: { color: '#fff', fontSize: 13 },
 
   bottomWrap: { position: 'absolute', bottom: 0, left: 0, right: 0 },

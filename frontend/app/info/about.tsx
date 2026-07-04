@@ -6,10 +6,15 @@ import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter } from 'expo-router';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
+import { AppLogo } from '@/components/ui/AppLogo';
 import { rtlBackIcon } from '@/lib/rtl';
 
 export default function AboutScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
 
   return (
@@ -26,7 +31,7 @@ export default function AboutScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {/* Hero */}
         <LinearGradient colors={['#0B1330', '#162149', '#1E3A8A']} style={styles.hero}>
-          <Text style={styles.heroEmoji}>🐪</Text>
+          <AppLogo size={96} showRing={false} />
           <Text style={styles.heroTitle}>الصفاة</Text>
           <Text style={styles.heroSub}>منصة تجارة الثروة الحيوانية في الخليج</Text>
         </LinearGradient>
@@ -112,7 +117,8 @@ export default function AboutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -130,9 +136,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.huge,
     gap: spacing.sm,
   },
-  heroEmoji: { fontSize: 48 },
   heroTitle: { fontSize: 32, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.5 },
-  heroSub: { ...typography.body, color: colors.glow, textAlign: 'center', paddingHorizontal: spacing.xl },
+  heroSub: { ...typography.body, color: colors.textBrand, textAlign: 'center', paddingHorizontal: spacing.xl },
   scroll: { paddingBottom: 40 },
   section: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md, textAlign: 'right' },
@@ -167,6 +172,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
     marginBottom: spacing.sm,
   },
-  contactText: { ...typography.body, color: colors.electricBright },
+  contactText: { ...typography.body, color: colors.textBrandStrong },
   version: { ...typography.micro, color: colors.textSubtle, textAlign: 'center', marginTop: spacing.xl, paddingHorizontal: spacing.lg },
-});
+  });
+}

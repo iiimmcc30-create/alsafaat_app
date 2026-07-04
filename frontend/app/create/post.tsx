@@ -17,8 +17,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { useApp } from '@/hooks/useApp';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
@@ -37,6 +39,9 @@ const SUGGESTED_HASHTAGS = [
 
 export default function CreatePostScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const { editId } = useLocalSearchParams<{ editId?: string }>();
   const isEditing = !!editId;
   const { me, addPost, updatePost } = useApp();
@@ -123,8 +128,8 @@ export default function CreatePostScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 12}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -256,8 +261,13 @@ export default function CreatePostScreen() {
           <View style={{ height: 60 }} />
         </ScrollView>
 
-        {/* Bottom toolbar */}
-        <View style={styles.toolbar}>
+        {/* Bottom toolbar — lifted above system nav / keyboard */}
+        <View
+          style={[
+            styles.toolbar,
+            { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm },
+          ]}
+        >
           <View style={styles.toolbarLeft}>
             {[
               { icon: 'image-outline', label: 'صورة' },
@@ -291,7 +301,8 @@ export default function CreatePostScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -320,7 +331,7 @@ const styles = StyleSheet.create({
   },
   typeChipActive: { borderColor: colors.electric, backgroundColor: `${colors.electric}15` },
   typeLabel: { ...typography.micro, color: colors.textMuted },
-  typeLabelActive: { color: colors.electricBright },
+  typeLabelActive: { color: colors.textBrandStrong },
   scroll: { paddingBottom: 20 },
   composeRow: {
     flexDirection: 'row', gap: spacing.md,
@@ -347,7 +358,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     backgroundColor: `${colors.electric}10`,
   },
-  audienceText: { ...typography.caption, color: colors.electricBright },
+  audienceText: { ...typography.caption, color: colors.textBrandStrong },
   hashtagSection: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
   hashtagTitle: { ...typography.micro, color: colors.textMuted, marginBottom: spacing.sm },
   hashtagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
@@ -358,7 +369,7 @@ const styles = StyleSheet.create({
   },
   hashtagChipActive: { backgroundColor: `${colors.electric}20`, borderColor: colors.electric },
   hashtagText: { ...typography.caption, color: colors.textMuted },
-  hashtagTextActive: { color: colors.electricBright },
+  hashtagTextActive: { color: colors.textBrandStrong },
   previewSection: { padding: spacing.lg, gap: spacing.sm },
   previewLabel: { ...typography.micro, color: colors.textMuted },
   previewCard: {
@@ -374,17 +385,28 @@ const styles = StyleSheet.create({
   previewSubText: { ...typography.caption, color: colors.textSecondary },
   toolbar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg, paddingTop: spacing.md,
     borderTopWidth: 1, borderTopColor: colors.borderSoft,
     backgroundColor: colors.bgDeep,
+    minHeight: 56,
   },
-  toolbarLeft: { flexDirection: 'row', gap: spacing.md },
-  toolBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  toolbarLeft: { flexDirection: 'row', gap: spacing.sm },
+  toolBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    backgroundColor: colors.bgSurface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
   charCountWrap: { alignItems: 'center', justifyContent: 'center' },
   charRing: {
     width: 32, height: 32, borderRadius: 16,
     borderWidth: 2, borderColor: colors.electric,
     alignItems: 'center', justifyContent: 'center',
   },
-  charCountText: { fontSize: 10, fontWeight: '700', color: colors.electric },
-});
+  charCountText: { fontSize: 10, fontWeight: '700', color: colors.textBrandAlt },
+  });
+}

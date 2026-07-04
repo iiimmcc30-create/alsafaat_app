@@ -18,7 +18,10 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
+import { AppLogo } from '@/components/ui/AppLogo';
 import { useAuth } from '@/contexts/AuthContext';
 
 function formatDisplayPhone(phone: string): string {
@@ -28,6 +31,8 @@ function formatDisplayPhone(phone: string): string {
 const OTP_LENGTH = 6;
 
 export default function OtpScreen() {
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const params = useLocalSearchParams<{
     phone: string;
@@ -166,7 +171,7 @@ export default function OtpScreen() {
       <View style={styles.root}>
         <View style={styles.successCenter}>
           <Animated.View style={[styles.successRing, { transform: [{ scale: successScale }] }]}>
-            <LinearGradient colors={['#1e6ff1', '#1099ec']} style={styles.successInner}>
+            <LinearGradient colors={[colors.electric, colors.electricBright]} style={styles.successInner}>
               <Ionicons name="checkmark" size={52} color="#fff" />
             </LinearGradient>
           </Animated.View>
@@ -191,9 +196,7 @@ export default function OtpScreen() {
 
           {/* Logo */}
           <View style={styles.header}>
-            <View style={styles.logoOuter}>
-              <Image source={require('@/assets/images/logo.png')} style={styles.logoImage} />
-            </View>
+            <AppLogo size={90} />
           </View>
 
           {/* Card */}
@@ -287,7 +290,7 @@ export default function OtpScreen() {
               disabled={loading || otp.join('').length < OTP_LENGTH}
             >
               <LinearGradient
-                colors={otp.join('').length === OTP_LENGTH ? ['#1e6ff1', '#1099ec'] : ['#1d273a', '#1d273a']}
+                colors={otp.join('').length === OTP_LENGTH ? [colors.electric, colors.electricBright] : [colors.borderHairline, colors.borderHairline]}
                 style={styles.verifyGrad}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
@@ -312,37 +315,30 @@ export default function OtpScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0c1322' },
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bgDeep },
   safe: { flex: 1 },
   kav: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.xl },
 
   backBtn: {
     position: 'absolute', top: 16, right: spacing.xl,
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#131e35', borderWidth: 1, borderColor: '#1d273a',
+    backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.borderHairline,
     alignItems: 'center', justifyContent: 'center', zIndex: 10,
   },
 
   header: { alignItems: 'center', marginBottom: 25 },
-  logoOuter: {
-    width: 90, height: 90, borderRadius: 45,
-    backgroundColor: '#131e35', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: '#1d273a',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 6, elevation: 5,
-  },
-  logoImage: { width: 66, height: 66, borderRadius: 33 },
 
   card: {
     width: '100%', borderRadius: 24, padding: spacing.xl,
-    backgroundColor: '#121a2d', borderWidth: 1, borderColor: '#1d273a',
+    backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.borderHairline,
     gap: spacing.md,
   },
   channelIconWrap: { alignItems: 'center', marginBottom: -spacing.sm },
-  cardTitle: { fontSize: 20, fontWeight: 'bold', color: '#ffffff', textAlign: 'center' },
-  cardSub: { fontSize: 13, color: '#9ca3af', textAlign: 'center', lineHeight: 22 },
-  phoneHighlight: { color: '#1099ec', fontWeight: 'bold' },
+  cardTitle: { fontSize: 20, fontWeight: 'bold', color: colors.textPrimary, textAlign: 'center' },
+  cardSub: { fontSize: 13, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
+  phoneHighlight: { color: colors.textBrandStrong, fontWeight: 'bold' },
 
   otpRow: {
     flexDirection: 'row', justifyContent: 'center', gap: spacing.sm,
@@ -350,16 +346,16 @@ const styles = StyleSheet.create({
   },
   otpBox: {
     width: 42, height: 50, borderRadius: 10,
-    backgroundColor: '#0c1322', borderWidth: 1.5, borderColor: '#1d273a',
+    backgroundColor: colors.bgDeep, borderWidth: 1.5, borderColor: colors.borderHairline,
     alignItems: 'center', justifyContent: 'center',
   },
   otpBoxFilled: {
-    borderColor: '#1e6ff1',
+    borderColor: colors.electric,
     backgroundColor: 'rgba(30,111,241,0.1)',
   },
   otpBoxError: { borderColor: colors.danger, backgroundColor: 'rgba(239, 68, 68, 0.1)' },
   otpInput: {
-    fontSize: 20, fontWeight: 'bold', color: '#ffffff',
+    fontSize: 20, fontWeight: 'bold', color: colors.textPrimary,
     width: '100%', height: '100%', textAlign: 'center',
   },
 
@@ -372,26 +368,26 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 12, color: colors.danger, textAlign: 'right', flex: 1 },
 
   resendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: 5 },
-  countdownText: { fontSize: 13, color: '#9ca3af' },
+  countdownText: { fontSize: 13, color: colors.textMuted },
   countdownBadge: {
-    backgroundColor: '#0c1322', paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 6, borderWidth: 1, borderColor: '#1d273a',
+    backgroundColor: colors.bgDeep, paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 6, borderWidth: 1, borderColor: colors.borderHairline,
   },
   countdownValue: { fontSize: 12, color: '#f59e0b', fontWeight: 'bold' },
   resendActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  resendActionText: { fontSize: 13, color: '#1099ec', fontWeight: '600' },
+  resendActionText: { fontSize: 13, color: colors.textBrandStrong, fontWeight: '600' },
 
   verifyBtn: { width: '100%', borderRadius: 25, overflow: 'hidden', marginTop: 10 },
   verifyBtnDisabled: { opacity: 0.5 },
   verifyGrad: { height: 50, alignItems: 'center', justifyContent: 'center' },
-  verifyText: { fontSize: 16, fontWeight: 'bold', color: '#ffffff' },
+  verifyText: { fontSize: 16, fontWeight: 'bold', color: colors.textPrimary },
 
   poweredRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.xs },
   poweredText: { fontSize: 11, color: '#6b7280' },
   twilioBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: 'rgba(239, 47, 70, 0.1)', paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 12, borderWidth: 1, borderColor: '#1d273a',
+    borderRadius: 12, borderWidth: 1, borderColor: colors.borderHairline,
   },
   twilioDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#f22f46' },
   twilioText: { fontSize: 11, color: '#f22f46', fontWeight: '600' },
@@ -400,10 +396,11 @@ const styles = StyleSheet.create({
   successCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
   successRing: {
     width: 120, height: 120, borderRadius: 60,
-    shadowColor: '#1099ec', shadowOffset: { width: 0, height: 0 },
+    shadowColor: colors.electricBright, shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8, shadowRadius: 30, elevation: 16,
   },
   successInner: { width: 120, height: 120, borderRadius: 60, alignItems: 'center', justifyContent: 'center' },
-  successTitle: { fontSize: 24, fontWeight: 'bold', color: '#ffffff', textAlign: 'center' },
-  successSub: { fontSize: 14, color: '#9ca3af' },
-});
+  successTitle: { fontSize: 24, fontWeight: 'bold', color: colors.textPrimary, textAlign: 'center' },
+  successSub: { fontSize: 14, color: colors.textMuted },
+  });
+}

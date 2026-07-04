@@ -17,9 +17,12 @@ import {
   View,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { gradients, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
+import { UserProfileLink } from '@/components/feature/UserProfileLink';
 import { ChatMessage, ButcherProfile } from '@/services/butcherData';
 import { API_BASE } from '@/services/api';
 import { useEffect } from 'react';
@@ -49,12 +52,17 @@ export default function ButcherChatScreen() {
     receiverAvatar?: string;
   }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
+  const messageStyles = useThemedStyles(({ colors }) => createMessageStyles(colors));
   const { me } = useApp();
   const { accessToken } = useAuth();
   const MY_ID = me?.id || 'anonymous';
   const listRef = useRef<FlatList>(null);
 
   const isThreadMode = Boolean(threadIdParam && receiverId);
+  const isDirectMode = Boolean(receiverId && !butcherId && !threadIdParam);
 
   const [butcher, setButcher] = useState<ButcherProfile | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -63,23 +71,23 @@ export default function ButcherChatScreen() {
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
-  const receiverUserId = isThreadMode ? receiverId : butcher?.user?.id;
-  const headerName = isThreadMode
+  const receiverUserId = isThreadMode || isDirectMode ? receiverId : butcher?.user?.id;
+  const headerName = isThreadMode || isDirectMode
     ? (receiverName || 'محادثة')
     : (butcher?.nameAr ?? 'الملحمة');
-  const headerAvatar = isThreadMode
+  const headerAvatar = isThreadMode || isDirectMode
     ? (receiverAvatar || undefined)
     : (butcher?.logo ?? undefined);
 
   useEffect(() => {
-    if (!isThreadMode && !butcherId) {
+    if (!isThreadMode && !butcherId && !isDirectMode) {
       Alert.alert('خطأ', 'لم يتم تحديد المحادثة المطلوبة.');
       router.back();
     }
-  }, [isThreadMode, butcherId, router]);
+  }, [isThreadMode, butcherId, isDirectMode, router]);
 
   useEffect(() => {
-    if (isThreadMode) return;
+    if (isThreadMode || isDirectMode) return;
     if (!butcherId) return;
     const fetchButcher = async () => {
       try {
@@ -131,6 +139,51 @@ export default function ButcherChatScreen() {
       return;
     }
 
+    if (isDirectMode && receiverId) {
+      const loadDirectMessages = async () => {
+        setLoadingMessages(true);
+        try {
+          const threadsRes = await fetch(`${API_BASE}/api/messages`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (threadsRes.ok) {
+            const tJson = await threadsRes.json();
+            if (tJson.success && Array.isArray(tJson.data)) {
+              const existingThread = tJson.data.find(
+                (t: any) => t.participant?.id === receiverId
+              );
+              if (existingThread) {
+                setThreadId(existingThread.id);
+                const msgRes = await fetch(`${API_BASE}/api/messages/${existingThread.id}`, {
+                  headers: { Authorization: `Bearer ${accessToken}` },
+                });
+                if (msgRes.ok) {
+                  const msgJson = await msgRes.json();
+                  if (msgJson.success && msgJson.data?.messages) {
+                    setMessages(msgJson.data.messages.map((m: any) => ({
+                      id: m.id,
+                      senderId: m.senderId,
+                      receiverId: m.receiverId,
+                      text: m.text,
+                      image: m.imageUrl,
+                      createdAt: m.createdAt,
+                      read: m.isRead,
+                    })));
+                  }
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[ButcherChatScreen] Failed to load direct messages:', err);
+        } finally {
+          setLoadingMessages(false);
+        }
+      };
+      loadDirectMessages();
+      return;
+    }
+
     if (!butcherId || !butcher?.user?.id) return;
     const loadMessages = async () => {
       setLoadingMessages(true);
@@ -174,7 +227,7 @@ export default function ButcherChatScreen() {
       }
     };
     loadMessages();
-  }, [butcherId, butcher?.user?.id, accessToken, isThreadMode, threadIdParam]);
+  }, [butcherId, butcher?.user?.id, accessToken, isThreadMode, isDirectMode, receiverId, threadIdParam]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || !receiverUserId || sending) return;
@@ -226,30 +279,30 @@ export default function ButcherChatScreen() {
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isMe = item.senderId === MY_ID;
     return (
-      <View style={[mc.bubbleWrap, isMe ? mc.bubbleWrapMe : mc.bubbleWrapThem]}>
+      <View style={[messageStyles.bubbleWrap, isMe ? messageStyles.bubbleWrapMe : messageStyles.bubbleWrapThem]}>
         {!isMe && (
           <Image
             source={uriSource(headerAvatar)}
-            style={mc.avatar}
+            style={messageStyles.avatar}
             contentFit="cover"
           />
         )}
-        <View style={[mc.bubble, isMe ? mc.bubbleMe : mc.bubbleThem]}>
+        <View style={[messageStyles.bubble, isMe ? messageStyles.bubbleMe : messageStyles.bubbleThem]}>
           {item.text ? (
-            <Text style={[mc.bubbleText, isMe ? mc.textMe : mc.textThem]}>
+            <Text style={[messageStyles.bubbleText, isMe ? messageStyles.textMe : messageStyles.textThem]}>
               {item.text}
             </Text>
           ) : null}
           {item.image ? (
-            <Image source={{ uri: item.image }} style={mc.bubbleImg} contentFit="cover" />
+            <Image source={{ uri: item.image }} style={messageStyles.bubbleImg} contentFit="cover" />
           ) : null}
-          <Text style={[mc.timeText, isMe ? mc.timeTextMe : mc.timeTextThem]}>
+          <Text style={[messageStyles.timeText, isMe ? messageStyles.timeTextMe : messageStyles.timeTextThem]}>
             {new Date(item.createdAt).toLocaleTimeString('ar-SA', {
               hour: '2-digit',
               minute: '2-digit',
             })}
             {isMe && (
-              <Text style={{ color: item.read ? colors.electricBright : colors.textSubtle }}>
+              <Text style={{ color: item.read ? colors.textBrandStrong : colors.textSubtle }}>
                 {' '}✓✓
               </Text>
             )}
@@ -260,38 +313,38 @@ export default function ButcherChatScreen() {
   };
 
   return (
-    <SafeAreaView style={s.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 12}
       >
         {/* Header */}
-        <View style={s.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <Ionicons name={rtlBackIcon} size={22} color={colors.textPrimary} />
           </Pressable>
-          <View style={s.headerCenter}>
-            <Image source={uriSource(headerAvatar)} style={s.headerAvatar} contentFit="cover" />
+          <UserProfileLink userId={receiverUserId} style={styles.headerCenter}>
+            <Image source={uriSource(headerAvatar)} style={styles.headerAvatar} contentFit="cover" />
             <View>
-              <View style={s.headerNameRow}>
-                <Text style={s.headerName}>{headerName}</Text>
+              <View style={styles.headerNameRow}>
+                <Text style={styles.headerName}>{headerName}</Text>
                 {butcher?.subscriptionActive && (
                   <Ionicons name="shield-checkmark" size={14} color={colors.gold} />
                 )}
               </View>
-              <View style={s.onlineRow}>
+              <View style={styles.onlineRow}>
                 <View style={[
-                  s.onlineDot,
+                  styles.onlineDot,
                   {
                     backgroundColor: butcher?.workingHours?.isOpen
                       ? colors.success
                       : colors.textSubtle,
                   },
                 ]} />
-                <Text style={s.onlineText}>
-                  {isThreadMode
+                <Text style={styles.onlineText}>
+                  {isThreadMode || isDirectMode
                     ? 'محادثة مباشرة'
                     : butcher?.workingHours?.isOpen
                       ? 'متاح الآن'
@@ -299,16 +352,16 @@ export default function ButcherChatScreen() {
                 </Text>
               </View>
             </View>
-          </View>
-          <Pressable style={s.callBtn}>
+          </UserProfileLink>
+          <Pressable style={styles.callBtn}>
             <Ionicons name="call-outline" size={20} color={colors.electricBright} />
           </Pressable>
         </View>
 
         {/* Order summary strip (if applicable) */}
-        <View style={s.orderStrip}>
+        <View style={styles.orderStrip}>
           <MaterialCommunityIcons name="clipboard-list-outline" size={16} color={colors.glow} />
-          <Text style={s.orderStripText}>
+          <Text style={styles.orderStripText}>
             يمكنك مناقشة تفاصيل طلبك وتأكيده هنا مباشرةً مع الجزار
           </Text>
         </View>
@@ -319,13 +372,13 @@ export default function ButcherChatScreen() {
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
-          contentContainerStyle={s.messagesList}
+          contentContainerStyle={styles.messagesList}
           onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
           showsVerticalScrollIndicator={false}
         />
 
         {/* Quick replies */}
-        <View style={s.quickRepliesWrap}>
+        <View style={styles.quickRepliesWrap}>
           <FlatList
             horizontal
             data={QUICK_REPLIES}
@@ -333,25 +386,30 @@ export default function ButcherChatScreen() {
             renderItem={({ item }) => (
               <Pressable
                 onPress={() => sendMessage(item)}
-                style={s.quickReply}
+                style={styles.quickReply}
               >
-                <Text style={s.quickReplyText}>{item}</Text>
+                <Text style={styles.quickReplyText}>{item}</Text>
               </Pressable>
             )}
-            contentContainerStyle={s.quickRepliesRow}
+            contentContainerStyle={styles.quickRepliesRow}
             showsHorizontalScrollIndicator={false}
           />
         </View>
 
         {/* Input bar */}
-        <View style={s.inputBar}>
+        <View
+          style={[
+            styles.inputBar,
+            { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm },
+          ]}
+        >
           {/* Attachment */}
-          <Pressable style={s.attachBtn}>
+          <Pressable style={styles.attachBtn}>
             <Ionicons name="image-outline" size={22} color={colors.textMuted} />
           </Pressable>
 
           <TextInput
-            style={s.input}
+            style={styles.input}
             placeholder="اكتب رسالتك..."
             placeholderTextColor={colors.textSubtle}
             value={inputText}
@@ -362,13 +420,13 @@ export default function ButcherChatScreen() {
           />
 
           <Pressable
-            style={[s.sendBtn, !inputText.trim() && { opacity: 0.4 }]}
+            style={[styles.sendBtn, !inputText.trim() && { opacity: 0.4 }]}
             onPress={() => sendMessage(inputText)}
             disabled={!inputText.trim()}
           >
             <LinearGradient
               colors={[colors.electric, colors.cyan]}
-              style={s.sendBtnGrad}
+              style={styles.sendBtnGrad}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
@@ -381,7 +439,8 @@ export default function ButcherChatScreen() {
   );
 }
 
-const s = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bgDeep },
 
   header: {
@@ -459,13 +518,13 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderMid,
   },
-  quickReplyText: { ...typography.caption, color: colors.glow },
+  quickReplyText: { ...typography.caption, color: colors.textBrand },
 
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.md,
     gap: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.borderSoft,
@@ -495,9 +554,11 @@ const s = StyleSheet.create({
     width: 42, height: 42,
     alignItems: 'center', justifyContent: 'center',
   },
-});
+  });
+}
 
-const mc = StyleSheet.create({
+function createMessageStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   bubbleWrap: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -537,4 +598,5 @@ const mc = StyleSheet.create({
   timeText: { ...typography.micro, marginTop: 4 },
   timeTextMe: { color: 'rgba(255,255,255,0.55)', textAlign: 'right' },
   timeTextThem: { color: colors.textSubtle },
-});
+  });
+}

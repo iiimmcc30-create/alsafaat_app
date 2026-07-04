@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
 import { useButcherStats, StatsPeriod } from '@/hooks/useButcherStats';
+import { useRequireApprovedButcher } from '@/hooks/useRequireApprovedButcher';
 
 type Period = StatsPeriod;
 
@@ -68,7 +69,7 @@ function StatCard({
             size={14}
             color={trend.positive ? colors.success : colors.danger}
           />
-          <Text style={[sc.trendText, { color: trend.positive ? colors.success : colors.danger }]}>
+          <Text style={[sc.trendText, { color: trend.positive ? colors.textBrandSuccess : colors.danger }]}>
             {trend.value}%
           </Text>
         </View>
@@ -86,8 +87,17 @@ function trendProp(value: number | null | undefined) {
 export default function ButcherDashboardScreen() {
   const router = useRouter();
   const { accessToken } = useAuth();
+  const { hasApprovedApplication, loading: accessLoading } = useRequireApprovedButcher();
   const [period, setPeriod] = useState<Period>('month');
   const { stats, loading, error } = useButcherStats(accessToken, period);
+
+  if (accessLoading || !hasApprovedApplication) {
+    return (
+      <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgDeep }}>
+        <ActivityIndicator size="large" color={colors.electricBright} />
+      </SafeAreaView>
+    );
+  }
 
   const data = stats ?? {
     revenue: 0,
@@ -377,7 +387,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
-  headerSub: { ...typography.caption, color: colors.glow, marginTop: 1 },
+  headerSub: { ...typography.caption, color: colors.textBrand, marginTop: 1 },
   exportBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: colors.bgGlass,
@@ -469,7 +479,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.electric + '33',
     alignItems: 'center', justifyContent: 'center',
   },
-  productRankText: { ...typography.caption, color: colors.electricBright, fontWeight: '700' },
+  productRankText: { ...typography.caption, color: colors.textBrandStrong, fontWeight: '700' },
   productNameRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   productName: { ...typography.caption, color: colors.textPrimary, fontWeight: '600' },
   productSales: { ...typography.micro, color: colors.textMuted },

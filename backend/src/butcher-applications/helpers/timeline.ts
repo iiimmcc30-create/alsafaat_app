@@ -9,11 +9,15 @@ export type AppendTimelineParams = {
   metadata?: Prisma.InputJsonValue;
 };
 
+export type TimelineEventWithActor = Prisma.ButcherApplicationTimelineEventGetPayload<{
+  include: { actor: { select: { id: true; username: true } } };
+}>;
+
 export async function appendTimelineEvent(
   tx: TransactionClient,
   params: AppendTimelineParams,
-): Promise<void> {
-  await tx.butcherApplicationTimelineEvent.create({
+): Promise<TimelineEventWithActor> {
+  return tx.butcherApplicationTimelineEvent.create({
     data: {
       applicationId: params.applicationId,
       action: params.action,
@@ -21,14 +25,8 @@ export async function appendTimelineEvent(
       comment: params.comment ?? null,
       metadata: params.metadata ?? {},
     },
+    include: {
+      actor: { select: { id: true, username: true } },
+    },
   });
-}
-
-export async function appendTimelineEvents(
-  tx: TransactionClient,
-  events: AppendTimelineParams[],
-): Promise<void> {
-  for (const event of events) {
-    await appendTimelineEvent(tx, event);
-  }
 }

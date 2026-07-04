@@ -6,4 +6,8 @@ function resolveApiBase(): string {
 
 const API_BASE = resolveApiBase();
 
+if (__DEV__) {
+  console.log('[SAFAT] API_BASE =', API_BASE);
+}
+
 export { API_BASE };

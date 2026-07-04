@@ -47,9 +47,3 @@ export function assertApplicationOwner(
     throw new ButcherApplicationError('APPLICATION_ACCESS_DENIED');
   }
 }
-
-export function assertDraftStatus(status: string): void {
-  if (status !== 'DRAFT') {
-    throw new ButcherApplicationError('APPLICATION_NOT_EDITABLE');
-  }
-}

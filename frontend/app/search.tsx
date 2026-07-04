@@ -16,15 +16,20 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon, rtlRow } from '@/lib/rtl';
 import { ListingCard } from '@/components/feature/ListingCard';
+import { UserProfileLink } from '@/components/feature/UserProfileLink';
 import { useApp } from '@/hooks/useApp';
 import { API_BASE } from '@/services/api';
 
 type SearchFilter = 'all' | 'listings' | 'users' | 'live';
 
 export default function SearchScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const { listings } = useApp();
   const [query, setQuery] = useState('');
@@ -212,7 +217,11 @@ export default function SearchScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🏆 أبرز المربّين</Text>
             {dbUsers.slice(0, 4).map((user) => (
-              <View key={user.id} style={styles.userRow}>
+              <Pressable
+                key={user.id}
+                style={styles.userRow}
+                onPress={() => router.push({ pathname: '/users/[id]', params: { id: user.id } } as any)}
+              >
                 <Image source={user.avatar ? { uri: user.avatar } : undefined} style={styles.userAvatar} contentFit="cover" />
                 <View style={styles.userInfo}>
                   <View style={styles.nameRow}>
@@ -222,7 +231,7 @@ export default function SearchScreen() {
                   <Text style={styles.userHandle}>@{user.username}</Text>
                 </View>
                 <Text style={styles.followersText}>{((user.followers || 0) / 1000).toFixed(1)}k</Text>
-              </View>
+              </Pressable>
             ))}
           </View>
           <View style={{ height: 80 }} />
@@ -250,7 +259,11 @@ export default function SearchScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>المستخدمون ({filteredUsers.length})</Text>
               {filteredUsers.map((user) => (
-                <View key={user.id} style={styles.userRow}>
+                <Pressable
+                  key={user.id}
+                  style={styles.userRow}
+                  onPress={() => router.push({ pathname: '/users/[id]', params: { id: user.id } } as any)}
+                >
                   <Image source={user.avatar ? { uri: user.avatar } : undefined} style={styles.userAvatar} contentFit="cover" />
                   <View style={styles.userInfo}>
                     <View style={styles.nameRow}>
@@ -259,7 +272,7 @@ export default function SearchScreen() {
                     </View>
                     <Text style={styles.userHandle}>@{user.username}</Text>
                   </View>
-                </View>
+                </Pressable>
               ))}
             </View>
           )}
@@ -272,7 +285,9 @@ export default function SearchScreen() {
                   <Image source={l.thumbnail ? { uri: l.thumbnail } : undefined} style={styles.liveThumbnail} contentFit="cover" />
                   <View style={styles.liveInfo}>
                     <Text style={styles.liveTitle} numberOfLines={2}>{l.arabicTitle || l.title}</Text>
-                    <Text style={styles.liveHost}>{l.host?.arabicName || l.host?.displayName || 'عميل صفاة'}</Text>
+                    <UserProfileLink userId={l.host?.id}>
+                      <Text style={styles.liveHost}>{l.host?.arabicName || l.host?.displayName || 'عميل صفاة'}</Text>
+                    </UserProfileLink>
                     <View style={styles.liveStats}>
                       <View style={styles.liveBadge}>
                         <View style={styles.liveDot} />
@@ -300,7 +315,8 @@ export default function SearchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
@@ -333,12 +349,12 @@ const styles = StyleSheet.create({
   },
   filterChipActive: { backgroundColor: colors.royal, borderColor: colors.electric },
   filterLabel: { ...typography.caption, color: colors.textMuted },
-  filterLabelActive: { color: colors.electricBright },
+  filterLabelActive: { color: colors.textBrandStrong },
   scroll: { paddingBottom: 20 },
   section: { padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },
-  clearText: { ...typography.caption, color: colors.electricBright },
+  clearText: { ...typography.caption, color: colors.textBrandStrong },
   recentRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderSoft,
@@ -350,7 +366,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill, backgroundColor: `${colors.electric}15`,
     borderWidth: 1, borderColor: `${colors.electric}30`,
   },
-  trendingText: { ...typography.caption, color: colors.electricBright },
+  trendingText: { ...typography.caption, color: colors.textBrandStrong },
   userRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderSoft,
@@ -383,4 +399,5 @@ const styles = StyleSheet.create({
   noResultsIcon: { fontSize: 48 },
   noResultsText: { ...typography.h3, color: colors.textPrimary, textAlign: 'center' },
   noResultsSub: { ...typography.body, color: colors.textMuted },
-});
+  });
+}

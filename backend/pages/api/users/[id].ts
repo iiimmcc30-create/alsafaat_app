@@ -7,7 +7,6 @@ import prisma from '@/lib/prisma';
 import { withAuth, withOptionalAuth, apiResponse, apiError, AuthedRequest } from '@/middleware/auth';
 import { apiRateLimit } from '@/middleware/rateLimiter';
 import { cacheGet, cacheSet, cacheDel } from '@/lib/redis';
-import { addNotification } from '@/lib/queue';
 import { logger } from '@/lib/logger';
 import { countrySchema } from '@/lib/countries';
 import { isOurUploadUrl } from '@/lib/storage';
@@ -25,7 +24,7 @@ const updateSchema = z.object({
   avatar:      cdnUrl().optional(),
   coverImage:  cdnUrl().optional(),
   country:     countrySchema.optional(),
-  fcmToken:    z.string().max(500).optional(),
+  fcmToken:    z.union([z.string().max(500), z.null()]).optional(),
 }).strict(); // reject any unlisted fields — prevents mass assignment
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -50,6 +49,9 @@ async function getUser(req: NextApiRequest & { user?: any }, res: NextApiRespons
       id: true, username: true, displayName: true, arabicName: true,
       avatar: true, coverImage: true, bio: true, verified: true,
       country: true, createdAt: true, lastSeenAt: true,
+      butcherProfile: {
+        select: { rating: true, reviewCount: true },
+      },
       _count: {
         select: { followers: true, following: true, listings: true, posts: true },
       },
@@ -68,14 +70,26 @@ async function getUser(req: NextApiRequest & { user?: any }, res: NextApiRespons
     isFollowing = !!follow;
   }
 
+  const reviewCount = user.butcherProfile?.reviewCount ?? 0;
   const result = {
-    ...user,
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    arabicName: user.arabicName,
+    avatar: user.avatar,
+    coverImage: user.coverImage,
+    bio: user.bio,
+    verified: user.verified,
+    country: user.country,
+    createdAt: user.createdAt,
+    lastSeenAt: user.lastSeenAt,
+    rating: reviewCount > 0 ? user.butcherProfile!.rating : null,
+    reviewCount,
     followersCount: user._count.followers,
     followingCount: user._count.following,
     listingsCount:  user._count.listings,
     postsCount:     user._count.posts,
     isFollowing,
-    _count: undefined,
   };
 
   await cacheSet(cacheKey, result, 300);
@@ -108,12 +122,32 @@ async function updateUser(req: AuthedRequest, res: NextApiResponse) {
     select: {
       id: true, username: true, displayName: true, arabicName: true,
       avatar: true, coverImage: true, bio: true, verified: true, country: true,
+      butcherProfile: {
+        select: { rating: true, reviewCount: true },
+      },
+      _count: {
+        select: { followers: true },
+      },
     },
   });
 
+  const reviewCount = updated.butcherProfile?.reviewCount ?? 0;
   await cacheDel(`user:${id}`);
   logger.info({ userId: id }, 'User profile updated');
-  return apiResponse(res, updated);
+  return apiResponse(res, {
+    id: updated.id,
+    username: updated.username,
+    displayName: updated.displayName,
+    arabicName: updated.arabicName,
+    avatar: updated.avatar,
+    coverImage: updated.coverImage,
+    bio: updated.bio,
+    verified: updated.verified,
+    country: updated.country,
+    rating: reviewCount > 0 ? updated.butcherProfile!.rating : null,
+    reviewCount,
+    followersCount: updated._count.followers,
+  });
 }
 
 async function deleteUser(req: AuthedRequest, res: NextApiResponse) {

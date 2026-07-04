@@ -1,6 +1,5 @@
 import type {
   ButcherApplicationStatus,
-  Country,
   Prisma,
 } from '@prisma/client';
 import prisma from '@/lib/prisma';
@@ -33,7 +32,43 @@ export type ApplicationEntity = Prisma.ButcherApplicationGetPayload<{
   include: typeof applicationInclude;
 }>;
 
-function adminOrderBy(sort: AdminSortOption = 'submittedAt_desc') {
+export function buildAdminApplicationWhere(
+  query: AdminListQuery,
+): Prisma.ButcherApplicationWhereInput {
+  const where: Prisma.ButcherApplicationWhereInput = {};
+
+  if (query.status) where.status = query.status;
+  if (query.country) where.country = query.country;
+
+  if (query.submittedFrom || query.submittedTo) {
+    where.submittedAt = {};
+    if (query.submittedFrom) where.submittedAt.gte = query.submittedFrom;
+    if (query.submittedTo) where.submittedAt.lte = query.submittedTo;
+  }
+
+  if (query.search && query.search.length >= 2) {
+    const asNumber = parseInt(query.search, 10);
+    where.OR = [
+      { nameAr: { contains: query.search } },
+      { nameEn: { contains: query.search, mode: 'insensitive' } },
+      ...(Number.isFinite(asNumber)
+        ? [{ applicationNumber: asNumber }]
+        : []),
+      {
+        user: {
+          OR: [
+            { username: { contains: query.search, mode: 'insensitive' } },
+            { phone: { contains: query.search } },
+          ],
+        },
+      },
+    ];
+  }
+
+  return where;
+}
+
+export function adminOrderBy(sort: AdminSortOption = 'submittedAt_desc') {
   switch (sort) {
     case 'createdAt_desc':
       return [{ createdAt: 'desc' as const }, { id: 'desc' as const }];
@@ -43,13 +78,6 @@ function adminOrderBy(sort: AdminSortOption = 'submittedAt_desc') {
     default:
       return [{ submittedAt: 'desc' as const }, { id: 'desc' as const }];
   }
-}
-
-export async function findButcherByUserId(userId: string) {
-  return prisma.butcher.findUnique({
-    where: { userId },
-    select: { id: true },
-  });
 }
 
 export async function findActiveApplicationByUserAndStatus(
@@ -168,35 +196,7 @@ export async function listAdminApplications(
   query: AdminListQuery,
   limit: number,
 ): Promise<ApplicationEntity[]> {
-  const where: Prisma.ButcherApplicationWhereInput = {};
-
-  if (query.status) where.status = query.status;
-  if (query.country) where.country = query.country;
-
-  if (query.submittedFrom || query.submittedTo) {
-    where.submittedAt = {};
-    if (query.submittedFrom) where.submittedAt.gte = query.submittedFrom;
-    if (query.submittedTo) where.submittedAt.lte = query.submittedTo;
-  }
-
-  if (query.search && query.search.length >= 2) {
-    const asNumber = parseInt(query.search, 10);
-    where.OR = [
-      { nameAr: { contains: query.search } },
-      { nameEn: { contains: query.search, mode: 'insensitive' } },
-      ...(Number.isFinite(asNumber)
-        ? [{ applicationNumber: asNumber }]
-        : []),
-      {
-        user: {
-          OR: [
-            { username: { contains: query.search, mode: 'insensitive' } },
-            { phone: { contains: query.search } },
-          ],
-        },
-      },
-    ];
-  }
+  const where = buildAdminApplicationWhere(query);
 
   return prisma.butcherApplication.findMany({
     where,
@@ -212,37 +212,18 @@ export async function countSubmittedApplications(): Promise<number> {
   return prisma.butcherApplication.count({ where: { status: 'SUBMITTED' } });
 }
 
-export async function provisionButcherFromApplication(
+export async function countDraftApplications(): Promise<number> {
+  return prisma.butcherApplication.count({ where: { status: 'DRAFT' } });
+}
+
+export async function createButcher(
   tx: TransactionClient,
-  application: ApplicationEntity,
+  data: Prisma.ButcherUncheckedCreateInput,
 ): Promise<{ id: string; sourceApplicationId: string | null }> {
-  const butcher = await tx.butcher.create({
-    data: {
-      userId: application.userId,
-      nameAr: application.nameAr!,
-      nameEn: application.nameEn!,
-      country: application.country!,
-      city: application.city!,
-      cityAr: application.cityAr!,
-      address: application.address!,
-      addressAr: application.addressAr!,
-      lat: application.lat,
-      lng: application.lng,
-      phone: application.shopPhone!,
-      bioAr: application.bioAr,
-      bioEn: application.bioEn,
-      specialties: application.specialties,
-      commercialReg: application.commercialReg,
-      openTime: application.openTime,
-      closeTime: application.closeTime,
-      closedDays: [],
-      type: 'regular',
-      sourceApplicationId: application.id,
-    },
+  return tx.butcher.create({
+    data,
     select: { id: true, sourceApplicationId: true },
   });
-
-  return butcher;
 }
 
 export async function findAllAdminUserIds(): Promise<string[]> {

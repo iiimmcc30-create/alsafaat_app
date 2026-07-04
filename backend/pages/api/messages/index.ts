@@ -7,6 +7,7 @@ import prisma from '@/lib/prisma';
 import { withAuth, apiResponse, apiError, AuthedRequest } from '@/middleware/auth';
 import { apiRateLimit } from '@/middleware/rateLimiter';
 import { logger } from '@/lib/logger';
+import { notifyUser } from '@/lib/notifications';
 
 const sendMessageSchema = z.object({
   receiverId: z.string().uuid(),
@@ -136,6 +137,23 @@ async function sendMessage(req: AuthedRequest, res: NextApiResponse) {
     },
     include: {
       sender: { select: { id: true, displayName: true, arabicName: true, avatar: true } },
+    },
+  });
+
+  const senderName =
+    message.sender.arabicName || message.sender.displayName || req.user.username || 'مستخدم';
+  void notifyUser({
+    userId:  receiverId,
+    type:    'new_message',
+    titleAr: senderName,
+    bodyAr:  text?.trim() || 'أرسل صورة',
+    data: {
+      threadId: thread.id,
+      messageId: message.id,
+      senderId,
+      actorId: senderId,
+      actorAvatar: message.sender.avatar,
+      ...(orderId ? { orderId } : {}),
     },
   });
 

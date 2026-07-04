@@ -6,6 +6,7 @@ import prisma from '@/lib/prisma';
 import { withAuth, withOptionalAuth, apiResponse, apiError, AuthedRequest } from '@/middleware/auth';
 import { apiRateLimit } from '@/middleware/rateLimiter';
 import { cacheGet, cacheSet, cacheDel } from '@/lib/redis';
+import { notifyUsers } from '@/lib/notifications';
 
 const PAGE_SIZE = 20;
 
@@ -106,7 +107,6 @@ async function createPost(req: AuthedRequest, res: NextApiResponse) {
     },
   });
 
-  // FIX: single createMany instead of N sequential inserts
   const followers = await prisma.follow.findMany({
     where:  { followingId: req.user.userId },
     select: { followerId: true },
@@ -114,16 +114,15 @@ async function createPost(req: AuthedRequest, res: NextApiResponse) {
   });
 
   if (followers.length > 0) {
-    await prisma.notification.createMany({
-      data: followers.map((f) => ({
-        userId:   f.followerId,
-        type:     'system' as const,
+    await notifyUsers(
+      followers.map((f) => f.followerId),
+      {
+        type:     'system',
         titleAr:  'منشور جديد',
         bodyAr:   `${post.author.arabicName} نشر منشوراً جديداً`,
         data:     { postId: post.id, authorId: req.user.userId },
-      })),
-      skipDuplicates: true,
-    });
+      },
+    );
   }
 
   // Invalidate feed caches

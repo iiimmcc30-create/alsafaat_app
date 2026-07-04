@@ -21,19 +21,24 @@ function isLoopbackHost(host: string): boolean {
 }
 
 export function resolveDevServiceUrl(envUrl: string | undefined, port: number): string {
+  const fromEnv = envUrl?.replace(/\/$/, '');
   const expoHost = getExpoDevHost();
 
-  // Physical device + expo --localhost (USB): PC is reachable at 127.0.0.1 via adb reverse
+  // Physical device: respect .env first (USB 127.0.0.1 or fixed LAN IP).
+  if (__DEV__ && Constants.isDevice && fromEnv) {
+    return fromEnv;
+  }
+
+  // USB + expo --localhost: PC reachable at 127.0.0.1 via adb reverse.
   if (Constants.isDevice && expoHost && isLoopbackHost(expoHost)) {
     return `http://127.0.0.1:${port}`;
   }
 
-  // Physical device on Wi‑Fi: use the same host Expo already connected to
+  // Wi‑Fi: same host Metro already uses.
   if (Constants.isDevice && expoHost && !isLoopbackHost(expoHost)) {
     return `http://${expoHost}:${port}`;
   }
 
-  const fromEnv = envUrl?.replace(/\/$/, '');
   if (fromEnv) return fromEnv;
 
   if (Platform.OS === 'android' && !Constants.isDevice) {

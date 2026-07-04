@@ -11,6 +11,7 @@ import {
 } from '../constants';
 import { ButcherApplicationError } from '../errors';
 import type { DocumentUploadInput } from '../types';
+import { validatePersistedSnapshotTimes } from './snapshotValidation';
 
 export function validateSubmitSnapshot(application: ApplicationEntity): void {
   const missing: string[] = [];
@@ -22,13 +23,11 @@ export function validateSubmitSnapshot(application: ApplicationEntity): void {
     }
   }
 
-  if (application.openTime === application.closeTime) {
-    missing.push('closeTime');
-  }
-
   if (missing.length > 0) {
     throw new ButcherApplicationError('APPLICATION_INCOMPLETE', { missing });
   }
+
+  validatePersistedSnapshotTimes(application.openTime, application.closeTime);
 }
 
 export function validateRequiredDocuments(application: ApplicationEntity): void {

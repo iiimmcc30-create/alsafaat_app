@@ -15,10 +15,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
 import { PostComment, User } from '@/services/types';
+import { UserProfileLink } from '@/components/feature/UserProfileLink';
 
 interface PostCommentsModalProps {
   visible: boolean;
@@ -54,6 +57,8 @@ export function PostCommentsModal({
   onClose,
   onSubmitComment,
 }: PostCommentsModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const { isAuthenticated } = useAuth();
   const insets = useSafeAreaInsets();
   const [comments, setComments] = useState<PostComment[]>([]);
@@ -135,15 +140,17 @@ export function PostCommentsModal({
                 ) : (
                   comments.map((c) => (
                     <View key={c.id} style={styles.commentRow}>
-                      <Image source={{ uri: c.author.avatar }} style={styles.avatar} contentFit="cover" />
+                      <UserProfileLink userId={c.author.id}>
+                        <Image source={{ uri: c.author.avatar }} style={styles.avatar} contentFit="cover" />
+                      </UserProfileLink>
                       <View style={styles.commentBody}>
-                        <View style={styles.commentHeader}>
+                        <UserProfileLink userId={c.author.id} style={styles.commentHeader}>
                           <Text style={styles.commentName}>{c.author.arabicName}</Text>
                           {c.author.verified ? (
                             <Ionicons name="checkmark-circle" size={12} color={colors.electricBright} />
                           ) : null}
                           <Text style={styles.commentTime}>{c.createdAt}</Text>
-                        </View>
+                        </UserProfileLink>
                         <Text style={styles.commentText}>{c.content}</Text>
                       </View>
                     </View>
@@ -185,7 +192,8 @@ export function PostCommentsModal({
 
 const SHEET_HEIGHT = '68%';
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   root: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -287,6 +295,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendBtnDisabled: { opacity: 0.45 },
-});
+  });
+}
 
 export default PostCommentsModal;

@@ -19,7 +19,10 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
+import { AppLogo } from '@/components/ui/AppLogo';
 import { marginStart, marginEnd, rtlDirection, rtlRow } from '@/lib/rtl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGoogleSignIn } from '@/hooks/useGoogleSignIn';
@@ -30,6 +33,8 @@ const COUNTRY_CODES = [
 ];
 
 export default function PhoneScreen() {
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const { signInWithPassword, sendOtp, signInWithGoogle } = useAuth();
   const { signIn: googleSignIn, isConfigured: googleConfigured } = useGoogleSignIn();
@@ -190,9 +195,7 @@ export default function PhoneScreen() {
             
             {/* Logo and Header */}
             <View style={styles.header}>
-              <View style={styles.logoOuter}>
-                <Image source={require('@/assets/images/logo.png')} style={styles.logoImage} />
-              </View>
+              <AppLogo size={90} />
               <Text style={styles.title}>مرحباً في صفاة</Text>
               <Text style={styles.sub}>سجّل دخولك لشراء وبيع المواشي واللحوم في الخليج</Text>
             </View>
@@ -396,7 +399,7 @@ export default function PhoneScreen() {
                 disabled={loading}
               >
                 <LinearGradient
-                  colors={['#1e6ff1', '#1099ec']}
+                  colors={gradients.electric}
                   style={styles.submitGrad}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                 >
@@ -455,69 +458,62 @@ export default function PhoneScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0c1322' },
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bgDeep },
   safe: { flex: 1 },
   kav: { flex: 1 },
   scroll: { paddingHorizontal: spacing.xl, paddingTop: 40, paddingBottom: 30, alignItems: 'center' },
 
   header: { alignItems: 'center', marginBottom: 25, gap: 10, width: '100%' },
-  logoOuter: {
-    width: 90, height: 90, borderRadius: 45,
-    backgroundColor: '#131e35', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: '#1d273a',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 6, elevation: 5,
-  },
-  logoImage: { width: 66, height: 66, borderRadius: 33 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#ffffff', textAlign: 'center' },
-  sub: { fontSize: 13, color: '#9ca3af', textAlign: 'center', paddingHorizontal: 20, lineHeight: 18 },
+  title: { fontSize: 24, fontWeight: 'bold', color: colors.textPrimary, textAlign: 'center' },
+  sub: { fontSize: 13, color: colors.textMuted, textAlign: 'center', paddingHorizontal: 20, lineHeight: 18 },
 
   card: {
     width: '100%', borderRadius: 24, padding: spacing.xl,
-    backgroundColor: '#121a2d', borderWidth: 1, borderColor: '#1d273a',
+    backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.borderHairline,
     gap: spacing.md,
   },
 
   tabsContainer: {
     ...rtlRow,
-    backgroundColor: '#090e1a',
+    backgroundColor: colors.bgPrimary,
     borderRadius: 25, padding: 4, height: 48, width: '100%',
     marginBottom: spacing.xs,
   },
   tabBtn: { flex: 1, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  tabBtnActive: { backgroundColor: '#1e6ff1' },
-  tabText: { fontSize: 14, color: '#9ca3af', fontWeight: '600' },
-  tabTextActive: { color: '#ffffff' },
+  tabBtnActive: { backgroundColor: colors.electric },
+  tabText: { fontSize: 14, color: colors.textMuted, fontWeight: '600' },
+  tabTextActive: { color: colors.textPrimary },
 
   formGroup: { gap: spacing.md, width: '100%' },
   fieldHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
-  fieldLabel: { fontSize: 13, color: '#ffffff', fontWeight: '600' },
-  forgotLink: { fontSize: 11, color: '#1099ec', fontWeight: '500' },
+  fieldLabel: { fontSize: 13, color: colors.textPrimary, fontWeight: '600' },
+  forgotLink: { fontSize: 11, color: colors.textBrandStrong, fontWeight: '500' },
 
   inputWrap: {
     ...rtlRow,
     alignItems: 'center',
-    backgroundColor: '#0c1322', borderRadius: 12,
-    borderWidth: 1.2, borderColor: '#1d273a',
+    backgroundColor: colors.bgDeep, borderRadius: 12,
+    borderWidth: 1.2, borderColor: colors.borderHairline,
     paddingHorizontal: spacing.md, height: 50, width: '100%',
   },
   inputIcon: marginStart(8),
-  textInput: { flex: 1, fontSize: 14, color: '#ffffff', height: '100%', textAlign: 'right' },
+  textInput: { flex: 1, fontSize: 14, color: colors.textPrimary, height: '100%', textAlign: 'right' },
 
   countryBtn: {
     ...rtlRow,
     alignItems: 'center', gap: 6,
     paddingHorizontal: 4, height: '100%',
   },
-  countryCode: { fontSize: 14, color: '#ffffff', fontWeight: '600' },
+  countryCode: { fontSize: 14, color: colors.textPrimary, fontWeight: '600' },
   countryFlag: { fontSize: 16 },
-  inputDivider: { width: 1, height: 20, backgroundColor: '#1d273a', marginHorizontal: 8 },
-  phoneInput: { flex: 1, fontSize: 14, color: '#ffffff', height: '100%', textAlign: 'right' },
+  inputDivider: { width: 1, height: 20, backgroundColor: colors.borderHairline, marginHorizontal: 8 },
+  phoneInput: { flex: 1, fontSize: 14, color: colors.textPrimary, height: '100%', textAlign: 'right' },
 
   pickerDropdown: {
-    backgroundColor: '#0c1322', borderRadius: 12,
-    borderWidth: 1, borderColor: '#1d273a',
+    backgroundColor: colors.bgDeep, borderRadius: 12,
+    borderWidth: 1, borderColor: colors.borderHairline,
     marginTop: -8, overflow: 'hidden', width: '100%',
   },
   pickerItem: {
@@ -528,22 +524,22 @@ const styles = StyleSheet.create({
   },
   pickerItemActive: { backgroundColor: 'rgba(30,111,241,0.1)' },
   pickerFlag: { fontSize: 16 },
-  pickerLabel: { flex: 1, fontSize: 13, color: '#ffffff', textAlign: 'right', ...marginEnd(10) },
-  pickerCode: { fontSize: 13, color: '#9ca3af' },
+  pickerLabel: { flex: 1, fontSize: 13, color: colors.textPrimary, textAlign: 'right', ...marginEnd(10) },
+  pickerCode: { fontSize: 13, color: colors.textMuted },
 
   switchFlowBtn: { alignSelf: 'center', paddingVertical: 4 },
-  switchFlowText: { fontSize: 12, color: '#1099ec', fontWeight: '500', textAlign: 'center' },
+  switchFlowText: { fontSize: 12, color: colors.textBrandStrong, fontWeight: '500', textAlign: 'center' },
 
   channelRow: { ...rtlRow, justifyContent: 'center', gap: spacing.md, marginVertical: spacing.xs },
   channelBtn: {
     ...rtlRow,
     alignItems: 'center', gap: 6,
     paddingHorizontal: 16, paddingVertical: 6, borderRadius: radius.pill,
-    backgroundColor: '#0c1322', borderWidth: 1, borderColor: '#1d273a',
+    backgroundColor: colors.bgDeep, borderWidth: 1, borderColor: colors.borderHairline,
   },
-  channelBtnActive: { borderColor: '#1e6ff1', backgroundColor: 'rgba(30,111,241,0.15)' },
-  channelLabel: { fontSize: 12, color: '#9ca3af' },
-  channelLabelActive: { color: '#1099ec', fontWeight: '600' },
+  channelBtnActive: { borderColor: colors.electric, backgroundColor: 'rgba(30,111,241,0.15)' },
+  channelLabel: { fontSize: 12, color: colors.textMuted },
+  channelLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
 
   errorContainer: {
     ...rtlRow,
@@ -559,20 +555,20 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'flex-end',
     gap: 8, width: '100%', marginVertical: 2,
   },
-  rememberText: { fontSize: 13, color: '#9ca3af' },
+  rememberText: { fontSize: 13, color: colors.textMuted },
   checkbox: {
     width: 20, height: 20, borderRadius: 5,
-    borderWidth: 1.5, borderColor: '#1d273a',
-    backgroundColor: '#0c1322', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: colors.borderHairline,
+    backgroundColor: colors.bgDeep, alignItems: 'center', justifyContent: 'center',
   },
-  checkboxChecked: { backgroundColor: '#1e6ff1', borderColor: '#1e6ff1' },
+  checkboxChecked: { backgroundColor: colors.electric, borderColor: colors.electric },
 
   submitBtn: { width: '100%', borderRadius: 25, overflow: 'hidden', marginTop: 5 },
   submitGrad: { height: 50, alignItems: 'center', justifyContent: 'center' },
-  submitText: { fontSize: 16, fontWeight: 'bold', color: '#ffffff' },
+  submitText: { fontSize: 16, fontWeight: 'bold', color: colors.textPrimary },
 
   divider: { ...rtlRow, alignItems: 'center', marginVertical: 15, width: '100%' },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#1d273a' },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.borderHairline },
   dividerText: { marginHorizontal: 12, fontSize: 12, color: '#6b7280' },
 
   googleBtn: {
@@ -586,8 +582,9 @@ const styles = StyleSheet.create({
   googleText: { fontSize: 14, fontWeight: '600', color: '#374151' },
 
   footer: { alignItems: 'center', marginTop: 25, gap: 15, width: '100%' },
-  footerLinkText: { fontSize: 14, color: '#9ca3af', textAlign: 'center' },
-  footerLinkActive: { color: '#1099ec', fontWeight: 'bold' },
-  disclaimerText: { fontSize: 11, color: '#6b7280', textAlign: 'center', paddingHorizontal: 20, lineHeight: 16 },
-  disclaimerLink: { color: '#1099ec', textDecorationLine: 'underline' },
-});
+  footerLinkText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
+  footerLinkActive: { color: colors.textBrandStrong, fontWeight: 'bold' },
+  disclaimerText: { fontSize: 11, color: colors.textSubtle, textAlign: 'center', paddingHorizontal: 20, lineHeight: 16 },
+  disclaimerLink: { color: colors.textBrandStrong, textDecorationLine: 'underline' },
+  });
+}

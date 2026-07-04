@@ -18,7 +18,10 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, spacing } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
+import { AppLogo } from '@/components/ui/AppLogo';
 import { useAuth } from '@/contexts/AuthContext';
 
 const COUNTRY_CODES = [
@@ -29,6 +32,8 @@ const COUNTRY_CODES = [
 type Step = 'phone' | 'otp' | 'password' | 'done';
 
 export default function ForgotPasswordScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const { sendOtp, verifyOtp, resetPassword } = useAuth();
 
@@ -153,9 +158,7 @@ export default function ForgotPasswordScreen() {
 
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
             <View style={styles.header}>
-              <View style={styles.logoOuter}>
-                <Image source={require('@/assets/images/logo.png')} style={styles.logoImage} />
-              </View>
+              <AppLogo size={90} />
               <Text style={styles.title}>استعادة كلمة المرور</Text>
               <Text style={styles.sub}>
                 {step === 'phone' && 'أدخل رقم جوالك المسجّل لإرسال رمز التحقق'}
@@ -288,7 +291,7 @@ export default function ForgotPasswordScreen() {
                   }
                   disabled={loading}
                 >
-                  <LinearGradient colors={['#1e6ff1', '#1099ec']} style={styles.submitGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                  <LinearGradient colors={[colors.electric, colors.electricBright]} style={styles.submitGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                     {loading ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
@@ -302,7 +305,7 @@ export default function ForgotPasswordScreen() {
 
               {step === 'done' && (
                 <Pressable style={styles.submitBtn} onPress={() => router.replace('/auth/phone')}>
-                  <LinearGradient colors={['#1e6ff1', '#1099ec']} style={styles.submitGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                  <LinearGradient colors={[colors.electric, colors.electricBright]} style={styles.submitGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                     <Text style={styles.submitText}>تسجيل الدخول</Text>
                   </LinearGradient>
                 </Pressable>
@@ -315,46 +318,41 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0c1322' },
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bgDeep },
   safe: { flex: 1 },
   kav: { flex: 1 },
   backBtn: {
     position: 'absolute', top: 16, right: spacing.xl, zIndex: 10,
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#131e35', borderWidth: 1, borderColor: '#1d273a',
+    backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.borderHairline,
     alignItems: 'center', justifyContent: 'center',
   },
   scroll: { paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: 30 },
   header: { alignItems: 'center', marginBottom: 24, gap: 10 },
-  logoOuter: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: '#131e35', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: '#1d273a',
-  },
-  logoImage: { width: 56, height: 56, borderRadius: 28 },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#fff', textAlign: 'center' },
-  sub: { fontSize: 13, color: '#9ca3af', textAlign: 'center', lineHeight: 20, paddingHorizontal: 12 },
+  title: { fontSize: 22, fontWeight: 'bold', color: colors.textPrimary, textAlign: 'center' },
+  sub: { fontSize: 13, color: colors.textMuted, textAlign: 'center', lineHeight: 20, paddingHorizontal: 12 },
   card: {
     width: '100%', borderRadius: 24, padding: spacing.xl,
-    backgroundColor: '#121a2d', borderWidth: 1, borderColor: '#1d273a', gap: spacing.md,
+    backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.borderHairline, gap: spacing.md,
   },
-  fieldLabel: { fontSize: 13, color: '#fff', fontWeight: '600', textAlign: 'right' },
+  fieldLabel: { fontSize: 13, color: colors.textPrimary, fontWeight: '600', textAlign: 'right' },
   inputWrap: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#0c1322', borderRadius: 12,
-    borderWidth: 1.2, borderColor: '#1d273a',
+    backgroundColor: colors.bgDeep, borderRadius: 12,
+    borderWidth: 1.2, borderColor: colors.borderHairline,
     paddingHorizontal: spacing.md, height: 50,
   },
   countryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   countryCode: { fontSize: 14, color: '#fff', fontWeight: '600' },
   countryFlag: { fontSize: 16 },
-  inputDivider: { width: 1, height: 20, backgroundColor: '#1d273a', marginHorizontal: 8 },
+  inputDivider: { width: 1, height: 20, backgroundColor: colors.borderHairline, marginHorizontal: 8 },
   phoneInput: { flex: 1, fontSize: 14, color: '#fff', textAlign: 'right' },
   textInput: { flex: 1, fontSize: 14, color: '#fff', textAlign: 'right' },
   pickerDropdown: {
-    backgroundColor: '#0c1322', borderRadius: 12,
-    borderWidth: 1, borderColor: '#1d273a', overflow: 'hidden',
+    backgroundColor: colors.bgDeep, borderRadius: 12,
+    borderWidth: 1, borderColor: colors.borderHairline, overflow: 'hidden',
   },
   pickerItem: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -364,18 +362,18 @@ const styles = StyleSheet.create({
   pickerItemActive: { backgroundColor: 'rgba(30,111,241,0.1)' },
   pickerFlag: { fontSize: 16 },
   pickerLabel: { flex: 1, fontSize: 13, color: '#fff', textAlign: 'right', marginHorizontal: 10 },
-  pickerCode: { fontSize: 13, color: '#9ca3af' },
-  otpHint: { fontSize: 13, color: '#9ca3af', textAlign: 'center' },
+  pickerCode: { fontSize: 13, color: colors.textMuted },
+  otpHint: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },
   devHint: { fontSize: 12, color: '#f59e0b', textAlign: 'center' },
   otpRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm },
   otpBox: {
     width: 42, height: 50, borderRadius: 10,
-    backgroundColor: '#0c1322', borderWidth: 1.5, borderColor: '#1d273a',
+    backgroundColor: colors.bgDeep, borderWidth: 1.5, borderColor: colors.borderHairline,
     alignItems: 'center', justifyContent: 'center',
   },
-  otpBoxFilled: { borderColor: '#1e6ff1', backgroundColor: 'rgba(30,111,241,0.1)' },
+  otpBoxFilled: { borderColor: colors.electric, backgroundColor: 'rgba(30,111,241,0.1)' },
   otpInput: { fontSize: 20, fontWeight: 'bold', color: '#fff', width: '100%', height: '100%', textAlign: 'center' },
-  resendText: { fontSize: 13, color: '#1099ec', textAlign: 'center', fontWeight: '600' },
+  resendText: { fontSize: 13, color: colors.textBrandStrong, textAlign: 'center', fontWeight: '600' },
   errorContainer: {
     flexDirection: 'row-reverse', alignItems: 'center', gap: 6,
     backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 10,
@@ -386,5 +384,6 @@ const styles = StyleSheet.create({
   submitGrad: { height: 50, alignItems: 'center', justifyContent: 'center' },
   submitText: { fontSize: 16, fontWeight: 'bold', color: '#fff' },
   doneWrap: { alignItems: 'center', gap: spacing.md, paddingVertical: spacing.lg },
-  doneText: { fontSize: 14, color: '#9ca3af', textAlign: 'center', lineHeight: 22 },
-});
+  doneText: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
+  });
+}

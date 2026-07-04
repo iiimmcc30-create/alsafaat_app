@@ -28,12 +28,16 @@ import {
 } from '@/services/network_international';
 import { PlanId } from '@/services/subscriptionPlans';
 import { usePlans } from '@/hooks/usePlans';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
 
 type Step = 'method' | 'card_details' | 'processing' | 'success';
 
 export default function PaymentScreen() {
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const { planId, cycle } = useLocalSearchParams<{ planId: PlanId; cycle: 'monthly' | 'yearly' }>();
   const { me } = useApp();
@@ -333,7 +337,7 @@ export default function PaymentScreen() {
           <MaterialCommunityIcons name="lock-outline" size={16} color={colors.textSubtle} />
           <Text style={styles.niStripText}>
             مدفوعات آمنة عبر{' '}
-            <Text style={{ color: colors.glow }}>Network International</Text>
+            <Text style={{ color: colors.textBrand }}>Network International</Text>
             {' '}· PCI-DSS Level 1
           </Text>
         </View>
@@ -378,6 +382,7 @@ export default function PaymentScreen() {
 }
 
 function ReceiptRow({ label, value, highlight, small }: { label: string; value: string; highlight?: boolean; small?: boolean }) {
+  const rr = useThemedStyles(({ colors }) => createReceiptStyles(colors));
   return (
     <View style={rr.row}>
       <Text style={rr.label}>{label}</Text>
@@ -386,20 +391,23 @@ function ReceiptRow({ label, value, highlight, small }: { label: string; value: 
   );
 }
 
-const rr = StyleSheet.create({
+function createReceiptStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   row:            { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
   label:          { ...typography.caption, color: colors.textMuted },
   value:          { ...typography.caption, color: colors.textSecondary, flex: 1, textAlign: 'right' },
   valueHighlight: { ...typography.bodyStrong, color: colors.gold },
   valueSmall:     { fontSize: 10, color: colors.textSubtle },
-});
+  });
+}
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   screen:       { flex: 1, backgroundColor: colors.bgDeep },
   header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   backBtn:      { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.bgGlass, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderSoft },
   headerTitle:  { ...typography.h2, color: colors.textPrimary },
-  headerSub:    { ...typography.caption, color: colors.glow },
+  headerSub:    { ...typography.caption, color: colors.textBrand },
   scroll:       { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
 
   orderCard:       { borderRadius: radius.xl, padding: spacing.xl, marginBottom: spacing.xl, gap: spacing.sm },
@@ -445,7 +453,7 @@ const styles = StyleSheet.create({
   processingTitle:    { ...typography.h2, color: colors.textPrimary },
   processingSubtitle: { ...typography.body, color: colors.textMuted },
   processingLogo:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.xl, paddingHorizontal: 16, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.borderSoft },
-  processingLogoText: { ...typography.caption, color: colors.success },
+  processingLogoText: { ...typography.caption, color: colors.textBrandSuccess },
 
   successWrap:         { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl, gap: spacing.lg },
   successIconBg:       { width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md },
@@ -460,4 +468,5 @@ const styles = StyleSheet.create({
   successBtn:          { width: '100%', borderRadius: radius.xl, overflow: 'hidden' },
   successBtnGrad:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16 },
   successBtnText:      { ...typography.bodyStrong, color: '#fff', fontSize: 16 },
-});
+  });
+}

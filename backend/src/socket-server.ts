@@ -12,6 +12,7 @@ import { logger } from './lib/logger';
 import prisma from './lib/prisma';
 import { cacheSet, cacheDel, sessionGet } from './lib/redis';
 import { isPasswordVersionValid } from './middleware/auth';
+import { notifyUser } from './lib/notifications';
 
 const PORT           = parseInt(process.env.SOCKET_PORT || '3002');
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:8081').split(',');
@@ -274,6 +275,20 @@ io.on('connection', async (socket: Socket) => {
         senderName: message.sender.arabicName,
         preview:    data.text?.slice(0, 60) || '📷 صورة',
       });
+      void notifyUser({
+        userId:  data.receiverId,
+        type:    'new_message',
+        titleAr: message.sender.arabicName || message.sender.username || 'مستخدم',
+        bodyAr:  data.text?.trim() || 'أرسل صورة',
+        data: {
+          threadId: data.threadId,
+          messageId: message.id,
+          senderId: user.userId,
+          actorId: user.userId,
+          actorAvatar: message.sender.avatar,
+          ...(data.orderId ? { orderId: data.orderId } : {}),
+        },
+      });
     } catch (err) {
       logger.error({ err }, 'chat:send error');
       emitErr(socket, 'server_error', 'Failed to send message');
@@ -438,7 +453,11 @@ io.on('connection', async (socket: Socket) => {
 
     const order = await prisma.butcherOrder.findUnique({
       where:  { id: parsed.data.orderId },
-      select: { butcher: { select: { userId: true } }, customerId: true, status: true },
+      select: {
+        customerId: true,
+        status: true,
+        butcher: { select: { userId: true, id: true } },
+      },
     });
 
     if (!order)                                    return emitErr(socket, 'not_found', 'Order not found');
@@ -457,16 +476,17 @@ io.on('connection', async (socket: Socket) => {
       status:  parsed.data.status,
     });
 
-    // In-app notification (direct DB — avoids BullMQ/Redis dependency in socket process)
-    await prisma.notification.create({
+    void notifyUser({
+      userId:  order.customerId,
+      type:    'order_update',
+      titleAr: 'تحديث طلبك',
+      bodyAr:  `حالة طلبك: ${parsed.data.status}`,
       data: {
-        userId:  order.customerId,
-        type:    'order_update',
-        titleAr: 'تحديث طلبك',
-        bodyAr:  `حالة طلبك: ${parsed.data.status}`,
-        data:    { orderId: parsed.data.orderId, status: parsed.data.status },
+        orderId: parsed.data.orderId,
+        status:  parsed.data.status,
+        butcherId: order.butcher.id,
       },
-    }).catch(() => {});
+    });
   });
 
   // ── Presence ──────────────────────────────────────────────────────────────

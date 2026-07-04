@@ -15,13 +15,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { gradients, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { useButcherStats, StatsPeriod } from '@/hooks/useButcherStats';
 
 type Period = StatsPeriod;
 
 // ─── Mini bar chart ───────────────────────────────────────────────────────────
 function MiniBarChart({ data, color }: { data: number[]; color: string }) {
+  const chart = useThemedStyles(() => createChartStyles());
   const MAX_BARS = 14;
   const slice = data.slice(-MAX_BARS);
   const max = Math.max(...slice, 1);
@@ -52,6 +55,8 @@ function StatCard({
   color: string;
   trend?: { value: number; positive: boolean };
 }) {
+  const { colors } = useTheme();
+  const sc = useThemedStyles(({ colors }) => createStatCardStyles(colors));
   return (
     <View style={sc.card}>
       <LinearGradient colors={[color + '22', color + '08']} style={StyleSheet.absoluteFill} />
@@ -68,7 +73,7 @@ function StatCard({
             size={14}
             color={trend.positive ? colors.success : colors.danger}
           />
-          <Text style={[sc.trendText, { color: trend.positive ? colors.success : colors.danger }]}>
+          <Text style={[sc.trendText, { color: trend.positive ? colors.textBrandSuccess : colors.danger }]}>
             {trend.value}%
           </Text>
         </View>
@@ -85,6 +90,8 @@ function trendProp(value: number | null | undefined) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ButcherDashboardScreen() {
   const router = useRouter();
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const { accessToken } = useAuth();
   const [period, setPeriod] = useState<Period>('month');
   const { stats, loading, error } = useButcherStats(accessToken, period);
@@ -168,38 +175,38 @@ export default function ButcherDashboardScreen() {
   ];
 
   return (
-    <SafeAreaView style={s.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
 
       {/* Header */}
-      <View style={s.header}>
-        <Pressable onPress={() => router.push('/sidebar')} hitSlop={12} style={s.backBtn}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.push('/sidebar')} hitSlop={12} style={styles.backBtn}>
           <Ionicons name="menu" size={22} color={colors.textPrimary} />
         </Pressable>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={s.headerTitle}>لوحة التحليلات</Text>
-          <Text style={s.headerSub}>{data.butcher.nameAr}</Text>
+          <Text style={styles.headerTitle}>لوحة التحليلات</Text>
+          <Text style={styles.headerSub}>{data.butcher.nameAr}</Text>
         </View>
-        <Pressable style={s.exportBtn}>
+        <Pressable style={styles.exportBtn}>
           <MaterialCommunityIcons name="file-export-outline" size={20} color={colors.electricBright} />
         </Pressable>
       </View>
 
       {/* Verified badge strip */}
-      <View style={s.verifiedStrip}>
+      <View style={styles.verifiedStrip}>
         <LinearGradient colors={[colors.gold + '22', colors.amber + '11']} style={StyleSheet.absoluteFill} />
         <Ionicons name="shield-checkmark" size={16} color={colors.gold} />
-        <Text style={s.verifiedStripText}>
+        <Text style={styles.verifiedStripText}>
           {data.butcher.subscriptionActive
             ? 'حساب موثّق نشط · معفى من العمولات تماماً'
             : 'حساب ملحمة عادي · ترقية الحساب متاحة الآن'}
         </Text>
-        <Pressable onPress={() => router.push('/fees')} style={s.manageBtn}>
-          <Text style={s.manageBtnText}>{data.butcher.subscriptionActive ? 'إدارة' : 'ترقية'}</Text>
+        <Pressable onPress={() => router.push('/fees')} style={styles.manageBtn}>
+          <Text style={styles.manageBtnText}>{data.butcher.subscriptionActive ? 'إدارة' : 'ترقية'}</Text>
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
         {loading && (
           <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
@@ -214,14 +221,14 @@ export default function ButcherDashboardScreen() {
         )}
 
         {/* Period Tabs */}
-        <View style={s.periodRow}>
+        <View style={styles.periodRow}>
           {PERIODS.map((p) => (
             <Pressable
               key={p.id}
               onPress={() => setPeriod(p.id)}
-              style={[s.periodBtn, period === p.id && s.periodBtnActive]}
+              style={[styles.periodBtn, period === p.id && styles.periodBtnActive]}
             >
-              <Text style={[s.periodLabel, period === p.id && s.periodLabelActive]}>
+              <Text style={[styles.periodLabel, period === p.id && styles.periodLabelActive]}>
                 {p.label}
               </Text>
             </Pressable>
@@ -229,31 +236,31 @@ export default function ButcherDashboardScreen() {
         </View>
 
         {/* Revenue hero card */}
-        <LinearGradient colors={[colors.electric, colors.cyan]} style={s.revenueCard}>
-          <View style={s.revenueTop}>
+        <LinearGradient colors={[colors.electric, colors.cyan]} style={styles.revenueCard}>
+          <View style={styles.revenueTop}>
             <View>
-              <Text style={s.revenueLabel}>إجمالي الإيرادات</Text>
-              <Text style={s.revenueValue}>
+              <Text style={styles.revenueLabel}>إجمالي الإيرادات</Text>
+              <Text style={styles.revenueValue}>
                 {data.revenue.toLocaleString()} ر.س
               </Text>
             </View>
-            <View style={s.revenueTrend}>
+            <View style={styles.revenueTrend}>
               <Ionicons name="trending-up" size={20} color="rgba(255,255,255,0.9)" />
               {data.trends.revenue !== null && (
-                <Text style={s.revenueTrendText}>
+                <Text style={styles.revenueTrendText}>
                   {data.trends.revenue >= 0 ? '+' : ''}{data.trends.revenue}%
                 </Text>
               )}
             </View>
           </View>
           <MiniBarChart data={data.dailyRevenue} color="rgba(255,255,255,0.9)" />
-          <Text style={s.revenueChartLabel}>
+          <Text style={styles.revenueChartLabel}>
             {period === 'week' ? 'آخر ٧ أيام' : period === 'month' ? 'آخر ٣٠ يوماً' : 'آخر ٩٠ يوماً'}
           </Text>
         </LinearGradient>
 
         {/* Stats grid */}
-        <View style={s.statsGrid}>
+        <View style={styles.statsGrid}>
           <StatCard
             icon="📦"
             label="الطلبات"
@@ -297,8 +304,8 @@ export default function ButcherDashboardScreen() {
         </View>
 
         {/* Top products */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>🥩 أكثر المنتجات مبيعاً</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🥩 أكثر المنتجات مبيعاً</Text>
           {data.topProducts.length === 0 ? (
             <Text style={{ color: colors.textMuted, ...typography.caption, textAlign: 'center', paddingVertical: spacing.lg }}>
               لا توجد مبيعات في هذه الفترة
@@ -308,24 +315,24 @@ export default function ButcherDashboardScreen() {
             const maxRevenue = data.topProducts[0]?.revenue || 1;
             const pct = (p.revenue / maxRevenue) * 100;
             return (
-              <View key={i} style={s.productRow}>
-                <View style={s.productRank}>
-                  <Text style={s.productRankText}>{i + 1}</Text>
+              <View key={i} style={styles.productRow}>
+                <View style={styles.productRank}>
+                  <Text style={styles.productRankText}>{i + 1}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <View style={s.productNameRow}>
-                    <Text style={s.productName}>{p.name}</Text>
-                    <Text style={s.productSales}>{p.sales} طلب</Text>
+                  <View style={styles.productNameRow}>
+                    <Text style={styles.productName}>{p.name}</Text>
+                    <Text style={styles.productSales}>{p.sales} طلب</Text>
                   </View>
-                  <View style={s.progressTrack}>
+                  <View style={styles.progressTrack}>
                     <LinearGradient
                       colors={[colors.electric, colors.cyan]}
-                      style={[s.progressFill, { width: `${pct}%` }]}
+                      style={[styles.progressFill, { width: `${pct}%` }]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                     />
                   </View>
-                  <Text style={s.productRevenue}>{p.revenue.toLocaleString()} ر.س</Text>
+                  <Text style={styles.productRevenue}>{p.revenue.toLocaleString()} ر.س</Text>
                 </View>
               </View>
             );
@@ -334,19 +341,19 @@ export default function ButcherDashboardScreen() {
         </View>
 
         {/* Quick actions */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>⚡ إجراءات سريعة</Text>
-          <View style={s.actionsGrid}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>⚡ إجراءات سريعة</Text>
+          <View style={styles.actionsGrid}>
             {quickActions.map((action, i) => (
               <Pressable
                 key={i}
                 onPress={action.onPress}
-                style={({ pressed }) => [s.actionBtn, pressed && { opacity: 0.85 }]}
+                style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.85 }]}
               >
-                <View style={[s.actionIconWrap, { backgroundColor: action.color + '22' }]}>
+                <View style={[styles.actionIconWrap, { backgroundColor: action.color + '22' }]}>
                   <Ionicons name={action.icon} size={22} color={action.color} />
                 </View>
-                <Text style={s.actionLabel}>{action.label}</Text>
+                <Text style={styles.actionLabel}>{action.label}</Text>
               </Pressable>
             ))}
           </View>
@@ -360,7 +367,8 @@ export default function ButcherDashboardScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bgDeep },
   scroll: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
 
@@ -377,7 +385,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
-  headerSub: { ...typography.caption, color: colors.glow, marginTop: 1 },
+  headerSub: { ...typography.caption, color: colors.textBrand, marginTop: 1 },
   exportBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: colors.bgGlass,
@@ -469,7 +477,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.electric + '33',
     alignItems: 'center', justifyContent: 'center',
   },
-  productRankText: { ...typography.caption, color: colors.electricBright, fontWeight: '700' },
+  productRankText: { ...typography.caption, color: colors.textBrandStrong, fontWeight: '700' },
   productNameRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   productName: { ...typography.caption, color: colors.textPrimary, fontWeight: '600' },
   productSales: { ...typography.micro, color: colors.textMuted },
@@ -525,9 +533,11 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   rankNum: { fontSize: 22, fontWeight: '900', color: '#1A1300' },
-});
+  });
+}
 
-const sc = StyleSheet.create({
+function createStatCardStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   card: {
     width: '47%',
     borderRadius: radius.xl,
@@ -549,9 +559,11 @@ const sc = StyleSheet.create({
   sub: { ...typography.micro, color: colors.textMuted },
   trendRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   trendText: { ...typography.micro, fontWeight: '700' },
-});
+  });
+}
 
-const chart = StyleSheet.create({
+function createChartStyles() {
+  return StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -569,4 +581,5 @@ const chart = StyleSheet.create({
     borderRadius: 3,
     minHeight: 4,
   },
-});
+  });
+}

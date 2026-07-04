@@ -6,7 +6,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { logger } from './logger';
 
 export type StorageProvider = 'cloudinary' | 's3' | 'local';
-export type UploadFolder = 'avatars' | 'listings' | 'stories' | 'butchers' | 'posts' | 'temp';
+export type UploadFolder =
+  | 'avatars'
+  | 'listings'
+  | 'stories'
+  | 'butchers'
+  | 'posts'
+  | 'temp'
+  | 'butcher-applications';
 
 export interface UploadResult {
   key: string;
@@ -126,8 +133,20 @@ export function getAllowedUploadOrigins(): string[] {
   return [...new Set(origins)];
 }
 
-function cloudinaryFolder(folder: UploadFolder): string {
+function cloudinaryFolder(folder: UploadFolder, userId?: string): string {
+  if (folder === 'butcher-applications') {
+    if (!userId) throw new Error('userId is required for butcher-applications uploads');
+    return `${CLOUDINARY_BASE_FOLDER}/${folder}/${userId}`;
+  }
   return `${CLOUDINARY_BASE_FOLDER}/${folder}`;
+}
+
+function objectKeyPrefix(folder: UploadFolder, userId?: string): string {
+  if (folder === 'butcher-applications') {
+    if (!userId) throw new Error('userId is required for butcher-applications uploads');
+    return `${folder}/${userId}`;
+  }
+  return folder;
 }
 
 function getCloudinaryUploadUrl(): string {
@@ -144,13 +163,14 @@ function getLocalUploadSlot(folder: UploadFolder): LocalUploadSlot {
 
 async function getCloudinaryUploadSlot(
   folder: UploadFolder,
+  userId?: string,
 ): Promise<CloudinaryUploadSlot> {
   if (!isCloudinaryConfigured()) {
     throw new Error('Cloudinary is not configured');
   }
 
   const timestamp = Math.round(Date.now() / 1000);
-  const targetFolder = cloudinaryFolder(folder);
+  const targetFolder = cloudinaryFolder(folder, userId);
   const publicId = uuidv4();
 
   const paramsToSign: Record<string, string | number> = {
@@ -179,11 +199,12 @@ async function getS3UploadSlot(
   folder: UploadFolder,
   mimetype: string,
   expiresIn = 300,
+  userId?: string,
 ): Promise<S3UploadSlot> {
   if (!s3) throw new Error('S3 is not configured');
 
-  const ext = mimetype.split('/')[1] || 'jpg';
-  const key = `${folder}/${uuidv4()}.${ext}`;
+  const ext = mimetype.split('/')[1]?.replace(/[^a-z0-9]/gi, '') || 'bin';
+  const key = `${objectKeyPrefix(folder, userId)}/${uuidv4()}.${ext}`;
 
   const uploadUrl = await getSignedUrl(
     s3,
@@ -198,11 +219,21 @@ async function getS3UploadSlot(
   return { provider: 's3', uploadUrl, key, cdnUrl };
 }
 
+export type PresignOptions = {
+  userId?: string;
+};
+
 export async function getPresignedUploadUrl(
   folder: UploadFolder,
   mimetype: string,
   expiresIn = 300,
+  options?: PresignOptions,
 ): Promise<UploadSlot> {
+  const userId = options?.userId;
+  if (folder === 'butcher-applications' && !userId) {
+    throw new Error('userId is required for butcher-applications uploads');
+  }
+
   const provider = getStorageProvider();
 
   if (provider === 'local') {
@@ -210,10 +241,10 @@ export async function getPresignedUploadUrl(
   }
 
   if (provider === 'cloudinary') {
-    return getCloudinaryUploadSlot(folder);
+    return getCloudinaryUploadSlot(folder, userId);
   }
 
-  return getS3UploadSlot(folder, mimetype, expiresIn);
+  return getS3UploadSlot(folder, mimetype, expiresIn, userId);
 }
 
 export async function uploadFile(

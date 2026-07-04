@@ -30,6 +30,7 @@ import {
 import { ButcherLocationPicker } from '@/components/feature/ButcherLocationPicker';
 import { hasValidCoords, formatCoords } from '@/lib/butcherLocation';
 import { storyTimeLeftLabel } from '@/constants/stories';
+import { useRequireApprovedButcher } from '@/hooks/useRequireApprovedButcher';
 
 type ManageTab = 'products' | 'offers' | 'stories' | 'orders';
 
@@ -479,6 +480,7 @@ function AddOfferForm({
 export default function ButcherManageScreen() {
   const router = useRouter();
   const { accessToken } = useAuth();
+  const { hasApprovedApplication, loading: accessLoading } = useRequireApprovedButcher();
   const [activeTab, setActiveTab] = useState<ManageTab>('orders');
   const [showProductForm, setShowProductForm] = useState(false);
   const [showOfferForm, setShowOfferForm] = useState(false);
@@ -734,6 +736,17 @@ export default function ButcherManageScreen() {
     ]);
   };
 
+  if (accessLoading || !hasApprovedApplication) {
+    return (
+      <SafeAreaView style={s.screen}>
+        <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.electricBright} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={s.screen}>
@@ -763,7 +776,7 @@ export default function ButcherManageScreen() {
               borderRadius: radius.xl,
               backgroundColor: colors.electric,
             }}
-            onPress={() => router.push('/butchers/register')}
+            onPress={() => router.push('/butchers/apply')}
           >
             <Text style={{ ...typography.bodyStrong, color: '#fff' }}>سجل ملحمتك الآن</Text>
           </Pressable>
@@ -1046,7 +1059,7 @@ export default function ButcherManageScreen() {
                       : <Text style={pm.price}>{p.priceFixed?.toLocaleString()} ر.س</Text>
                     }
                     <View style={[pm.stockBadge, { backgroundColor: p.inStock ? colors.success + '33' : colors.danger + '33' }]}>
-                      <Text style={[pm.stockText, { color: p.inStock ? colors.success : colors.danger }]}>
+                      <Text style={[pm.stockText, { color: p.inStock ? colors.textBrandSuccess : colors.danger }]}>
                         {p.inStock ? 'متوفر' : 'نفد'}
                       </Text>
                     </View>
@@ -1166,9 +1179,9 @@ export default function ButcherManageScreen() {
             {/* Story types */}
             {[
               { type: 'daily_slaughter', label: 'ذبح يومي',    icon: '🔪', color: colors.danger   },
-              { type: 'new_stock',       label: 'مخزون جديد',  icon: '📦', color: colors.success  },
+              { type: 'new_stock',       label: 'مخزون جديد',  icon: '📦', color: colors.textBrandSuccess  },
               { type: 'offer',           label: 'عرض اليوم',   icon: '🏷️', color: colors.amber    },
-              { type: 'update',          label: 'تحديث عام',   icon: '📢', color: colors.electric },
+              { type: 'update',          label: 'تحديث عام',   icon: '📢', color: colors.textBrandAlt },
             ].map((st) => (
               <Pressable
                 key={st.type}
@@ -1201,7 +1214,7 @@ export default function ButcherManageScreen() {
                 </View>
                 <Pressable
                   style={sto.lockBtn}
-                  onPress={() => router.push('/butchers/register')}
+                  onPress={() => router.push('/butchers/apply')}
                 >
                   <Text style={sto.lockBtnText}>توثيق الحساب</Text>
                 </Pressable>
@@ -1232,7 +1245,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
-  headerSub: { ...typography.caption, color: colors.glow, marginTop: 1 },
+  headerSub: { ...typography.caption, color: colors.textBrand, marginTop: 1 },
   verifiedStrip: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     marginHorizontal: spacing.lg, marginBottom: spacing.sm,
@@ -1243,7 +1256,7 @@ const s = StyleSheet.create({
   },
   verifiedText: { ...typography.caption, color: colors.gold, flex: 1 },
   onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
-  onlineText: { ...typography.micro, color: colors.success },
+  onlineText: { ...typography.micro, color: colors.textBrandSuccess },
   tabsGrid: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
@@ -1297,7 +1310,7 @@ const s = StyleSheet.create({
     lineHeight: 12,
   },
   tabCountTextActive: {
-    color: colors.electric,
+    color: colors.textBrandAlt,
   },
   tabLabel: {
     fontSize: 11,
@@ -1306,7 +1319,7 @@ const s = StyleSheet.create({
     textAlign: 'center',
   },
   tabLabelActive: {
-    color: colors.electricBright,
+    color: colors.textBrandStrong,
     fontWeight: '700',
   },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },
@@ -1357,7 +1370,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.electricBright + '66',
     backgroundColor: colors.electric + '11',
   },
-  addBtnText: { ...typography.micro, color: colors.electricBright },
+  addBtnText: { ...typography.micro, color: colors.textBrandStrong },
   formCard: {
     backgroundColor: colors.bgSurface,
     borderRadius: radius.xxl,
@@ -1406,7 +1419,7 @@ const ord = StyleSheet.create({
     borderWidth: 1, borderColor: colors.electricBright + '66',
     backgroundColor: colors.electric + '11',
   },
-  chatBtnText: { ...typography.micro, color: colors.electricBright },
+  chatBtnText: { ...typography.micro, color: colors.textBrandStrong },
   advanceBtn: { flex: 1, borderRadius: radius.pill, overflow: 'hidden' },
   advanceBtnGrad: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -1555,7 +1568,7 @@ const apf = StyleSheet.create({
   catChipActive: { borderColor: colors.electric, backgroundColor: colors.electric + '22' },
   catIcon: { fontSize: 14 },
   catLabel: { ...typography.caption, color: colors.textMuted },
-  catLabelActive: { color: colors.electricBright, fontWeight: '600' },
+  catLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
   priceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.md },
   priceLabel: { ...typography.micro, color: colors.textMuted, textAlign: 'center', marginBottom: 4 },
   cutsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: spacing.lg },
@@ -1566,7 +1579,7 @@ const apf = StyleSheet.create({
   },
   cutChipActive: { borderColor: colors.electric, backgroundColor: colors.electric + '22' },
   cutLabel: { ...typography.micro, color: colors.textMuted },
-  cutLabelActive: { color: colors.electricBright, fontWeight: '600' },
+  cutLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
   freshnessRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
   freshnessBtn: {
     flex: 1, paddingVertical: 10,
@@ -1584,7 +1597,7 @@ const apf = StyleSheet.create({
     backgroundColor: colors.electric + '08',
     marginBottom: spacing.lg,
   },
-  uploadText: { ...typography.caption, color: colors.electricBright, fontWeight: '600' },
+  uploadText: { ...typography.caption, color: colors.textBrandStrong, fontWeight: '600' },
   actions: { flexDirection: 'row', gap: spacing.md },
   cancelBtn: {
     flex: 1, paddingVertical: 13,

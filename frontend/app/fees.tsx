@@ -17,7 +17,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon, rtlForwardIcon } from '@/lib/rtl';
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -52,6 +54,8 @@ type CommissionRuleRow = {
 };
 
 export default function FeesScreen() {
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const { subscription } = useSubscription();
   const { me } = useApp();
@@ -283,7 +287,7 @@ export default function FeesScreen() {
                 <Text style={styles.statLabel}>متأخر (ريال)</Text>
               </View>
               <View style={[styles.statCard, { borderColor: `${colors.emerald}40` }]}>
-                <Text style={[styles.statAmount, { color: colors.emerald }]}>{summary.totalPaid}</Text>
+                <Text style={[styles.statAmount, { color: colors.textBrandSuccess }]}>{summary.totalPaid}</Text>
                 <Text style={styles.statLabel}>مسدّد (ريال)</Text>
               </View>
             </View>
@@ -654,7 +658,8 @@ export default function FeesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -667,7 +672,7 @@ const styles = StyleSheet.create({
   },
   headerCenter: { alignItems: 'center' },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
-  headerSub: { ...typography.micro, color: colors.glow },
+  headerSub: { ...typography.micro, color: colors.textBrand },
 
   alertStrip: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
@@ -692,7 +697,7 @@ const styles = StyleSheet.create({
   },
   tabChipActive: { backgroundColor: colors.royal, borderColor: colors.electric },
   tabLabel: { ...typography.caption, color: colors.textMuted },
-  tabLabelActive: { color: colors.electricBright },
+  tabLabelActive: { color: colors.textBrandStrong },
   tabBadge: {
     minWidth: 16, height: 16, borderRadius: 8,
     backgroundColor: colors.rose, alignItems: 'center', justifyContent: 'center',
@@ -720,7 +725,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill, borderWidth: 1, borderColor: colors.electric,
     backgroundColor: `${colors.electric}10`,
   },
-  selectAllText: { ...typography.micro, color: colors.electricBright },
+  selectAllText: { ...typography.micro, color: colors.textBrandStrong },
   paySelectedBtn: { flex: 1, borderRadius: radius.pill, overflow: 'hidden' },
   paySelectedInner: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -766,7 +771,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill, backgroundColor: colors.royal,
     borderWidth: 1, borderColor: colors.electric,
   },
-  payNowText: { ...typography.micro, color: colors.electricBright, fontWeight: '700' },
+  payNowText: { ...typography.micro, color: colors.textBrandStrong, fontWeight: '700' },
 
   infoBox: {
     flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start',
@@ -848,12 +853,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill,
     backgroundColor: `${colors.emerald}20`, borderWidth: 1, borderColor: `${colors.emerald}40`,
   },
-  paidBadgeText: { ...typography.micro, color: colors.emerald, fontWeight: '700' },
+  paidBadgeText: { ...typography.micro, color: colors.textBrandSuccess, fontWeight: '700' },
 
   // Rules tab
   rulesHeader: { alignItems: 'center', marginBottom: spacing.xl },
   rulesBig: { ...typography.h1, color: colors.textPrimary },
-  rulesSubtitle: { ...typography.caption, color: colors.glow },
+  rulesSubtitle: { ...typography.caption, color: colors.textBrand },
   rulesTable: {
     borderRadius: radius.lg, overflow: 'hidden',
     borderWidth: 1, borderColor: colors.borderSoft, marginBottom: spacing.lg,
@@ -928,4 +933,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
   },
   niBadgeText: { ...typography.micro, color: colors.textSubtle },
-});
+  });
+}

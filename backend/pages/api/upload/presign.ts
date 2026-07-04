@@ -4,19 +4,62 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { z } from 'zod';
 import { withAuth, apiResponse, apiError, AuthedRequest } from '@/middleware/auth';
 import { apiRateLimit } from '@/middleware/rateLimiter';
-import { getPresignedUploadUrl, getStorageProvider, UploadFolder } from '@/lib/storage';
+import {
+  getPresignedUploadUrl,
+  getStorageProvider,
+  type UploadFolder,
+  type UploadSlot,
+} from '@/lib/storage';
 import { getSessionRedis, isRedisEnabled } from '@/lib/redis';
+import {
+  ALLOWED_DOCUMENT_MIME_TYPES,
+  MAX_SHOP_PHOTO_FILE_BYTES,
+} from '@/butcher-applications/constants';
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
 const MAX_UPLOADS_PER_HOUR = 30; // per user
 
-const schema = z.object({
-  mimetype: z.string().refine((t) => ALLOWED_TYPES.includes(t), `نوع الملف غير مدعوم. المسموح: ${ALLOWED_TYPES.join(', ')}`),
-  folder:   z.enum(['avatars', 'listings', 'stories', 'butchers', 'posts', 'temp']),
-  count:    z.number().int().min(1).max(8).default(1),
-}).strict();
+const FOLDERS = [
+  'avatars',
+  'listings',
+  'stories',
+  'butchers',
+  'posts',
+  'temp',
+  'butcher-applications',
+] as const;
+
+const schema = z
+  .object({
+    mimetype: z.string(),
+    folder: z.enum(FOLDERS),
+    count: z.number().int().min(1).max(8).default(1),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    const allowed =
+      data.folder === 'butcher-applications'
+        ? ALLOWED_DOCUMENT_MIME_TYPES
+        : IMAGE_MIME_TYPES;
+
+    if (!allowed.includes(data.mimetype as (typeof allowed)[number])) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `نوع الملف غير مدعوم. المسموح: ${allowed.join(', ')}`,
+        path: ['mimetype'],
+      });
+    }
+  });
 
 export const config = { api: { bodyParser: { sizeLimit: '4kb' } } };
+
+function butcherApplicationFileKey(userId: string, slot: UploadSlot): string | undefined {
+  if (slot.provider === 's3') return slot.key;
+  if (slot.provider === 'cloudinary') {
+    return `butcher-applications/${userId}/${slot.publicId}`;
+  }
+  return undefined;
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -31,6 +74,8 @@ async function getPresignUrl(req: AuthedRequest, res: NextApiResponse) {
   }
 
   const { mimetype, folder, count } = parsed.data;
+  const presignOptions =
+    folder === 'butcher-applications' ? { userId: req.user.userId } : undefined;
 
   // Rate limit uploads per user when Redis is available
   if (isRedisEnabled()) {
@@ -58,10 +103,28 @@ async function getPresignUrl(req: AuthedRequest, res: NextApiResponse) {
   try {
     const urls = await Promise.all(
       Array.from({ length: count }, () =>
-        getPresignedUploadUrl(folder as UploadFolder, mimetype)
-      )
+        getPresignedUploadUrl(folder as UploadFolder, mimetype, 300, presignOptions),
+      ),
     );
-    return apiResponse(res, { provider: getStorageProvider(), urls, maxSizeMb: 20 });
+
+    const maxSizeMb =
+      folder === 'butcher-applications'
+        ? Math.ceil(MAX_SHOP_PHOTO_FILE_BYTES / (1024 * 1024))
+        : 20;
+
+    const normalizedUrls =
+      folder === 'butcher-applications'
+        ? urls.map((slot) => {
+            const fileKey = butcherApplicationFileKey(req.user.userId, slot);
+            return fileKey ? { ...slot, fileKey } : slot;
+          })
+        : urls;
+
+    return apiResponse(res, {
+      provider: getStorageProvider(),
+      urls: normalizedUrls,
+      maxSizeMb,
+    });
   } catch (err) {
     const message =
       err instanceof Error && err.message.includes('Cloudinary')

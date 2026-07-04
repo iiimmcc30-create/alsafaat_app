@@ -26,8 +26,8 @@ const { width: W, height: H } = Dimensions.get('window');
 const STORY_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   daily_slaughter: { label: '🔪 ذبح يومي طازج', color: colors.danger   },
   offer:           { label: '🏷️ عرض خاص',        color: colors.amber    },
-  new_stock:       { label: '📦 مخزون جديد',      color: colors.success  },
-  update:          { label: '📢 تحديث',            color: colors.electric },
+  new_stock:       { label: '📦 مخزون جديد',      color: colors.textBrandSuccess  },
+  update:          { label: '📢 تحديث',            color: colors.textBrandAlt },
 };
 
 export default function ButcherStoryViewerScreen() {
@@ -114,7 +114,7 @@ export default function ButcherStoryViewerScreen() {
     return null;
   }
 
-  const typeInfo = STORY_TYPE_LABELS[story.type] ?? { label: story.type, color: colors.electric };
+  const typeInfo = STORY_TYPE_LABELS[story.type] ?? { label: story.type, color: colors.textBrandAlt };
 
   return (
     <View style={s.screen}>

@@ -2,7 +2,8 @@
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { ReactNode } from 'react';
 import { StyleSheet, View, ViewStyle } from 'react-native';
-import { colors, gradients, radius, shadow } from '@/constants/theme';
+import { radius, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 
 interface GlassCardProps {
   children: ReactNode;
@@ -13,6 +14,12 @@ interface GlassCardProps {
 }
 
 export function GlassCard({ children, style, glow = false, elevated = false, padding = 18 }: GlassCardProps) {
+  const { styles, gradients, shadow } = useThemedStyles((theme) => ({
+    styles: createStyles(theme.colors),
+    gradients: theme.gradients,
+    shadow: theme.shadow,
+  }));
+
   return (
     <View style={[styles.wrap, elevated && shadow.card, glow && shadow.glow, style]}>
       <LinearGradient
@@ -21,7 +28,6 @@ export function GlassCard({ children, style, glow = false, elevated = false, pad
         end={{ x: 1, y: 1 }}
         style={styles.card}
       >
-        {/* rim-light highlight */}
         <LinearGradient
           colors={gradients.rim}
           start={{ x: 0, y: 0 }}
@@ -34,27 +40,29 @@ export function GlassCard({ children, style, glow = false, elevated = false, pad
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    borderRadius: radius.xl,
-  },
-  card: {
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  rim: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-  },
-  inner: {
-    padding: 18,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    wrap: {
+      borderRadius: radius.xl,
+    },
+    card: {
+      borderRadius: radius.xl,
+      borderWidth: 1,
+      borderColor: colors.borderSoft,
+      overflow: 'hidden',
+      position: 'relative',
+    },
+    rim: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 1,
+    },
+    inner: {
+      padding: 18,
+    },
+  });
+}
 
 export default GlassCard;

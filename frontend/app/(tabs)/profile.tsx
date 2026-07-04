@@ -1,7 +1,7 @@
 // Powered by OnSpace.AI
 // SAFAT — Profile Tab (حسابي)
 
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -14,11 +14,12 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, spacing, typography } from '@/constants/theme';
-import { useSubscription } from '@/contexts/SubscriptionContext';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { useApp } from '@/hooks/useApp';
-import { countries } from '@/services/types';
+import { getCountryInfo } from '@/services/types';
 import { ListingCard } from '@/components/feature/ListingCard';
 import { MessagesPanel } from '@/components/feature/MessagesPanel';
 
@@ -30,18 +31,10 @@ const PROFILE_TABS = [
   { id: 'about' as const, label: 'عن الحساب', icon: 'information-circle-outline' },
 ];
 
-const CARD = {
-  backgroundColor: colors.bgSurface,
-  borderRadius: radius.xl,
-  borderWidth: 1,
-  borderColor: colors.borderSoft,
-} as const;
-
 export default function ProfileScreen() {
   const router = useRouter();
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const { me, listings } = useApp();
-  const { subscription } = useSubscription();
   const [activeTab, setActiveTab] = useState<ProfileTab>('listings');
 
   useEffect(() => {
@@ -49,9 +42,16 @@ export default function ProfileScreen() {
   }, [tab]);
 
   const myListings = listings.filter((l) => l.seller.id === me.id);
-  const country = countries[me.country];
-  const listingsLeft = Math.max(subscription.plan.listingsPerMonth - subscription.listingsUsed, 0);
-  const liveMinutesLeft = Math.max(subscription.plan.liveMinutesPerWeek - subscription.liveMinutesUsed, 0);
+  const country = getCountryInfo(me.country);
+  const hasRating = me.rating != null && (me.reviewCount ?? 0) > 0;
+  const ratingLabel = hasRating ? `★ ${me.rating!.toFixed(1)}` : '—';
+  const ratingAbout = hasRating
+    ? `${me.rating!.toFixed(1)} / 5.0 ⭐ (${me.reviewCount} تقييم)`
+    : 'لا توجد تقييمات بعد';
+  const insets = useSafeAreaInsets();
+  const bottomSpacer = 58 + Math.max(insets.bottom, 8) + 6 + spacing.xl;
+  const { gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createProfileStyles(colors));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -62,7 +62,7 @@ export default function ProfileScreen() {
       >
         <View style={styles.heroSection}>
           <LinearGradient
-            colors={['#0B1330', '#162149', '#1E3A8A']}
+            colors={gradients.royal}
             style={styles.cover}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -134,30 +134,10 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statCol}>
-              <Text style={styles.statNum}>★ {me.rating}</Text>
+              <Text style={styles.statNum}>{ratingLabel}</Text>
               <Text style={styles.statLabel}>تقييم</Text>
             </View>
           </View>
-
-          <Pressable style={styles.planCard} onPress={() => router.push('/subscription')}>
-            <View style={styles.planTop}>
-              <View style={styles.planLock}>
-                <MaterialCommunityIcons name="lock-outline" size={20} color={colors.gold} />
-              </View>
-              <View style={styles.planMain}>
-                <Text style={styles.planLabel}>باقتك الحالية</Text>
-                <Text style={styles.planName}>{subscription.plan.arabicName}</Text>
-              </View>
-              <View style={styles.upgradeBtn}>
-                <Ionicons name="arrow-up" size={14} color={colors.electricBright} />
-                <Text style={styles.upgradeText}>ترقية</Text>
-              </View>
-            </View>
-            <View style={styles.planBottom}>
-              <Text style={styles.planStat}>{listingsLeft} إعلانات متبقية</Text>
-              <Text style={styles.planStat}>{liveMinutesLeft} دقيقة بث</Text>
-            </View>
-          </Pressable>
 
           <View style={styles.tabs}>
             {PROFILE_TABS.map((tab) => {
@@ -231,7 +211,7 @@ export default function ProfileScreen() {
           {activeTab === 'about' && (
             <View style={styles.aboutCard}>
               {[
-                { icon: 'star-outline', label: 'التقييم', value: `${me.rating} / 5.0 ⭐` },
+                { icon: 'star-outline', label: 'التقييم', value: ratingAbout },
                 { icon: 'earth', label: 'الدولة', value: `${country.flag} ${country.ar}` },
                 {
                   icon: 'shield-checkmark-outline',
@@ -261,13 +241,21 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        <View style={styles.bottomSpacer} />
+        <View style={{ height: bottomSpacer }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+function createProfileStyles(colors: ThemeColors) {
+  const card = {
+    backgroundColor: colors.bgSurface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  } as const;
+
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   scrollView: { flex: 1 },
   scroll: { paddingBottom: spacing.md },
@@ -281,7 +269,7 @@ const styles = StyleSheet.create({
   },
   editCoverBtn: {
     position: 'absolute',
-    bottom: spacing.xl + 20,
+    bottom: spacing.xxxl + 36,
     right: spacing.lg,
     width: 34,
     height: 34,
@@ -376,7 +364,7 @@ const styles = StyleSheet.create({
   },
   englishName: {
     ...typography.body,
-    color: colors.glow,
+    color: colors.textBrand,
   },
   handle: {
     ...typography.caption,
@@ -400,7 +388,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   statsCard: {
-    ...CARD,
+    ...card,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.lg,
@@ -426,64 +414,6 @@ const styles = StyleSheet.create({
     height: 36,
     backgroundColor: colors.borderSoft,
   },
-  planCard: {
-    ...CARD,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  planTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  planLock: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    backgroundColor: colors.bgElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  planMain: {
-    flex: 1,
-  },
-  planLabel: {
-    ...typography.micro,
-    color: colors.textMuted,
-  },
-  planName: {
-    ...typography.h3,
-    color: colors.textPrimary,
-    fontWeight: '800',
-  },
-  planBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSoft,
-  },
-  planStat: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  upgradeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    backgroundColor: `${colors.electric}18`,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-  },
-  upgradeText: {
-    ...typography.micro,
-    color: colors.electricBright,
-    fontWeight: '700',
-  },
   tabs: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -503,7 +433,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   tabLabelActive: {
-    color: colors.electricBright,
+    color: colors.textBrandStrong,
     fontWeight: '700',
   },
   tabIndicator: {
@@ -543,7 +473,7 @@ const styles = StyleSheet.create({
   },
   addListingSmallText: {
     ...typography.caption,
-    color: colors.electricBright,
+    color: colors.textBrandStrong,
     fontWeight: '600',
   },
   listingItem: {
@@ -565,9 +495,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.electric,
   },
-  addListingText: { ...typography.bodyStrong, color: colors.electricBright },
+  addListingText: { ...typography.bodyStrong, color: colors.textBrandStrong },
   aboutCard: {
-    ...CARD,
+    ...card,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
   },
@@ -590,5 +520,5 @@ const styles = StyleSheet.create({
     ...typography.bodyStrong,
     color: colors.textPrimary,
   },
-  bottomSpacer: { height: 100 },
-});
+  });
+}

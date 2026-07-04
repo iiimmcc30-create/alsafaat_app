@@ -3,8 +3,9 @@
 
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlDirection } from '@/lib/rtl';
 import type { ComponentProps } from 'react';
 
@@ -24,14 +25,28 @@ function TabBarIcon({
 
 export default function ButcherTabsLayout() {
   const insets = useSafeAreaInsets();
+  const { colors, scheme } = useTheme();
   const tabBarBottom = Math.max(insets.bottom, 8) + 6;
 
   return (
     <Tabs
+      key={scheme}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.electricBright,
         tabBarInactiveTintColor: colors.textMuted,
+        tabBarLabel: ({ focused, children }) => (
+          <Text
+            style={{
+              color: focused ? colors.textBrandStrong : colors.textMuted,
+              fontSize: 10,
+              fontWeight: '600',
+              writingDirection: 'rtl',
+            }}
+          >
+            {children}
+          </Text>
+        ),
         tabBarStyle: {
           backgroundColor: colors.bgPrimary,
           borderTopColor: colors.borderSoft,

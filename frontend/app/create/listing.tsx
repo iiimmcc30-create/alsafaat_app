@@ -22,7 +22,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
 import { useApp } from '@/hooks/useApp';
 import { useAuth } from '@/contexts/AuthContext';
@@ -60,6 +62,8 @@ const CAT_CARD_SIZE =
   (SCREEN_WIDTH - spacing.lg * 2 - CAT_GAP * (CAT_COLS - 1)) / CAT_COLS;
 
 export default function CreateListingScreen() {
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const { addListing } = useApp();
   const { accessToken } = useAuth();
@@ -416,7 +420,7 @@ export default function CreateListingScreen() {
                       style={[styles.countryChip, country === c.code && styles.countryChipActive]}
                     >
                       <Text style={styles.countryFlag}>{c.flag}</Text>
-                      <Text style={[styles.countryLabel, country === c.code && { color: colors.electricBright }]}>
+                      <Text style={[styles.countryLabel, country === c.code && { color: colors.textBrandStrong }]}>
                         {c.ar}
                       </Text>
                     </Pressable>
@@ -579,7 +583,7 @@ export default function CreateListingScreen() {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={[styles.continueBtnText, !canContinue() && { color: colors.textMuted }]}>
-                  {step === STEPS.length - 1 ? '🚀 نشر الإعلان' : 'التالي →'}
+                  {step === STEPS.length - 1 ? '🚀 نشر الإعلان' : 'التالي ← '}
                 </Text>
               )}
             </LinearGradient>
@@ -692,7 +696,8 @@ export default function CreateListingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   flex: { flex: 1 },
   header: {
@@ -730,7 +735,7 @@ const styles = StyleSheet.create({
   stepDotActive: { backgroundColor: colors.electric, borderColor: colors.electric },
   stepNum: { ...typography.micro, color: colors.textMuted },
   stepLabel: { ...typography.micro, color: colors.textMuted, marginStart: 4, maxWidth: 56 },
-  stepLabelActive: { color: colors.electricBright, fontWeight: '600' },
+  stepLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
   stepLine: { width: 20, height: 1, backgroundColor: colors.borderSoft, marginHorizontal: 4 },
   stepLineActive: { backgroundColor: colors.electric },
   scrollView: { flex: 1, flexShrink: 1 },
@@ -753,7 +758,7 @@ const styles = StyleSheet.create({
   catCardActive: { borderColor: colors.electric, backgroundColor: `${colors.electric}15` },
   catIcon: { fontSize: 24 },
   catLabel: { ...typography.micro, color: colors.textMuted, textAlign: 'center' },
-  catLabelActive: { color: colors.electricBright },
+  catLabelActive: { color: colors.textBrandStrong },
   catCheck: { position: 'absolute', top: 4, right: 4 },
   fieldGroup: { gap: spacing.sm },
   fieldLabel: { ...typography.caption, color: colors.textMuted, fontWeight: '600' },
@@ -859,7 +864,7 @@ const styles = StyleSheet.create({
   },
   commissionTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   commissionIcon: { fontSize: 16 },
-  commissionTitle: { ...typography.caption, color: colors.electricBright, fontWeight: '700' },
+  commissionTitle: { ...typography.caption, color: colors.textBrandStrong, fontWeight: '700' },
   commissionDetails: { gap: spacing.sm },
   commissionRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -916,9 +921,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#0A1530',
     borderColor: `${colors.electric}40`,
   },
-  pledgeCardTitle: { ...typography.bodyStrong, color: colors.electricBright, textAlign: 'right' },
+  pledgeCardTitle: { ...typography.bodyStrong, color: colors.textBrandStrong, textAlign: 'right' },
   pledgeCardTitleGold: { ...typography.bodyStrong, color: colors.gold, textAlign: 'right' },
-  pledgeCardTitleBlue: { ...typography.bodyStrong, color: colors.glow, textAlign: 'right' },
+  pledgeCardTitleBlue: { ...typography.bodyStrong, color: colors.textBrand, textAlign: 'right' },
   pledgeItem: { ...typography.body, color: colors.textSecondary, lineHeight: 24, textAlign: 'right' },
   pledgeBodyText: { ...typography.body, color: colors.textSecondary, lineHeight: 22, textAlign: 'right' },
   commRateRow: {
@@ -930,7 +935,7 @@ const styles = StyleSheet.create({
   commDueNote: { ...typography.caption, color: colors.textMuted, textAlign: 'right', marginTop: spacing.sm },
   commDueBold: { color: colors.rose, fontWeight: '700' },
   pledgeOath: {
-    ...typography.h3, color: colors.electricBright,
+    ...typography.h3, color: colors.textBrandStrong,
     lineHeight: 30, textAlign: 'center',
     fontStyle: 'italic', paddingVertical: spacing.sm,
   },
@@ -969,4 +974,5 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.borderSoft,
   },
   modalCancelText: { ...typography.bodyStrong, color: colors.textSecondary },
-});
+  });
+}

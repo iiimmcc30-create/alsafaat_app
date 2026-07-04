@@ -4,7 +4,9 @@ import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useEffect, useRef } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlForwardIcon, rtlRow } from '@/lib/rtl';
 
 interface CreateSheetProps {
@@ -42,6 +44,8 @@ const options: OptionData[] = [
 ];
 
 export function CreateSheet({ visible, onClose, onSelect }: CreateSheetProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(300)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -109,7 +113,8 @@ export function CreateSheet({ visible, onClose, onSelect }: CreateSheetProps) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -138,7 +143,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     ...typography.caption,
-    color: colors.glow,
+    color: colors.textBrand,
     textAlign: 'center',
     marginBottom: spacing.xl,
   },
@@ -168,7 +173,7 @@ const styles = StyleSheet.create({
   },
   optArabic: {
     ...typography.caption,
-    color: colors.glow,
+    color: colors.textBrand,
     marginVertical: 2,
   },
   optDesc: {
@@ -188,6 +193,7 @@ const styles = StyleSheet.create({
     ...typography.bodyStrong,
     color: colors.textPrimary,
   },
-});
+  });
+}
 
 export default CreateSheet;

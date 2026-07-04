@@ -17,7 +17,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { colors, gradients, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
 import {
@@ -30,6 +32,7 @@ import {
 import { ButcherLocationPicker } from '@/components/feature/ButcherLocationPicker';
 import { hasValidCoords, formatCoords } from '@/lib/butcherLocation';
 import { storyTimeLeftLabel } from '@/constants/stories';
+import { UserProfileLink } from '@/components/feature/UserProfileLink';
 
 type ManageTab = 'products' | 'offers' | 'stories' | 'orders';
 
@@ -40,14 +43,6 @@ function parseManageTab(value: string | undefined): ManageTab | null {
 }
 
 // ─── Order status badge ───────────────────────────────────────────────────────
-const STATUS_COLORS: Record<string, string> = {
-  pending:   colors.amber,
-  confirmed: colors.electricBright,
-  preparing: colors.cyan,
-  ready:     colors.success,
-  delivered: colors.success,
-  cancelled: colors.danger,
-};
 const STATUS_LABELS: Record<string, string> = {
   pending:   'قيد الانتظار',
   confirmed: 'مؤكد',
@@ -484,6 +479,16 @@ function AddOfferForm({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ButcherManageScreen() {
   const router = useRouter();
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createMainStyles(colors));
+  const statusColors: Record<string, string> = {
+    pending: colors.amber,
+    confirmed: colors.electricBright,
+    preparing: colors.cyan,
+    ready: colors.success,
+    delivered: colors.success,
+    cancelled: colors.danger,
+  };
   const { tab, action } = useLocalSearchParams<{ tab?: string; action?: string }>();
   const { accessToken } = useAuth();
   const initialTab = parseManageTab(tab) ?? 'orders';
@@ -754,7 +759,7 @@ export default function ButcherManageScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.screen}>
+      <SafeAreaView style={styles.screen}>
         <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color={colors.electricBright} />
@@ -766,7 +771,7 @@ export default function ButcherManageScreen() {
 
   if (!butcher) {
     return (
-      <SafeAreaView style={s.screen} edges={['top']}>
+      <SafeAreaView style={styles.screen} edges={['top']}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl, gap: spacing.md }}>
           <Text style={{ fontSize: 60 }}>🥩</Text>
           <Text style={{ ...typography.h2, color: colors.textPrimary, textAlign: 'center' }}>سجّل ملحمتك في صفاة</Text>
@@ -781,7 +786,7 @@ export default function ButcherManageScreen() {
               borderRadius: radius.xl,
               backgroundColor: colors.electric,
             }}
-            onPress={() => router.push('/butchers/register')}
+            onPress={() => router.push('/butchers/apply')}
           >
             <Text style={{ ...typography.bodyStrong, color: '#fff' }}>سجل ملحمتك الآن</Text>
           </Pressable>
@@ -801,61 +806,61 @@ export default function ButcherManageScreen() {
   ];
 
   return (
-    <SafeAreaView style={s.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
 
       {/* Header */}
-      <View style={s.header}>
-        <Pressable onPress={() => router.push('/sidebar')} hitSlop={12} style={s.backBtn}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.push('/sidebar')} hitSlop={12} style={styles.backBtn}>
           <Ionicons name="menu" size={22} color={colors.textPrimary} />
         </Pressable>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={s.headerTitle}>إدارة الملحمة</Text>
-          <Text style={s.headerSub}>{butcher?.nameAr}</Text>
+          <Text style={styles.headerTitle}>إدارة الملحمة</Text>
+          <Text style={styles.headerSub}>{butcher?.nameAr}</Text>
         </View>
-        <Pressable onPress={() => router.push('/butchers/edit')} hitSlop={12} style={s.backBtn}>
+        <Pressable onPress={() => router.push('/butchers/edit')} hitSlop={12} style={styles.backBtn}>
           <Ionicons name="create-outline" size={20} color={colors.textPrimary} />
         </Pressable>
       </View>
 
       {/* Verified status */}
       {butcher?.subscriptionActive && (
-        <View style={s.verifiedStrip}>
+        <View style={styles.verifiedStrip}>
           <LinearGradient colors={[colors.gold + '22', colors.amber + '11']} style={StyleSheet.absoluteFill} />
           <Ionicons name="shield-checkmark" size={14} color={colors.gold} />
-          <Text style={s.verifiedText}>حساب موثّق نشط</Text>
-          <View style={s.onlineDot} />
-          <Text style={s.onlineText}>
+          <Text style={styles.verifiedText}>حساب موثّق نشط</Text>
+          <View style={styles.onlineDot} />
+          <Text style={styles.onlineText}>
             {butcher.isOpen ? 'مفتوح الآن' : 'مغلق'}
           </Text>
         </View>
       )}
 
       {/* Tabs */}
-      <View style={s.tabsGrid}>
+      <View style={styles.tabsGrid}>
         {TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <Pressable
               key={tab.id}
               onPress={() => setActiveTab(tab.id)}
-              style={({ pressed }) => [s.tabItem, pressed && { opacity: 0.85 }]}
+              style={({ pressed }) => [styles.tabItem, pressed && { opacity: 0.85 }]}
             >
-              <View style={[s.tabIconCircle, isActive && s.tabIconCircleActive]}>
+              <View style={[styles.tabIconCircle, isActive && styles.tabIconCircleActive]}>
                 <Ionicons
                   name={tab.icon}
                   size={20}
                   color={isActive ? '#fff' : colors.textMuted}
                 />
                 {!!tab.count && tab.count > 0 && (
-                  <View style={[s.tabCountBadge, isActive && s.tabCountBadgeActive]}>
-                    <Text style={[s.tabCountText, isActive && s.tabCountTextActive]}>
+                  <View style={[styles.tabCountBadge, isActive && styles.tabCountBadgeActive]}>
+                    <Text style={[styles.tabCountText, isActive && styles.tabCountTextActive]}>
                       {tab.count > 99 ? '99+' : tab.count}
                     </Text>
                   </View>
                 )}
               </View>
-              <Text style={[s.tabLabel, isActive && s.tabLabelActive]} numberOfLines={1}>
+              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]} numberOfLines={1}>
                 {tab.label}
               </Text>
             </Pressable>
@@ -863,21 +868,21 @@ export default function ButcherManageScreen() {
         })}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
         {/* Location */}
-        <View style={s.locationCard}>
-          <View style={s.locationHeader}>
+        <View style={styles.locationCard}>
+          <View style={styles.locationHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={s.sectionTitle}>📍 موقع الملحمة</Text>
-              <Text style={s.locationSub}>
+              <Text style={styles.sectionTitle}>📍 موقع الملحمة</Text>
+              <Text style={styles.locationSub}>
                 {hasValidCoords(butcher?.lat, butcher?.lng)
                   ? formatCoords(butcher.lat, butcher.lng)
                   : 'لم يتم تحديد الموقع بعد — أضف موقعك ليظهر على الخريطة'}
               </Text>
             </View>
             <Pressable
-              style={s.locationEditBtn}
+              style={styles.locationEditBtn}
               onPress={() => setShowLocationEditor((v) => !v)}
             >
               <Ionicons
@@ -889,7 +894,7 @@ export default function ButcherManageScreen() {
           </View>
 
           {showLocationEditor && (
-            <View style={s.locationEditor}>
+            <View style={styles.locationEditor}>
               <ButcherLocationPicker
                 country={(butcher?.country as Country) ?? 'SA'}
                 lat={locationLat}
@@ -901,14 +906,14 @@ export default function ButcherManageScreen() {
                 height={240}
               />
               <Pressable
-                style={[s.locationSaveBtn, savingLocation && { opacity: 0.7 }]}
+                style={[styles.locationSaveBtn, savingLocation && { opacity: 0.7 }]}
                 onPress={saveLocation}
                 disabled={savingLocation}
               >
                 {savingLocation ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={s.locationSaveText}>حفظ الموقع</Text>
+                  <Text style={styles.locationSaveText}>حفظ الموقع</Text>
                 )}
               </Pressable>
             </View>
@@ -918,12 +923,12 @@ export default function ButcherManageScreen() {
         {/* ── Orders Tab ── */}
         {activeTab === 'orders' && (
           <View>
-            <Text style={s.sectionTitle}>
+            <Text style={styles.sectionTitle}>
               الطلبات الواردة ({orders.length})
             </Text>
             {orders.map((order) => {
               const status = order.status;
-              const statusColor = STATUS_COLORS[status] ?? colors.textMuted;
+              const statusColor = statusColors[status] ?? colors.textMuted;
               const customerName = order.customer?.arabicName || order.customer?.displayName || 'عميل صفاة';
               const productName = order.product?.nameAr || 'منتج لحم';
               const formattedDate = new Date(order.createdAt).toLocaleDateString('ar-SA');
@@ -932,7 +937,9 @@ export default function ButcherManageScreen() {
                   <View style={ord.header}>
                     <View style={ord.customerWrap}>
                       <View style={[ord.statusDot, { backgroundColor: statusColor }]} />
-                      <Text style={ord.customerName}>{customerName}</Text>
+                      <UserProfileLink userId={order.customer?.id}>
+                        <Text style={ord.customerName}>{customerName}</Text>
+                      </UserProfileLink>
                     </View>
                     <View style={[ord.statusBadge, { backgroundColor: statusColor + '33', borderColor: statusColor + '66' }]}>
                       <Text style={[ord.statusText, { color: statusColor }]}>
@@ -1015,10 +1022,10 @@ export default function ButcherManageScreen() {
               );
             })}
             {orders.length === 0 && (
-              <View style={s.empty}>
-                <Text style={s.emptyIcon}>📋</Text>
-                <Text style={s.emptyTitle}>لا توجد طلبات بعد</Text>
-                <Text style={s.emptySub}>ستظهر هنا الطلبات الواردة من العملاء</Text>
+              <View style={styles.empty}>
+                <Text style={styles.emptyIcon}>📋</Text>
+                <Text style={styles.emptyTitle}>لا توجد طلبات بعد</Text>
+                <Text style={styles.emptySub}>ستظهر هنا الطلبات الواردة من العملاء</Text>
               </View>
             )}
           </View>
@@ -1027,16 +1034,16 @@ export default function ButcherManageScreen() {
         {/* ── Products Tab ── */}
         {activeTab === 'products' && (
           <View>
-            <View style={s.tabHeader}>
-              <Text style={s.sectionTitle}>منتجاتي ({products.length})</Text>
-              <Pressable style={s.addBtn} onPress={() => openProductForm()}>
+            <View style={styles.tabHeader}>
+              <Text style={styles.sectionTitle}>منتجاتي ({products.length})</Text>
+              <Pressable style={styles.addBtn} onPress={() => openProductForm()}>
                 <Ionicons name="add" size={16} color={colors.electricBright} />
-                <Text style={s.addBtnText}>إضافة منتج</Text>
+                <Text style={styles.addBtnText}>إضافة منتج</Text>
               </Pressable>
             </View>
 
             {showProductForm && (
-              <View style={s.formCard}>
+              <View style={styles.formCard}>
                 <AddProductForm
                   product={editingProduct ?? undefined}
                   onClose={closeProductForm}
@@ -1064,7 +1071,7 @@ export default function ButcherManageScreen() {
                       : <Text style={pm.price}>{p.priceFixed?.toLocaleString()} ر.س</Text>
                     }
                     <View style={[pm.stockBadge, { backgroundColor: p.inStock ? colors.success + '33' : colors.danger + '33' }]}>
-                      <Text style={[pm.stockText, { color: p.inStock ? colors.success : colors.danger }]}>
+                      <Text style={[pm.stockText, { color: p.inStock ? colors.textBrandSuccess : colors.danger }]}>
                         {p.inStock ? 'متوفر' : 'نفد'}
                       </Text>
                     </View>
@@ -1081,10 +1088,10 @@ export default function ButcherManageScreen() {
               </View>
             ))}
             {products.length === 0 && (
-              <View style={s.empty}>
-                <Text style={s.emptyIcon}>🥩</Text>
-                <Text style={s.emptyTitle}>لا توجد منتجات بعد</Text>
-                <Text style={s.emptySub}>أضف منتجاتك لتبدأ في البيع</Text>
+              <View style={styles.empty}>
+                <Text style={styles.emptyIcon}>🥩</Text>
+                <Text style={styles.emptyTitle}>لا توجد منتجات بعد</Text>
+                <Text style={styles.emptySub}>أضف منتجاتك لتبدأ في البيع</Text>
               </View>
             )}
           </View>
@@ -1093,16 +1100,16 @@ export default function ButcherManageScreen() {
         {/* ── Offers Tab ── */}
         {activeTab === 'offers' && (
           <View>
-            <View style={s.tabHeader}>
-              <Text style={s.sectionTitle}>عروضي ({offers.length})</Text>
-              <Pressable style={s.addBtn} onPress={() => openOfferForm()}>
+            <View style={styles.tabHeader}>
+              <Text style={styles.sectionTitle}>عروضي ({offers.length})</Text>
+              <Pressable style={styles.addBtn} onPress={() => openOfferForm()}>
                 <Ionicons name="add" size={16} color={colors.electricBright} />
-                <Text style={s.addBtnText}>إضافة عرض</Text>
+                <Text style={styles.addBtnText}>إضافة عرض</Text>
               </Pressable>
             </View>
 
             {showOfferForm && (
-              <View style={s.formCard}>
+              <View style={styles.formCard}>
                 <AddOfferForm
                   offer={editingOffer}
                   onClose={closeOfferForm}
@@ -1113,10 +1120,10 @@ export default function ButcherManageScreen() {
             )}
 
             {offers.length === 0 ? (
-              <View style={s.empty}>
-                <Text style={s.emptyIcon}>🏷️</Text>
-                <Text style={s.emptyTitle}>لا توجد عروض بعد</Text>
-                <Text style={s.emptySub}>أضف عروضاً لجذب المزيد من العملاء</Text>
+              <View style={styles.empty}>
+                <Text style={styles.emptyIcon}>🏷️</Text>
+                <Text style={styles.emptyTitle}>لا توجد عروض بعد</Text>
+                <Text style={styles.emptySub}>أضف عروضاً لجذب المزيد من العملاء</Text>
               </View>
             ) : (
               offers.map((offer: any) => (
@@ -1150,14 +1157,14 @@ export default function ButcherManageScreen() {
         {/* ── Stories Tab ── */}
         {activeTab === 'stories' && (
           <View>
-            <View style={s.tabHeader}>
-              <Text style={s.sectionTitle}>قصصي</Text>
+            <View style={styles.tabHeader}>
+              <Text style={styles.sectionTitle}>قصصي</Text>
               <Pressable
-                style={s.addBtn}
+                style={styles.addBtn}
                 onPress={() => router.push({ pathname: '/create/story', params: { mode: 'butcher' } })}
               >
                 <Ionicons name="add" size={16} color={colors.electricBright} />
-                <Text style={s.addBtnText}>نشر قصة</Text>
+                <Text style={styles.addBtnText}>نشر قصة</Text>
               </Pressable>
             </View>
 
@@ -1184,9 +1191,9 @@ export default function ButcherManageScreen() {
             {/* Story types */}
             {[
               { type: 'daily_slaughter', label: 'ذبح يومي',    icon: '🔪', color: colors.danger   },
-              { type: 'new_stock',       label: 'مخزون جديد',  icon: '📦', color: colors.success  },
+              { type: 'new_stock',       label: 'مخزون جديد',  icon: '📦', color: colors.textBrandSuccess  },
               { type: 'offer',           label: 'عرض اليوم',   icon: '🏷️', color: colors.amber    },
-              { type: 'update',          label: 'تحديث عام',   icon: '📢', color: colors.electric },
+              { type: 'update',          label: 'تحديث عام',   icon: '📢', color: colors.textBrandAlt },
             ].map((st) => (
               <Pressable
                 key={st.type}
@@ -1219,7 +1226,7 @@ export default function ButcherManageScreen() {
                 </View>
                 <Pressable
                   style={sto.lockBtn}
-                  onPress={() => router.push('/butchers/register')}
+                  onPress={() => router.push('/butchers/apply')}
                 >
                   <Text style={sto.lockBtnText}>توثيق الحساب</Text>
                 </Pressable>
@@ -1236,7 +1243,8 @@ export default function ButcherManageScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+function createMainStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bgDeep },
   scroll: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   header: {
@@ -1250,7 +1258,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
-  headerSub: { ...typography.caption, color: colors.glow, marginTop: 1 },
+  headerSub: { ...typography.caption, color: colors.textBrand, marginTop: 1 },
   verifiedStrip: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     marginHorizontal: spacing.lg, marginBottom: spacing.sm,
@@ -1261,7 +1269,7 @@ const s = StyleSheet.create({
   },
   verifiedText: { ...typography.caption, color: colors.gold, flex: 1 },
   onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
-  onlineText: { ...typography.micro, color: colors.success },
+  onlineText: { ...typography.micro, color: colors.textBrandSuccess },
   tabsGrid: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
@@ -1315,7 +1323,7 @@ const s = StyleSheet.create({
     lineHeight: 12,
   },
   tabCountTextActive: {
-    color: colors.electric,
+    color: colors.textBrandAlt,
   },
   tabLabel: {
     fontSize: 11,
@@ -1324,7 +1332,7 @@ const s = StyleSheet.create({
     textAlign: 'center',
   },
   tabLabelActive: {
-    color: colors.electricBright,
+    color: colors.textBrandStrong,
     fontWeight: '700',
   },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },
@@ -1375,7 +1383,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.electricBright + '66',
     backgroundColor: colors.electric + '11',
   },
-  addBtnText: { ...typography.micro, color: colors.electricBright },
+  addBtnText: { ...typography.micro, color: colors.textBrandStrong },
   formCard: {
     backgroundColor: colors.bgSurface,
     borderRadius: radius.xxl,
@@ -1387,7 +1395,8 @@ const s = StyleSheet.create({
   emptyIcon: { fontSize: 40 },
   emptyTitle: { ...typography.h3, color: colors.textMuted },
   emptySub: { ...typography.caption, color: colors.textSubtle },
-});
+  });
+}
 
 // Orders
 const ord = StyleSheet.create({
@@ -1424,7 +1433,7 @@ const ord = StyleSheet.create({
     borderWidth: 1, borderColor: colors.electricBright + '66',
     backgroundColor: colors.electric + '11',
   },
-  chatBtnText: { ...typography.micro, color: colors.electricBright },
+  chatBtnText: { ...typography.micro, color: colors.textBrandStrong },
   advanceBtn: { flex: 1, borderRadius: radius.pill, overflow: 'hidden' },
   advanceBtnGrad: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -1573,7 +1582,7 @@ const apf = StyleSheet.create({
   catChipActive: { borderColor: colors.electric, backgroundColor: colors.electric + '22' },
   catIcon: { fontSize: 14 },
   catLabel: { ...typography.caption, color: colors.textMuted },
-  catLabelActive: { color: colors.electricBright, fontWeight: '600' },
+  catLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
   priceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.md },
   priceLabel: { ...typography.micro, color: colors.textMuted, textAlign: 'center', marginBottom: 4 },
   cutsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: spacing.lg },
@@ -1584,7 +1593,7 @@ const apf = StyleSheet.create({
   },
   cutChipActive: { borderColor: colors.electric, backgroundColor: colors.electric + '22' },
   cutLabel: { ...typography.micro, color: colors.textMuted },
-  cutLabelActive: { color: colors.electricBright, fontWeight: '600' },
+  cutLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
   freshnessRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
   freshnessBtn: {
     flex: 1, paddingVertical: 10,
@@ -1602,7 +1611,7 @@ const apf = StyleSheet.create({
     backgroundColor: colors.electric + '08',
     marginBottom: spacing.lg,
   },
-  uploadText: { ...typography.caption, color: colors.electricBright, fontWeight: '600' },
+  uploadText: { ...typography.caption, color: colors.textBrandStrong, fontWeight: '600' },
   actions: { flexDirection: 'row', gap: spacing.md },
   cancelBtn: {
     flex: 1, paddingVertical: 13,

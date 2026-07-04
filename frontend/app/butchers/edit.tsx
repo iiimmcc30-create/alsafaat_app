@@ -30,12 +30,9 @@ import { Country, countries } from '@/services/types';
 import { ButcherLocationPicker } from '@/components/feature/ButcherLocationPicker';
 import { hasValidCoords, formatCoords } from '@/lib/butcherLocation';
 import { uploadImageFromUri } from '@/services/upload';
+import { useRequireApprovedButcher } from '@/hooks/useRequireApprovedButcher';
 
-const GCC_COUNTRIES = (Object.keys(countries) as Country[]).map((code) => ({
-  code,
-  ar: countries[code].ar,
-  flag: countries[code].flag,
-}));
+const SAUDI_COUNTRY: Country = 'SA';
 
 const SPECIALTY_OPTIONS = [
   'ذبح يومي',
@@ -101,6 +98,7 @@ function stripLocalPhone(fullPhone: string, country: Country): string {
 export default function EditButcherScreen() {
   const router = useRouter();
   const { accessToken } = useAuth();
+  const { hasApprovedApplication, loading: accessLoading } = useRequireApprovedButcher();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -111,7 +109,7 @@ export default function EditButcherScreen() {
   const [bioAr, setBioAr] = useState('');
   const [bioEn, setBioEn] = useState('');
   const [phone, setPhone] = useState('');
-  const [country, setCountry] = useState<Country>('SA');
+  const country = SAUDI_COUNTRY;
   const [city, setCity] = useState('');
   const [address, setAddress] = useState('');
   const [commercialReg, setCommercialReg] = useState('');
@@ -147,13 +145,11 @@ export default function EditButcherScreen() {
         return;
       }
       const b = json.data;
-      const rawCountry = b.country as Country;
-      const c = rawCountry && countries[rawCountry] ? rawCountry : 'SA';
+      const c = SAUDI_COUNTRY;
       setNameAr(b.nameAr ?? '');
       setNameEn(b.nameEn ?? '');
       setBioAr(b.bioAr ?? '');
       setBioEn(b.bioEn ?? '');
-      setCountry(c);
       setPhone(stripLocalPhone(b.phone ?? '', c));
       setCity(b.cityAr ?? b.city ?? '');
       setAddress(b.addressAr ?? b.address ?? '');
@@ -287,6 +283,16 @@ export default function EditButcherScreen() {
     }
   };
 
+  if (accessLoading || !hasApprovedApplication) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.electricBright} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -390,22 +396,10 @@ export default function EditButcherScreen() {
             <Field label="نبذة بالإنجليزي" value={bioEn} onChange={setBioEn} placeholder="Short bio in English..." multiline rtl={false} />
 
             <Text style={styles.fieldLabel}>البلد</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.countryScroll}>
-              <View style={styles.countryRow}>
-                {GCC_COUNTRIES.map((c) => (
-                  <Pressable
-                    key={c.code}
-                    onPress={() => setCountry(c.code)}
-                    style={[styles.countryChip, country === c.code && styles.countryChipActive]}
-                  >
-                    <Text style={styles.countryFlag}>{c.flag}</Text>
-                    <Text style={[styles.countryLabel, country === c.code && styles.countryLabelActive]}>
-                      {c.ar}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
+            <View style={styles.countryFixed}>
+              <Text style={styles.countryFlag}>🇸🇦</Text>
+              <Text style={styles.countryLabelFixed}>السعودية</Text>
+            </View>
 
             <Text style={styles.fieldLabel}>رقم الهاتف</Text>
             <View style={styles.phoneRow}>
@@ -663,23 +657,21 @@ const styles = StyleSheet.create({
   },
   inputRtl: { textAlign: 'right' },
   inputMultiline: { minHeight: 80, paddingTop: 12 },
-  countryScroll: { marginBottom: spacing.sm },
-  countryRow: { flexDirection: 'row', gap: spacing.sm, paddingRight: spacing.sm },
-  countryChip: {
+  countryFixed: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: spacing.sm,
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: colors.bgSurface,
     borderWidth: 1,
-    borderColor: colors.borderSoft,
+    borderColor: colors.borderMid,
+    backgroundColor: colors.bgElevated,
+    marginBottom: spacing.sm,
   },
-  countryChipActive: { borderColor: colors.electricBright, backgroundColor: colors.electric + '18' },
   countryFlag: { fontSize: 16 },
-  countryLabel: { ...typography.caption, color: colors.textMuted },
-  countryLabelActive: { color: colors.electricBright, fontWeight: '700' },
+  countryLabelFixed: { ...typography.bodyStrong, color: colors.textPrimary },
   phoneRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   phoneCodePill: {
     paddingHorizontal: 12,
@@ -692,7 +684,7 @@ const styles = StyleSheet.create({
   phoneCodeText: { ...typography.bodyStrong, color: colors.textPrimary },
   phoneInput: { flex: 1 },
   sectionDivider: { marginTop: spacing.sm, marginBottom: 4 },
-  sectionLabel: { ...typography.caption, color: colors.glow, fontWeight: '700', textAlign: 'right' },
+  sectionLabel: { ...typography.caption, color: colors.textBrand, fontWeight: '700', textAlign: 'right' },
   hoursRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   hourField: { flex: 1, gap: 6 },
   hourLabel: { ...typography.micro, color: colors.textMuted, textAlign: 'center' },
@@ -719,7 +711,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { borderColor: colors.electricBright, backgroundColor: colors.electric + '18' },
   chipText: { ...typography.caption, color: colors.textMuted },
-  chipTextActive: { color: colors.electricBright, fontWeight: '700' },
+  chipTextActive: { color: colors.textBrandStrong, fontWeight: '700' },
   coordsBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -730,5 +722,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.success + '33',
   },
-  coordsText: { ...typography.caption, color: colors.success, flex: 1, textAlign: 'right' },
+  coordsText: { ...typography.caption, color: colors.textBrandSuccess, flex: 1, textAlign: 'right' },
 });

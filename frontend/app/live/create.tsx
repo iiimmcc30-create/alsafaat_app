@@ -27,7 +27,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
 import {
   fetchLiveStreamEligibility,
-  showListingRequiredAlert,
+  showLiveStreamEligibilityDeniedAlert,
 } from '@/lib/liveStreamAccess';
 
 const AGORA_APP_ID = process.env.EXPO_PUBLIC_AGORA_APP_ID ?? '';
@@ -93,12 +93,12 @@ export default function CreateStreamScreen() {
         return;
       }
 
-      const { canStream } = await fetchLiveStreamEligibility(accessToken);
+      const eligibility = await fetchLiveStreamEligibility(accessToken);
       if (!active) return;
 
-      if (!canStream) {
+      if (!eligibility.canStream) {
         setAccessDenied(true);
-        showListingRequiredAlert(router);
+        showLiveStreamEligibilityDeniedAlert(router, eligibility);
       }
       setCheckingAccess(false);
     })();
@@ -173,8 +173,11 @@ export default function CreateStreamScreen() {
 
       if (!json.success) {
         const msg = json.messageAr ?? json.message ?? 'حدث خطأ';
-        if (json.error === 'listing_required') {
-          showListingRequiredAlert(router);
+        if (['listing_required', 'plan_required', 'weekly_limit', 'live_minutes_limit'].includes(json.error)) {
+          showLiveStreamEligibilityDeniedAlert(router, {
+            reason: json.reason ?? json.error,
+            messageAr: msg,
+          });
           setAccessDenied(true);
         } else {
           Alert.alert('خطأ', msg);
@@ -560,7 +563,7 @@ const styles = StyleSheet.create({
   },
   statusPillOk: { borderColor: `${colors.success}55`, backgroundColor: `${colors.success}15` },
   statusPillText: { ...typography.micro, color: colors.textMuted },
-  statusPillTextOk: { color: colors.success },
+  statusPillTextOk: { color: colors.textBrandSuccess },
   footer: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,

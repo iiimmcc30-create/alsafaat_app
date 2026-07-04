@@ -149,28 +149,84 @@ export function isButcherApplicationError(err: unknown): err is ButcherApplicati
 
 export function mapPrismaUniqueViolation(err: unknown): ButcherApplicationError | null {
   if (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: string }).code === 'P2002'
+    typeof err !== 'object' ||
+    err === null ||
+    !('code' in err) ||
+    (err as { code: string }).code !== 'P2002'
   ) {
-    const target = (err as { meta?: { target?: string[] } }).meta?.target ?? [];
-    const joined = target.join(',');
+    return null;
+  }
 
-    if (joined.includes('ButcherApplication_one_draft_per_user_key') || joined.includes('userId')) {
-      if (joined.includes('draft') || joined.includes('DRAFT')) {
-        return new ButcherApplicationError('ACTIVE_DRAFT_EXISTS');
-      }
-    }
-    if (joined.includes('one_submitted') || joined.includes('SUBMITTED')) {
-      return new ButcherApplicationError('ACTIVE_SUBMITTED_EXISTS');
-    }
-    if (joined.includes('userId') && !joined.includes('applicationNumber')) {
+  const meta = (err as { meta?: Record<string, unknown> }).meta ?? {};
+  const modelName = typeof meta.modelName === 'string' ? meta.modelName : '';
+  const target = normalizeTarget(meta.target);
+  const haystack = buildViolationHaystack(err, meta, target);
+
+  if (modelName === 'Butcher') {
+    if (target.includes('userId') || haystack.includes('Butcher_userId_key')) {
       return new ButcherApplicationError('BUTCHER_ALREADY_EXISTS');
     }
-    if (joined.includes('applicationId') && joined.includes('type')) {
-      return new ButcherApplicationError('DOCUMENT_TYPE_ALREADY_EXISTS');
+    if (target.includes('sourceApplicationId')) {
+      return new ButcherApplicationError('BUTCHER_ALREADY_EXISTS');
     }
   }
+
+  if (modelName === 'ButcherApplication') {
+    if (
+      haystack.includes('ButcherApplication_one_draft_per_user_key') ||
+      haystack.includes('one_draft_per_user')
+    ) {
+      return new ButcherApplicationError('ACTIVE_DRAFT_EXISTS');
+    }
+    if (
+      haystack.includes('ButcherApplication_one_submitted_per_user_key') ||
+      haystack.includes('one_submitted_per_user')
+    ) {
+      return new ButcherApplicationError('ACTIVE_SUBMITTED_EXISTS');
+    }
+    if (target.length === 1 && target[0] === 'userId') {
+      // Partial uniques on userId alone — disambiguate via index name in driver message.
+      if (haystack.includes('draft') || haystack.includes('DRAFT')) {
+        return new ButcherApplicationError('ACTIVE_DRAFT_EXISTS');
+      }
+      if (haystack.includes('submitted') || haystack.includes('SUBMITTED')) {
+        return new ButcherApplicationError('ACTIVE_SUBMITTED_EXISTS');
+      }
+    }
+  }
+
+  if (
+    modelName === 'ButcherApplicationDocument' &&
+    target.includes('applicationId') &&
+    target.includes('type')
+  ) {
+    return new ButcherApplicationError('DOCUMENT_TYPE_ALREADY_EXISTS');
+  }
+
   return null;
+}
+
+function normalizeTarget(target: unknown): string[] {
+  if (Array.isArray(target)) {
+    return target.filter((v): v is string => typeof v === 'string');
+  }
+  if (typeof target === 'string') return [target];
+  return [];
+}
+
+function buildViolationHaystack(
+  err: unknown,
+  meta: Record<string, unknown>,
+  target: string[],
+): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return [
+    message,
+    JSON.stringify(meta),
+    target.join(','),
+    typeof meta.constraint === 'string' ? meta.constraint : '',
+    typeof meta.cause === 'string' ? meta.cause : '',
+  ]
+    .join(' ')
+    .toLowerCase();
 }

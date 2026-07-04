@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   },
   coordsChipText: {
     ...typography.micro,
-    color: colors.electricBright,
+    color: colors.textBrandStrong,
   },
   locateBtn: {
     position: 'absolute',

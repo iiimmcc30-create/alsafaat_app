@@ -14,7 +14,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { gradients, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
 import { countries, Country } from '@/services/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,6 +50,8 @@ function ProductsTab({ products, currencySymbol, onOrder }: {
   currencySymbol: string;
   onOrder: (p: ButcherProduct) => void;
 }) {
+  const { colors } = useTheme();
+  const productsStyles = useThemedStyles(({ colors }) => createProductsStyles(colors));
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const categories = ['all', ...new Set(products.map((p) => p.category))];
 
@@ -61,18 +65,18 @@ function ProductsTab({ products, currencySymbol, onOrder }: {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={pt.catRow}
+        contentContainerStyle={productsStyles.catRow}
       >
         {categories.map((cat) => (
           <Pressable
             key={cat}
             onPress={() => setActiveCategory(cat)}
-            style={[pt.catChip, activeCategory === cat && pt.catChipActive]}
+            style={[productsStyles.catChip, activeCategory === cat && productsStyles.catChipActive]}
           >
             {cat !== 'all' && (
-              <Text style={pt.catIcon}>{CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS]?.icon}</Text>
+              <Text style={productsStyles.catIcon}>{CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS]?.icon}</Text>
             )}
-            <Text style={[pt.catLabel, activeCategory === cat && pt.catLabelActive]}>
+            <Text style={[productsStyles.catLabel, activeCategory === cat && productsStyles.catLabelActive]}>
               {cat === 'all' ? 'الكل' : CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS]?.ar}
             </Text>
           </Pressable>
@@ -80,19 +84,19 @@ function ProductsTab({ products, currencySymbol, onOrder }: {
       </ScrollView>
 
       {filtered.map((product) => (
-        <View key={product.id} style={pt.card}>
+        <View key={product.id} style={productsStyles.card}>
           <Image
             source={{ uri: product.images[0] }}
-            style={pt.productImg}
+            style={productsStyles.productImg}
             contentFit="cover"
           />
           <LinearGradient
             colors={['transparent', 'rgba(6,9,26,0.9)']}
-            style={pt.productGrad}
+            style={productsStyles.productGrad}
           />
           {/* Freshness badge */}
           <View style={[
-            pt.freshnessBadge,
+            productsStyles.freshnessBadge,
             {
               backgroundColor:
                 product.freshness === 'fresh' ? colors.success + 'CC' :
@@ -100,65 +104,65 @@ function ProductsTab({ products, currencySymbol, onOrder }: {
                 colors.textSubtle + 'CC',
             },
           ]}>
-            <Text style={pt.freshnessText}>
+            <Text style={productsStyles.freshnessText}>
               {product.freshness === 'fresh' ? '🟢 طازج' :
                product.freshness === 'chilled' ? '🔵 مبرد' : '❄️ مجمد'}
             </Text>
           </View>
 
-          <View style={pt.productBody}>
-            <View style={pt.productHeader}>
+          <View style={productsStyles.productBody}>
+            <View style={productsStyles.productHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={pt.productName}>{product.nameAr}</Text>
-                <Text style={pt.productDesc} numberOfLines={2}>{product.descriptionAr}</Text>
+                <Text style={productsStyles.productName}>{product.nameAr}</Text>
+                <Text style={productsStyles.productDesc} numberOfLines={2}>{product.descriptionAr}</Text>
               </View>
-              <View style={pt.priceBlock}>
+              <View style={productsStyles.priceBlock}>
                 {product.pricePerKg ? (
                   <>
-                    <Text style={pt.price}>{product.pricePerKg}</Text>
-                    <Text style={pt.priceSub}>{currencySymbol}/كغ</Text>
+                    <Text style={productsStyles.price}>{product.pricePerKg}</Text>
+                    <Text style={productsStyles.priceSub}>{currencySymbol}/كغ</Text>
                   </>
                 ) : (
                   <>
-                    <Text style={pt.price}>{product.priceFixed?.toLocaleString()}</Text>
-                    <Text style={pt.priceSub}>{currencySymbol}</Text>
+                    <Text style={productsStyles.price}>{product.priceFixed?.toLocaleString()}</Text>
+                    <Text style={productsStyles.priceSub}>{currencySymbol}</Text>
                   </>
                 )}
               </View>
             </View>
 
             {/* Available cuts */}
-            <View style={pt.cutsRow}>
+            <View style={productsStyles.cutsRow}>
               {product.availableCuts.map((cut) => (
-                <View key={cut} style={pt.cutChip}>
-                  <Text style={pt.cutLabel}>{CUT_LABELS[cut].ar}</Text>
+                <View key={cut} style={productsStyles.cutChip}>
+                  <Text style={productsStyles.cutLabel}>{CUT_LABELS[cut].ar}</Text>
                 </View>
               ))}
             </View>
 
             {/* Weight range */}
             {product.weightRange && (
-              <Text style={pt.weightNote}>
+              <Text style={productsStyles.weightNote}>
                 الوزن: {product.weightRange.min}–{product.weightRange.max} كغ
               </Text>
             )}
             {product.pricingNoteAr && (
-              <Text style={pt.weightNote}>{product.pricingNoteAr}</Text>
+              <Text style={productsStyles.weightNote}>{product.pricingNoteAr}</Text>
             )}
 
             {/* Order button */}
             <Pressable
-              style={({ pressed }) => [pt.orderBtn, pressed && { opacity: 0.85 }]}
+              style={({ pressed }) => [productsStyles.orderBtn, pressed && { opacity: 0.85 }]}
               onPress={() => onOrder(product)}
             >
               <LinearGradient
                 colors={[colors.electric, colors.cyan]}
-                style={pt.orderBtnGrad}
+                style={productsStyles.orderBtnGrad}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
                 <Ionicons name="bag-add-outline" size={16} color="#fff" />
-                <Text style={pt.orderBtnText}>
+                <Text style={productsStyles.orderBtnText}>
                   {product.inStock ? 'اطلب الآن' : 'غير متوفر'}
                 </Text>
               </LinearGradient>
@@ -175,11 +179,14 @@ function OffersTab({ offers, currencySymbol }: {
   offers: ButcherOffer[];
   currencySymbol: string;
 }) {
+  const { colors } = useTheme();
+  const offersStyles = useThemedStyles(({ colors }) => createOffersStyles(colors));
+  const emptyStyles = useThemedStyles(({ colors }) => createEmptyStyles(colors));
   if (!offers.length) {
     return (
-      <View style={emptyState.wrap}>
-        <Text style={emptyState.icon}>🏷️</Text>
-        <Text style={emptyState.title}>لا توجد عروض حالياً</Text>
+      <View style={emptyStyles.wrap}>
+        <Text style={emptyStyles.icon}>🏷️</Text>
+        <Text style={emptyStyles.title}>لا توجد عروض حالياً</Text>
       </View>
     );
   }
@@ -187,28 +194,28 @@ function OffersTab({ offers, currencySymbol }: {
   return (
     <View>
       {offers.map((offer) => (
-        <View key={offer.id} style={ot.card}>
-          <Image source={{ uri: offer.image }} style={ot.img} contentFit="cover" />
+        <View key={offer.id} style={offersStyles.card}>
+          <Image source={{ uri: offer.image }} style={offersStyles.img} contentFit="cover" />
           <LinearGradient
             colors={[colors.amber + '33', colors.gold + '22']}
-            style={ot.body}
+            style={offersStyles.body}
           >
-            <View style={ot.discountBadge}>
-              <Text style={ot.discountText}>-{offer.discountPercent}%</Text>
+            <View style={offersStyles.discountBadge}>
+              <Text style={offersStyles.discountText}>-{offer.discountPercent}%</Text>
             </View>
-            <Text style={ot.offerTitle}>{offer.titleAr}</Text>
-            <Text style={ot.offerDesc} numberOfLines={2}>{offer.descriptionAr}</Text>
-            <View style={ot.priceRow}>
-              <Text style={ot.offerPrice}>
+            <Text style={offersStyles.offerTitle}>{offer.titleAr}</Text>
+            <Text style={offersStyles.offerDesc} numberOfLines={2}>{offer.descriptionAr}</Text>
+            <View style={offersStyles.priceRow}>
+              <Text style={offersStyles.offerPrice}>
                 {offer.offerPrice?.toLocaleString()} {currencySymbol}
               </Text>
-              <Text style={ot.originalPrice}>
+              <Text style={offersStyles.originalPrice}>
                 {offer.originalPrice?.toLocaleString()}
               </Text>
             </View>
-            <View style={ot.footer}>
+            <View style={offersStyles.footer}>
               <Ionicons name="calendar-outline" size={13} color={colors.textMuted} />
-              <Text style={ot.validText}>
+              <Text style={offersStyles.validText}>
                 صالح حتى: {new Date(offer.validUntil).toLocaleDateString('ar-SA')}
               </Text>
             </View>
@@ -221,11 +228,13 @@ function OffersTab({ offers, currencySymbol }: {
 
 // ─── Tab: Stories ─────────────────────────────────────────────────────────────
 function StoriesTab({ stories }: { stories: ButcherStory[] }) {
+  const storiesStyles = useThemedStyles(({ colors }) => createStoriesStyles(colors));
+  const emptyStyles = useThemedStyles(({ colors }) => createEmptyStyles(colors));
   if (!stories.length) {
     return (
-      <View style={emptyState.wrap}>
-        <Text style={emptyState.icon}>📸</Text>
-        <Text style={emptyState.title}>لا توجد قصص بعد</Text>
+      <View style={emptyStyles.wrap}>
+        <Text style={emptyStyles.icon}>📸</Text>
+        <Text style={emptyStyles.title}>لا توجد قصص بعد</Text>
       </View>
     );
   }
@@ -238,19 +247,19 @@ function StoriesTab({ stories }: { stories: ButcherStory[] }) {
   };
 
   return (
-    <View style={stt.grid}>
+    <View style={storiesStyles.grid}>
       {stories.map((story) => (
-        <Pressable key={story.id} style={stt.item}>
-          <Image source={{ uri: story.thumbnail }} style={stt.img} contentFit="cover" />
+        <Pressable key={story.id} style={storiesStyles.item}>
+          <Image source={{ uri: story.thumbnail }} style={storiesStyles.img} contentFit="cover" />
           <LinearGradient
             colors={['transparent', 'rgba(6,9,26,0.9)']}
             style={StyleSheet.absoluteFill}
           />
-          <View style={stt.badge}>
-            <Text style={stt.badgeText}>{typeLabels[story.type]}</Text>
+          <View style={storiesStyles.badge}>
+            <Text style={storiesStyles.badgeText}>{typeLabels[story.type]}</Text>
           </View>
           {story.captionAr && (
-            <Text style={stt.caption} numberOfLines={2}>{story.captionAr}</Text>
+            <Text style={storiesStyles.caption} numberOfLines={2}>{story.captionAr}</Text>
           )}
         </Pressable>
       ))}
@@ -260,19 +269,21 @@ function StoriesTab({ stories }: { stories: ButcherStory[] }) {
 
 // ─── Tab: About ───────────────────────────────────────────────────────────────
 function AboutTab({ butcher }: { butcher: ButcherProfile }) {
+  const { colors } = useTheme();
+  const aboutStyles = useThemedStyles(({ colors }) => createAboutStyles(colors));
   if (!butcher) return null;
   const country = countries[butcher.country];
 
   return (
-    <View style={abt.wrap}>
+    <View style={aboutStyles.wrap}>
       {/* Bio */}
-      <View style={abt.section}>
-        <Text style={abt.sectionTitle}>عن الملحمة</Text>
-        <Text style={abt.bio}>{butcher.bioAr}</Text>
+      <View style={aboutStyles.section}>
+        <Text style={aboutStyles.sectionTitle}>عن الملحمة</Text>
+        <Text style={aboutStyles.bio}>{butcher.bioAr}</Text>
       </View>
 
       {/* Info grid */}
-      <View style={abt.infoGrid}>
+      <View style={aboutStyles.infoGrid}>
         <InfoRow icon="map-marker-outline" label="الموقع" value={`${butcher.cityAr}، ${country.ar}`} />
         <InfoRow icon="clock-outline" label="ساعات العمل" value={`${butcher.workingHours.open} – ${butcher.workingHours.close}`} />
         <InfoRow icon="phone-outline" label="الهاتف" value={butcher.phone} />
@@ -284,12 +295,12 @@ function AboutTab({ butcher }: { butcher: ButcherProfile }) {
       </View>
 
       {/* Specialties */}
-      <View style={abt.section}>
-        <Text style={abt.sectionTitle}>التخصصات</Text>
-        <View style={abt.chipsWrap}>
+      <View style={aboutStyles.section}>
+        <Text style={aboutStyles.sectionTitle}>التخصصات</Text>
+        <View style={aboutStyles.chipsWrap}>
           {butcher.specialties.map((s, i) => (
-            <View key={i} style={abt.chip}>
-              <Text style={abt.chipText}>{s}</Text>
+            <View key={i} style={aboutStyles.chip}>
+              <Text style={aboutStyles.chipText}>{s}</Text>
             </View>
           ))}
         </View>
@@ -299,12 +310,12 @@ function AboutTab({ butcher }: { butcher: ButcherProfile }) {
       {butcher.subscriptionActive && (
         <LinearGradient
           colors={[colors.gold + '22', colors.amber + '11']}
-          style={abt.verifiedCard}
+          style={aboutStyles.verifiedCard}
         >
           <Ionicons name="shield-checkmark" size={28} color={colors.gold} />
           <View style={{ flex: 1 }}>
-            <Text style={abt.verifiedTitle}>ملحمة موثّقة ✓</Text>
-            <Text style={abt.verifiedSub}>
+            <Text style={aboutStyles.verifiedTitle}>ملحمة موثّقة ✓</Text>
+            <Text style={aboutStyles.verifiedSub}>
               اشتراك نشط · صالح حتى {butcher.subscriptionExpiry
                 ? new Date(butcher.subscriptionExpiry).toLocaleDateString('ar-SA')
                 : 'غير محدد'}
@@ -317,11 +328,13 @@ function AboutTab({ butcher }: { butcher: ButcherProfile }) {
 }
 
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+  const { colors } = useTheme();
+  const aboutStyles = useThemedStyles(({ colors }) => createAboutStyles(colors));
   return (
-    <View style={abt.infoRow}>
+    <View style={aboutStyles.infoRow}>
       <MaterialCommunityIcons name={icon as any} size={16} color={colors.electricBright} />
-      <Text style={abt.infoLabel}>{label}</Text>
-      <Text style={abt.infoValue}>{value}</Text>
+      <Text style={aboutStyles.infoLabel}>{label}</Text>
+      <Text style={aboutStyles.infoValue}>{value}</Text>
     </View>
   );
 }
@@ -329,16 +342,18 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 // ─── Tab: Chat ────────────────────────────────────────────────────────────────
 function ChatTab({ butcherName, butcherId, currentUserId }: { butcherName: string; butcherId: string; currentUserId?: string }) {
   const router = useRouter();
+  const { colors } = useTheme();
+  const chatStyles = useThemedStyles(({ colors }) => createChatStyles(colors));
   const previewMessages: ChatMessage[] = [];
   return (
-    <View style={cht.wrap}>
+    <View style={chatStyles.wrap}>
       {/* Preview messages */}
       {previewMessages.map((msg) => {
         const isMe = msg.senderId === currentUserId;
         return (
-          <View key={msg.id} style={[cht.bubble, isMe ? cht.bubbleMe : cht.bubbleThem]}>
-            <Text style={[cht.bubbleText, isMe ? cht.textMe : cht.textThem]}>{msg.text}</Text>
-            <Text style={cht.bubbleTime}>
+          <View key={msg.id} style={[chatStyles.bubble, isMe ? chatStyles.bubbleMe : chatStyles.bubbleThem]}>
+            <Text style={[chatStyles.bubbleText, isMe ? chatStyles.textMe : chatStyles.textThem]}>{msg.text}</Text>
+            <Text style={chatStyles.bubbleTime}>
               {new Date(msg.createdAt).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
             </Text>
           </View>
@@ -347,17 +362,17 @@ function ChatTab({ butcherName, butcherId, currentUserId }: { butcherName: strin
 
       {/* Open full chat CTA */}
       <Pressable
-        style={({ pressed }) => [cht.openChatBtn, pressed && { opacity: 0.85 }]}
+        style={({ pressed }) => [chatStyles.openChatBtn, pressed && { opacity: 0.85 }]}
         onPress={() => router.push({ pathname: '/butchers/chat', params: { butcherId } } as any)}
       >
         <LinearGradient
           colors={[colors.electric, colors.cyan]}
-          style={cht.openChatGrad}
+          style={chatStyles.openChatGrad}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
         >
           <Ionicons name="chatbubbles-outline" size={20} color="#fff" />
-          <Text style={cht.openChatText}>فتح المحادثة الكاملة مع {butcherName}</Text>
+          <Text style={chatStyles.openChatText}>فتح المحادثة الكاملة مع {butcherName}</Text>
         </LinearGradient>
       </Pressable>
     </View>
@@ -366,15 +381,17 @@ function ChatTab({ butcherName, butcherId, currentUserId }: { butcherName: strin
 
 // ─── Reviews Strip ────────────────────────────────────────────────────────────
 function ReviewsStrip({ reviews }: { reviews: ButcherReview[] }) {
+  const { colors } = useTheme();
+  const reviewsStyles = useThemedStyles(({ colors }) => createReviewsStyles(colors));
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={rv.row}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={reviewsStyles.row}>
       {reviews.map((r) => (
-        <View key={r.id} style={rv.card}>
-          <View style={rv.header}>
-            <Image source={{ uri: r.authorAvatar }} style={rv.avatar} />
+        <View key={r.id} style={reviewsStyles.card}>
+          <View style={reviewsStyles.header}>
+            <Image source={{ uri: r.authorAvatar }} style={reviewsStyles.avatar} />
             <View>
-              <Text style={rv.author}>{r.authorNameAr}</Text>
-              <View style={rv.stars}>
+              <Text style={reviewsStyles.author}>{r.authorNameAr}</Text>
+              <View style={reviewsStyles.stars}>
                 {[...Array(5)].map((_, i) => (
                   <Ionicons
                     key={i}
@@ -386,7 +403,7 @@ function ReviewsStrip({ reviews }: { reviews: ButcherReview[] }) {
               </View>
             </View>
           </View>
-          <Text style={rv.comment} numberOfLines={3}>{r.commentAr}</Text>
+          <Text style={reviewsStyles.comment} numberOfLines={3}>{r.commentAr}</Text>
         </View>
       ))}
     </ScrollView>
@@ -397,6 +414,8 @@ function ReviewsStrip({ reviews }: { reviews: ButcherReview[] }) {
 export default function ButcherProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createMainStyles(colors));
   const { accessToken, user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('products');
   const [orderModalProduct, setOrderModalProduct] = useState<ButcherProduct | null>(null);
@@ -529,7 +548,7 @@ export default function ButcherProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.screen}>
+      <SafeAreaView style={styles.screen}>
         <Text style={{ color: '#fff', textAlign: 'center', marginTop: 80 }}>جاري تحميل تفاصيل الملحمة...</Text>
       </SafeAreaView>
     );
@@ -537,7 +556,7 @@ export default function ButcherProfileScreen() {
 
   if (!butcher) {
     return (
-      <SafeAreaView style={s.screen}>
+      <SafeAreaView style={styles.screen}>
         <Text style={{ color: '#fff', textAlign: 'center', marginTop: 80 }}>الملحمة غير موجودة</Text>
       </SafeAreaView>
     );
@@ -555,13 +574,13 @@ export default function ButcherProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={s.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* ── Cover + Back ── */}
-        <View style={s.coverWrap}>
-          <Image source={{ uri: butcher.cover }} style={s.cover} contentFit="cover" />
+        <View style={styles.coverWrap}>
+          <Image source={{ uri: butcher.cover }} style={styles.cover} contentFit="cover" />
           <LinearGradient
             colors={['rgba(6,9,26,0.5)', 'transparent', 'rgba(6,9,26,0.85)']}
             style={StyleSheet.absoluteFill}
@@ -569,110 +588,110 @@ export default function ButcherProfileScreen() {
           <Pressable
             onPress={() => router.back()}
             hitSlop={12}
-            style={s.backBtn}
+            style={styles.backBtn}
           >
             <Ionicons name={rtlBackIcon} size={22} color="#fff" />
           </Pressable>
-          <View style={s.coverActions}>
-            <Pressable style={s.coverAction}>
+          <View style={styles.coverActions}>
+            <Pressable style={styles.coverAction}>
               <Ionicons name="share-social-outline" size={20} color="#fff" />
             </Pressable>
-            <Pressable style={s.coverAction}>
+            <Pressable style={styles.coverAction}>
               <Ionicons name="heart-outline" size={20} color="#fff" />
             </Pressable>
           </View>
         </View>
 
         {/* ── Profile Header ── */}
-        <View style={s.profileHeader}>
+        <View style={styles.profileHeader}>
           {/* Logo */}
-          <View style={s.logoWrap}>
-            <Image source={{ uri: butcher.logo }} style={s.logo} contentFit="cover" />
+          <View style={styles.logoWrap}>
+            <Image source={{ uri: butcher.logo }} style={styles.logo} contentFit="cover" />
             {butcher.subscriptionActive && (
-              <View style={s.verifiedRing}>
+              <View style={styles.verifiedRing}>
                 <Ionicons name="shield-checkmark" size={14} color={colors.gold} />
               </View>
             )}
           </View>
 
           {/* Name + badges */}
-          <View style={s.nameBlock}>
-            <View style={s.nameRow}>
-              <Text style={s.name}>{butcher.nameAr}</Text>
+          <View style={styles.nameBlock}>
+            <View style={styles.nameRow}>
+              <Text style={styles.name}>{butcher.nameAr}</Text>
               {butcher.subscriptionActive && (
                 <LinearGradient
                   colors={[colors.gold, '#F59E0B']}
-                  style={s.verifiedBadge}
+                  style={styles.verifiedBadge}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                 >
                   <Ionicons name="shield-checkmark" size={11} color="#1A1300" />
-                  <Text style={s.verifiedText}>موثّق</Text>
+                  <Text style={styles.verifiedText}>موثّق</Text>
                 </LinearGradient>
               )}
             </View>
-            <View style={s.locationRow}>
-              <Text style={s.countryFlag}>{country.flag}</Text>
-              <Text style={s.locationText}>{butcher.cityAr}، {country.ar}</Text>
+            <View style={styles.locationRow}>
+              <Text style={styles.countryFlag}>{country.flag}</Text>
+              <Text style={styles.locationText}>{butcher.cityAr}، {country.ar}</Text>
             </View>
           </View>
 
           {/* Rating */}
-          <View style={s.ratingBlock}>
-            <View style={s.ratingRow}>
+          <View style={styles.ratingBlock}>
+            <View style={styles.ratingRow}>
               <Ionicons name="star" size={16} color={colors.gold} />
-              <Text style={s.ratingScore}>{butcher.rating.toFixed(1)}</Text>
+              <Text style={styles.ratingScore}>{butcher.rating.toFixed(1)}</Text>
             </View>
-            <Text style={s.ratingCount}>({butcher.reviewCount})</Text>
+            <Text style={styles.ratingCount}>({butcher.reviewCount})</Text>
           </View>
         </View>
 
         {/* Stats strip */}
-        <View style={s.statsStrip}>
-          <View style={s.statItem}>
-            <Text style={s.statValue}>{butcher.totalOrders.toLocaleString()}</Text>
-            <Text style={s.statLabel}>طلب</Text>
+        <View style={styles.statsStrip}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{butcher.totalOrders.toLocaleString()}</Text>
+            <Text style={styles.statLabel}>طلب</Text>
           </View>
-          <View style={s.statDivider} />
-          <View style={s.statItem}>
-            <Text style={s.statValue}>{butcher.orderCompletionRate}%</Text>
-            <Text style={s.statLabel}>إتمام</Text>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{butcher.orderCompletionRate}%</Text>
+            <Text style={styles.statLabel}>إتمام</Text>
           </View>
-          <View style={s.statDivider} />
-          <View style={s.statItem}>
-            <Text style={[s.statValue, { color: butcher.workingHours.isOpen ? colors.success : colors.danger }]}>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: butcher.workingHours.isOpen ? colors.textBrandSuccess : colors.danger }]}>
               {butcher.workingHours.isOpen ? 'مفتوح' : 'مغلق'}
             </Text>
-            <Text style={s.statLabel}>{butcher.workingHours.open}–{butcher.workingHours.close}</Text>
+            <Text style={styles.statLabel}>{butcher.workingHours.open}–{butcher.workingHours.close}</Text>
           </View>
-          <View style={s.statDivider} />
-          <View style={s.statItem}>
-            <Text style={s.statValue}>{currency.symbol}</Text>
-            <Text style={s.statLabel}>{currency.nameAr}</Text>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{currency.symbol}</Text>
+            <Text style={styles.statLabel}>{currency.nameAr}</Text>
           </View>
         </View>
 
         {/* ── Chat + Order CTAs ── */}
-        <View style={s.ctaRow}>
+        <View style={styles.ctaRow}>
           <Pressable
-            style={s.chatCta}
+            style={styles.chatCta}
             onPress={() => setActiveTab('chat')}
           >
             <Ionicons name="chatbubble-outline" size={18} color={colors.electricBright} />
-            <Text style={s.chatCtaText}>محادثة</Text>
+            <Text style={styles.chatCtaText}>محادثة</Text>
           </Pressable>
           <Pressable
-            style={({ pressed }) => [s.orderCta, pressed && { opacity: 0.88 }]}
+            style={({ pressed }) => [styles.orderCta, pressed && { opacity: 0.88 }]}
             onPress={() => router.push({ pathname: '/butchers/order', params: { butcherId: butcher.id } })}
           >
             <LinearGradient
               colors={[colors.electric, colors.cyan]}
-              style={s.orderCtaGrad}
+              style={styles.orderCtaGrad}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
               <Ionicons name="bag-add-outline" size={18} color="#fff" />
-              <Text style={s.orderCtaText}>اطلب الآن</Text>
+              <Text style={styles.orderCtaText}>اطلب الآن</Text>
             </LinearGradient>
           </Pressable>
         </View>
@@ -681,16 +700,16 @@ export default function ButcherProfileScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.tabsRow}
+          contentContainerStyle={styles.tabsRow}
         >
           {TABS.map((tab) => (
             <Pressable
               key={tab.id}
               onPress={() => setActiveTab(tab.id)}
-              style={[s.tabBtn, activeTab === tab.id && s.tabBtnActive]}
+              style={[styles.tabBtn, activeTab === tab.id && styles.tabBtnActive]}
             >
-              <Text style={s.tabIcon}>{tab.icon}</Text>
-              <Text style={[s.tabLabel, activeTab === tab.id && s.tabLabelActive]}>
+              <Text style={styles.tabIcon}>{tab.icon}</Text>
+              <Text style={[styles.tabLabel, activeTab === tab.id && styles.tabLabelActive]}>
                 {tab.labelAr}
               </Text>
             </Pressable>
@@ -698,7 +717,7 @@ export default function ButcherProfileScreen() {
         </ScrollView>
 
         {/* ── Tab Content ── */}
-        <View style={s.tabContent}>
+        <View style={styles.tabContent}>
           {activeTab === 'products' && (
             <ProductsTab
               products={products}
@@ -715,7 +734,7 @@ export default function ButcherProfileScreen() {
               <AboutTab butcher={butcher} />
               {reviews.length > 0 && (
                 <View style={{ marginTop: spacing.xl }}>
-                  <Text style={[s.sectionTitle, { paddingHorizontal: spacing.lg }]}>
+                  <Text style={[styles.sectionTitle, { paddingHorizontal: spacing.lg }]}>
                     آراء العملاء ({butcher.reviewCount})
                   </Text>
                   <ReviewsStrip reviews={reviews} />
@@ -734,7 +753,8 @@ export default function ButcherProfileScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+function createMainStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bgDeep },
 
   coverWrap: { height: 240, position: 'relative' },
@@ -856,7 +876,7 @@ const s = StyleSheet.create({
     borderColor: colors.electricBright + '88',
     backgroundColor: colors.electric + '11',
   },
-  chatCtaText: { ...typography.bodyStrong, color: colors.electricBright },
+  chatCtaText: { ...typography.bodyStrong, color: colors.textBrandStrong },
   orderCta: { flex: 2, borderRadius: radius.xl, overflow: 'hidden' },
   orderCtaGrad: {
     flexDirection: 'row',
@@ -895,16 +915,20 @@ const s = StyleSheet.create({
   tabLabelActive: { color: '#fff', fontWeight: '600' },
   tabContent: { paddingTop: spacing.lg },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },
-});
+  });
+}
 
-const emptyState = StyleSheet.create({
+function createEmptyStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   wrap: { alignItems: 'center', paddingVertical: 60, gap: spacing.sm },
   icon: { fontSize: 40 },
   title: { ...typography.h3, color: colors.textMuted },
-});
+  });
+}
 
 // Products tab
-const pt = StyleSheet.create({
+function createProductsStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   catRow: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
@@ -974,7 +998,7 @@ const pt = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderSoft,
   },
-  cutLabel: { ...typography.micro, color: colors.glow },
+  cutLabel: { ...typography.micro, color: colors.textBrand },
   weightNote: { ...typography.caption, color: colors.textMuted, marginTop: 6 },
   orderBtn: { marginTop: spacing.md, borderRadius: radius.xl, overflow: 'hidden' },
   orderBtnGrad: {
@@ -985,10 +1009,12 @@ const pt = StyleSheet.create({
     paddingVertical: 12,
   },
   orderBtnText: { ...typography.bodyStrong, color: '#fff' },
-});
+  });
+}
 
 // Offers tab
-const ot = StyleSheet.create({
+function createOffersStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   card: {
     marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
@@ -1029,10 +1055,12 @@ const ot = StyleSheet.create({
     marginTop: spacing.sm,
   },
   validText: { ...typography.caption, color: colors.textMuted },
-});
+  });
+}
 
 // Stories tab
-const stt = StyleSheet.create({
+function createStoriesStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1057,7 +1085,7 @@ const stt = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radius.pill,
   },
-  badgeText: { ...typography.micro, color: colors.glow },
+  badgeText: { ...typography.micro, color: colors.textBrand },
   caption: {
     ...typography.micro,
     color: '#fff',
@@ -1067,10 +1095,12 @@ const stt = StyleSheet.create({
     right: 8,
     lineHeight: 14,
   },
-});
+  });
+}
 
 // About tab
-const abt = StyleSheet.create({
+function createAboutStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   wrap: { paddingHorizontal: spacing.lg },
   section: { marginBottom: spacing.xl },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },
@@ -1103,7 +1133,7 @@ const abt = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderMid,
   },
-  chipText: { ...typography.caption, color: colors.glow },
+  chipText: { ...typography.caption, color: colors.textBrand },
   verifiedCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1116,10 +1146,12 @@ const abt = StyleSheet.create({
   },
   verifiedTitle: { ...typography.bodyStrong, color: colors.gold },
   verifiedSub: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
-});
+  });
+}
 
 // Chat tab
-const cht = StyleSheet.create({
+function createChatStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   wrap: { paddingHorizontal: spacing.lg },
   bubble: {
     maxWidth: '80%',
@@ -1157,10 +1189,12 @@ const cht = StyleSheet.create({
     paddingVertical: 14,
   },
   openChatText: { ...typography.bodyStrong, color: '#fff' },
-});
+  });
+}
 
 // Reviews
-const rv = StyleSheet.create({
+function createReviewsStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   row: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
@@ -1180,4 +1214,5 @@ const rv = StyleSheet.create({
   author: { ...typography.caption, color: colors.textPrimary, fontWeight: '600' },
   stars: { flexDirection: 'row', gap: 2, marginTop: 2 },
   comment: { ...typography.caption, color: colors.textSecondary, lineHeight: 17 },
-});
+  });
+}

@@ -3,8 +3,8 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { withAuth, apiResponse, apiError, AuthedRequest } from '@/middleware/auth';
 import { apiRateLimit } from '@/middleware/rateLimiter';
-import { addNotification } from '@/lib/queue';
 import { cacheDel, CacheKeys } from '@/lib/redis';
+import { notifyUser } from '@/lib/notifications';
 
 export const config = { api: { bodyParser: { sizeLimit: '1kb' } } };
 
@@ -45,7 +45,7 @@ async function toggleRepost(req: AuthedRequest, res: NextApiResponse) {
   });
 
   if (reposted && post.authorId !== req.user.userId) {
-    addNotification({
+    void notifyUser({
       userId:  post.authorId,
       type:    'repost',
       titleAr: 'إعادة نشر',
