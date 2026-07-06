@@ -1,7 +1,7 @@
 {
   "name": "safat-backend-nest",
   "version": "1.0.0",
-  "description": "SAFAT Backend — NestJS API + Socket.IO + PostgreSQL + Redis",
+  "description": "سروح Backend — NestJS API + Socket.IO + PostgreSQL + Redis",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
@@ -18,7 +18,10 @@
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push"
+    "prisma:push": "prisma db push",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate:status": "prisma migrate status"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.521.0",
@@ -103,7 +106,13 @@
       "ts"
     ],
     "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
+    "testRegex": ".*\\.(spec|test)\\.ts$",
+    "moduleNameMapper": {
+      "^@/lib/(.*)$": "<rootDir>/shared/lib/$1",
+      "^@/middleware/(.*)$": "<rootDir>/shared/middleware/$1",
+      "^@/butcher-applications/(.*)$": "<rootDir>/butcher-applications/$1",
+      "^@/(.*)$": "<rootDir>/$1"
+    },
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },

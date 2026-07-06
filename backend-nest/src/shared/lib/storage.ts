@@ -1,4 +1,5 @@
-// src/lib/storage.ts — S3 or Cloudinary image storage
+// Media storage — single active provider selected at runtime (not dual-write).
+// Set STORAGE_PROVIDER=local|s3|cloudinary; default: cloudinary → s3 → local (dev).
 import {
   S3Client,
   PutObjectCommand,

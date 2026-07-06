@@ -764,7 +764,7 @@ export default function ButcherManageScreen() {
       <SafeAreaView style={s.screen} edges={['top']}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl, gap: spacing.md }}>
           <Text style={{ fontSize: 60 }}>🥩</Text>
-          <Text style={{ ...typography.h2, color: colors.textPrimary, textAlign: 'center' }}>سجّل ملحمتك في صفاة</Text>
+          <Text style={{ ...typography.h2, color: colors.textPrimary, textAlign: 'center' }}>سجّل ملحمتك في سروح</Text>
           <Text style={{ ...typography.body, color: colors.textMuted, textAlign: 'center', paddingHorizontal: spacing.lg, lineHeight: 22 }}>
             ابدأ بعرض منتجاتك الحيوانية واللحوم الطازجة لآلاف المشترين في منطقة الخليج العربي.
           </Text>
@@ -919,7 +919,7 @@ export default function ButcherManageScreen() {
             {orders.map((order) => {
               const status = order.status;
               const statusColor = STATUS_COLORS[status] ?? colors.textMuted;
-              const customerName = order.customer?.arabicName || order.customer?.displayName || 'عميل صفاة';
+              const customerName = order.customer?.arabicName || order.customer?.displayName || 'عميل سروح';
               const productName = order.product?.nameAr || 'منتج لحم';
               const formattedDate = new Date(order.createdAt).toLocaleDateString('ar-SA');
               return (

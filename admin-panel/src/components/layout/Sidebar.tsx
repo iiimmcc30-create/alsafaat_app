@@ -17,6 +17,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { clearSession, getStoredUser } from '@/services/auth.service';
+import { BRAND_ADMIN_SUBTITLE_AR, BRAND_NAME_AR, BRAND_NAME_EN } from '@/constants/brandCopy';
 
 const nav = [
   { href: '/', label: 'لوحة التحكم', icon: LayoutDashboard },
@@ -38,8 +39,9 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-64 flex-col border-l border-slate-800 bg-slate-950">
       <div className="border-b border-slate-800 p-5">
-        <p className="text-lg font-bold text-emerald-400">الصفاة</p>
-        <p className="text-xs text-slate-500">لوحة الإدارة — alsfat.com</p>
+        <p className="text-lg font-bold text-emerald-400">{BRAND_NAME_AR}</p>
+        <p className="text-xs font-medium text-emerald-300/70">{BRAND_NAME_EN}</p>
+        <p className="mt-1 text-xs text-slate-500">{BRAND_ADMIN_SUBTITLE_AR}</p>
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {nav.map(({ href, label, icon: Icon }) => {

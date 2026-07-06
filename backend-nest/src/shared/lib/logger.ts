@@ -16,7 +16,7 @@ export const logger = pino({
           },
         }
       : undefined,
-  base: { service: 'safat-api', env: process.env.NODE_ENV },
+  base: { service: 'sarouh-api', env: process.env.NODE_ENV },
   serializers: {
     err: pino.stdSerializers.err,
     req: (req) => ({ method: req.method, url: req.url }),

@@ -6,4 +6,5 @@
 dist/
 web-build/
 expo-env.d.ts
+expo-qr.png
 # @end expo-cli

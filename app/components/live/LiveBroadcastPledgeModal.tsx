@@ -22,7 +22,7 @@ const LIVE_RULES = [
   'البث المباشر يجب أن يكون مرتبطاً بإعلان منشور في السوق.',
   'يُمنع نشر محتوى مضلل أو غير لائق أو مخالف للأنظمة.',
   'يلتزم المُذيع بالصدق في عرض المنتجات والأسعار أثناء البث.',
-  'تحتفظ منصة الصفاة بحق إيقاف أي بث مخالف دون إشعار مسبق.',
+  'تحتفظ منصة سروح بحق إيقاف أي بث مخالف دون إشعار مسبق.',
 ];
 
 export function LiveBroadcastPledgeModal({
@@ -49,7 +49,7 @@ export function LiveBroadcastPledgeModal({
 
           <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>📋 شروط البث على الصفاة</Text>
+              <Text style={styles.cardTitle}>📋 شروط البث على سروح</Text>
               {LIVE_RULES.map((item, i) => (
                 <Text key={i} style={styles.ruleItem}>
                   {i + 1}. {item}
@@ -61,7 +61,7 @@ export function LiveBroadcastPledgeModal({
               <Text style={styles.cardTitleBlue}>🤲 القسم بالله</Text>
               <Text style={styles.oath}>
                 "أقسم بالله العظيم أن محتوى هذا البث صحيح، وأن ما أعرضه مطابق للحقيقة،
-                وأتعهد بالالتزام بسياسات منصة الصفاة أثناء البث المباشر."
+                وأتعهد بالالتزام بسياسات منصة سروح أثناء البث المباشر."
               </Text>
             </View>
 

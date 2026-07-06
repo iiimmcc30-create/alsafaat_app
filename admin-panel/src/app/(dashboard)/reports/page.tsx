@@ -25,7 +25,7 @@ export default function ReportsPage() {
   return (
     <ResourcePage<ReportRow>
       title="إدارة البلاغات"
-      description="بلاغات المستخدمين من مساعد الصفاة والتطبيق"
+      description="بلاغات المستخدمين من مساعد سروح والتطبيق"
       fetchPage={({ page, search }) => fetchReports({ page, search })}
       columns={[
         { key: 'ticketNumber', label: 'الرقم' },

@@ -3,7 +3,7 @@ import { logger } from '@/lib/logger';
 import { isButcherApplicationError } from '../errors';
 
 /**
- * Maps domain errors to the standard SAFAT API envelope (NestJS).
+ * Maps domain errors to the standard Sarouh API envelope (NestJS).
  */
 export function handleButcherApplicationError(
   _res: unknown,

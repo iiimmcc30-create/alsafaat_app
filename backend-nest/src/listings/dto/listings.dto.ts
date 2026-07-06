@@ -55,6 +55,18 @@ export class ListListingsQueryDto {
   @IsOptional()
   @IsString()
   sellerId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  minPrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  maxPrice?: number;
 }
 
 export class CreateListingDto {

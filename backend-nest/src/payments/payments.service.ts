@@ -213,7 +213,7 @@ export class PaymentsService {
               value: Math.round(amount * 100),
             },
             language: 'ar',
-            description: descriptionAr || description || 'SAFAT Payment',
+            description: descriptionAr || description || 'سروح Payment',
             merchantAttributes: {
               redirectUrl: `${process.env.APP_URL}/payment/result`,
               cancelUrl: `${process.env.APP_URL}/payment/cancel`,

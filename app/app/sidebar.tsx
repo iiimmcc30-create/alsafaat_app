@@ -11,6 +11,7 @@ import { rtlDirection, rtlForwardIcon, rtlRow } from '@/lib/rtl';
 import { useApp } from '@/hooks/useApp';
 import { useAuth } from '@/contexts/AuthContext';
 import { ButchersSidebarEntry } from '@/components/feature/ButchersSidebarEntry';
+import { BRAND_DISPLAY_NAME } from '@/constants/brandCopy';
 
 type MenuItem = {
   key: string;
@@ -213,7 +214,7 @@ export default function SidebarScreen() {
             onPress={handleSignOut}
           />
 
-          <Text style={styles.versionText}>الصفاة · الإصدار ١.٠.٠</Text>
+          <Text style={styles.versionText}>{BRAND_DISPLAY_NAME} · الإصدار ١.٠.٠</Text>
         </ScrollView>
       </SafeAreaView>
 

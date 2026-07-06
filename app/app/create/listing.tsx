@@ -559,7 +559,7 @@ export default function CreateListingScreen() {
               <View style={styles.termsBox}>
                 <AppIcon name="information-circle-outline" size={16} color={colors.textMuted} />
                 <Text style={styles.termsText}>
-                  بالنشر، تؤكد أن الإعلان صحيح ويتوافق مع شروط الصفاة.
+                  بالنشر، تؤكد أن الإعلان صحيح ويتوافق مع شروط سروح.
                 </Text>
               </View>
             </View>
@@ -627,7 +627,7 @@ export default function CreateListingScreen() {
                 <View style={[styles.pledgeCard, styles.pledgeCardGold]}>
                   <Text style={styles.pledgeCardTitleGold}>💰 تعهد السعي (العمولة)</Text>
                   <Text style={styles.pledgeBodyText}>
-                    أتعهد بدفع سعي (عمولة) منصة الصفاة عند إتمام أي بيع يتم عبر المنصة، وفق النظام التالي:
+                    أتعهد بدفع سعي (عمولة) منصة سروح عند إتمام أي بيع يتم عبر المنصة، وفق النظام التالي:
                   </Text>
                   {[
                     { icon: '🐑', label: 'الأغنام والماعز',              value: '٢٠ ريال / رأس' },
@@ -666,7 +666,7 @@ export default function CreateListingScreen() {
                     {pledgeChecked && <Text style={styles.checkmark}>✓</Text>}
                   </View>
                   <Text style={styles.checkboxText}>
-                    أقر بأنني قرأت وفهمت جميع الشروط، وأتعهد بدفع السعي (العمولة) وفق نظام سوق الصفاة عند إتمام أي بيع، وأقسم بالله على صحة المعلومات.
+                    أقر بأنني قرأت وفهمت جميع الشروط، وأتعهد بدفع السعي (العمولة) وفق نظام سوق سروح عند إتمام أي بيع، وأقسم بالله على صحة المعلومات.
                   </Text>
                 </Pressable>
 

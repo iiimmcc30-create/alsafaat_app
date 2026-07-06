@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'الصفاة — لوحة الإدارة',
-  description: 'Admin Panel — alsfat.com',
+  title: 'سروح | Srooh — لوحة الإدارة',
+  description:
+    'لوحة إدارة المنصة الوطنية الرائدة في خدمات الثروة الحيوانية — سروح Srooh',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

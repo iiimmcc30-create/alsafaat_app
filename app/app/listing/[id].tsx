@@ -18,6 +18,7 @@ import { openLiveCreateIfAllowed } from '@/lib/liveStreamAccess';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchUserProfile, toggleFollowUser } from '@/services/users';
 import { openUserProfile } from '@/lib/openUserProfile';
+import { BRAND_VERIFIED_AR, BRAND_VERIFIED_EN } from '@/constants/brandCopy';
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -254,8 +255,8 @@ export default function ListingDetailScreen() {
           <View style={styles.trustCard}>
             <AppIcon name="shield-check" size={22} color={colors.success} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.trustTitle}>Verified by SAFAT</Text>
-              <Text style={styles.trustDesc}>Documents and ownership verified · موثّق من الصفاة</Text>
+              <Text style={styles.trustTitle}>{BRAND_VERIFIED_EN}</Text>
+              <Text style={styles.trustDesc}>Documents and ownership verified · {BRAND_VERIFIED_AR}</Text>
             </View>
           </View>
         </View>

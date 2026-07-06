@@ -4,6 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminLogin, persistSession } from '@/services/auth.service';
 import { Button } from '@/components/ui/Button';
+import {
+  BRAND_ADMIN_SUBTITLE_AR,
+  BRAND_NAME_AR,
+  BRAND_NAME_EN,
+  BRAND_TAGLINE_AR,
+} from '@/constants/brandCopy';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,8 +38,10 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-4">
       <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-950/90 p-8 shadow-2xl">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-emerald-400">الصفاة</h1>
-          <p className="mt-2 text-sm text-slate-400">لوحة إدارة alsfat.com</p>
+          <h1 className="text-2xl font-bold text-emerald-400">{BRAND_NAME_AR}</h1>
+          <p className="mt-1 text-sm font-medium tracking-wide text-emerald-300/80">{BRAND_NAME_EN}</p>
+          <p className="mt-3 text-sm text-slate-300">{BRAND_TAGLINE_AR}</p>
+          <p className="mt-2 text-xs text-slate-500">{BRAND_ADMIN_SUBTITLE_AR}</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

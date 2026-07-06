@@ -13,7 +13,7 @@ export function requireAuth(isAuthenticated: boolean, action: string): boolean {
 export async function sharePost(post: Post) {
   try {
     await Share.share({
-      message: `${post.arabicContent}\n\n— ${post.author.arabicName} (@${post.author.username}) عبر تطبيق صفاة 🐪`,
+      message: `${post.arabicContent}\n\n— ${post.author.arabicName} (@${post.author.username}) عبر تطبيق سروح 🐪`,
       title: 'مشاركة منشور',
     });
   } catch {

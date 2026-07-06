@@ -95,20 +95,26 @@ async function bootstrap() {
     }),
   );
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('SAFAT API')
-    .setDescription(
-      'NestJS migration — backward compatible with React Native client',
-    )
-    .setVersion('1.0.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  const swaggerEnabled =
+    process.env.NODE_ENV !== 'production' ||
+    process.env.SWAGGER_ENABLED === 'true';
+
+  if (swaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('سروح API')
+      .setDescription(
+        'NestJS migration — backward compatible with React Native client',
+      )
+      .setVersion('1.0.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const port = parseInt(process.env.PORT || '3001', 10);
   await app.listen(port, '0.0.0.0');
-  logger.info({ port }, 'SAFAT NestJS API running');
+  logger.info({ port }, 'سروح NestJS API running');
 }
 
 bootstrap().catch((err) => {

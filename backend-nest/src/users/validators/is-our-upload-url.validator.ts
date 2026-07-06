@@ -13,7 +13,7 @@ export function IsOurUploadUrl(validationOptions?: ValidationOptions) {
           return typeof value === 'string' && isOurUploadUrl(value);
         },
         defaultMessage() {
-          return 'Image must be uploaded via SAFAT upload endpoint';
+          return 'Image must be uploaded via Sarouh upload endpoint';
         },
       },
     });

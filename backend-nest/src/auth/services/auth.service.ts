@@ -631,7 +631,7 @@ export class AuthService {
 
     await this.emailQueue.addEmail({
       to: record.email!,
-      subject: 'تأكيد البريد الإلكتروني — الصفاة',
+      subject: 'تأكيد البريد الإلكتروني — سروح',
       template: 'email_verification',
       variables: { name: record.arabicName, code },
     });

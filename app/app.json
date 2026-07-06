@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "الصفاة",
+    "name": "سروح | Srooh",
     "slug": "safat",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,7 +12,10 @@
       "supportsTablet": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "com.safat.app",
-      "icon": "./assets/images/icon.png"
+      "icon": "./assets/images/icon.png",
+      "infoPlist": {
+        "CFBundleDisplayName": "سروح | Srooh"
+      }
     },
     "android": {
       "package": "com.safat.app",
@@ -37,6 +40,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
       "expo-router",
       [
         "expo-splash-screen",

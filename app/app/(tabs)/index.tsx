@@ -30,6 +30,7 @@ import { requireAuth, sharePost, showPostMenu } from '@/lib/postInteractions';
 import { fetchLiveStreamEligibility } from '@/lib/liveStreamAccess';
 import { CreatePostFab } from '@/components/feature/CreatePostFab';
 import { NotificationBellButton } from '@/components/notifications/NotificationBellButton';
+import { BRAND_DISPLAY_NAME } from '@/constants/brandCopy';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -107,7 +108,7 @@ export default function HomeScreen() {
         </Pressable>
 
         {/* App name */}
-        <Text style={styles.appName}>الصفاة</Text>
+        <Text style={styles.appName}>{BRAND_DISPLAY_NAME}</Text>
 
         <View style={styles.headerRight}>
           {canShowLive ? (

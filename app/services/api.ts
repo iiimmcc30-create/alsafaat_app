@@ -8,8 +8,8 @@ function resolveApiBase(): string {
 const API_BASE = resolveApiBase();
 
 if (__DEV__) {
-  console.log('[SAFAT] API_BASE =', API_BASE);
-  console.log('[SAFAT] Metro host =', Constants.expoConfig?.hostUri ?? 'n/a');
+  console.log('[سروح] API_BASE =', API_BASE);
+  console.log('[سروح] Metro host =', Constants.expoConfig?.hostUri ?? 'n/a');
 }
 
 export { API_BASE };

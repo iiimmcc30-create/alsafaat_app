@@ -11,7 +11,7 @@ export class LoggerService {
       process.env.NODE_ENV !== 'production'
         ? { target: 'pino-pretty', options: { colorize: true } }
         : undefined,
-    base: { service: 'safat-api', env: process.env.NODE_ENV },
+    base: { service: 'sarouh-api', env: process.env.NODE_ENV },
   });
 
   info(obj: object, msg?: string) {

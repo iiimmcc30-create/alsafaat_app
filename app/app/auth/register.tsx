@@ -26,6 +26,11 @@ import { useTheme } from '@/hooks/useTheme';
 import { AppLogo } from '@/components/ui/AppLogo';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGoogleSignIn } from '@/hooks/useGoogleSignIn';
+import {
+  BRAND_JOIN_TITLE_AR,
+  BRAND_MARKET_TERMS_AR,
+  BRAND_REGISTER_SUBTITLE_AR,
+} from '@/constants/brandCopy';
 
 const COUNTRY_CODES = [
   { flag: '🇸🇦', code: '+966', label: 'السعودية', dbCode: 'SA' },
@@ -259,8 +264,8 @@ export default function RegisterScreen() {
             {/* Header section with Circular Logo */}
             <View style={styles.header}>
               <AppLogo size={90} />
-              <Text style={styles.title}>انضم إلى الصفاة</Text>
-              <Text style={styles.sub}>أنشئ حسابك كمستخدم جديد وابدأ تصفح السوق وشراء المواشي</Text>
+              <Text style={styles.title}>{BRAND_JOIN_TITLE_AR}</Text>
+              <Text style={styles.sub}>{BRAND_REGISTER_SUBTITLE_AR}</Text>
             </View>
 
             {/* Main Form Card */}
@@ -429,7 +434,7 @@ export default function RegisterScreen() {
                 style={styles.agreeRow}
               >
                 <Text style={styles.agreeText}>
-                  أوافق على <Text style={styles.agreeLink}>شروط وأحكام سوق الصفاة</Text>
+                  أوافق على <Text style={styles.agreeLink}>{BRAND_MARKET_TERMS_AR}</Text>
                 </Text>
                 <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
                   {agreed && <AppIcon name="checkmark" size={12} color="#fff" />}
@@ -534,7 +539,7 @@ export default function RegisterScreen() {
               </Text>
               
               <Text style={styles.disclaimerText}>
-                بتسجيل الدخول أو إنشاء حساب فإنك توافق على <Text style={styles.disclaimerLink} onPress={() => router.push('/info/terms')}>شروط وأحكام سوق الصفاة</Text>
+                بتسجيل الدخول أو إنشاء حساب فإنك توافق على <Text style={styles.disclaimerLink} onPress={() => router.push('/info/terms')}>{BRAND_MARKET_TERMS_AR}</Text>
               </Text>
             </View>
 

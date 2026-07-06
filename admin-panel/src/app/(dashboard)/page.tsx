@@ -17,6 +17,7 @@ import {
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { fetchDashboardStats, type DashboardStats } from '@/services/dashboard.service';
+import { BRAND_TAGLINE_AR } from '@/constants/brandCopy';
 
 const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b'];
 
@@ -40,7 +41,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title="لوحة التحكم" description="نظرة عامة على منصة الصفاة" />
+      <PageHeader title="لوحة التحكم" description={BRAND_TAGLINE_AR} />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard title="المستخدمون" value={stats.users.total} subtitle={`+${stats.users.newToday} اليوم`} icon={Users} />
         <StatCard title="المنشورات" value={stats.posts.total} subtitle={`${stats.posts.hidden} مخفي`} icon={FileText} accent="blue" />

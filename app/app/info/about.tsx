@@ -11,6 +11,14 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
 import { AppLogo } from '@/components/ui/AppLogo';
 import { rtlBackIcon } from '@/lib/rtl';
+import {
+  BRAND_FOOTER_AR,
+  BRAND_GOAL_AR,
+  BRAND_MISSION_AR,
+  BRAND_NAME_AR,
+  BRAND_TAGLINE_AR,
+  BRAND_VISION_AR,
+} from '@/constants/brandCopy';
 
 export default function AboutScreen() {
   const { colors } = useTheme();
@@ -32,16 +40,24 @@ export default function AboutScreen() {
         {/* Hero */}
         <LinearGradient colors={['#0B1330', '#162149', '#1E3A8A']} style={styles.hero}>
           <AppLogo size={96} showRing={false} />
-          <Text style={styles.heroTitle}>الصفاة</Text>
-          <Text style={styles.heroSub}>منصة تجارة الثروة الحيوانية في الخليج</Text>
+          <Text style={styles.heroTitle}>{BRAND_NAME_AR}</Text>
+          <Text style={styles.heroSub}>{BRAND_TAGLINE_AR}</Text>
         </LinearGradient>
 
         {/* About text */}
         <View style={styles.section}>
-          <Text style={styles.bodyText}>
-            الصفاة (alsfat.com) منصة سعودية متخصصة في تجارة الثروة الحيوانية: إبل، خيل، أغنام، أبقار، ومعدات المزارع.
-            نجمع البائع والمشتري في مكان واحد — بإعلانات واضحة، بث مباشر، وتواصل سريع.
-          </Text>
+          <Text style={styles.sectionTitle}>رسالتنا</Text>
+          <Text style={styles.bodyText}>{BRAND_MISSION_AR}</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>رؤيتنا</Text>
+          <Text style={styles.bodyText}>{BRAND_VISION_AR}</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>هدفنا</Text>
+          <Text style={styles.bodyText}>{BRAND_GOAL_AR}</Text>
         </View>
 
         {/* Features */}
@@ -111,7 +127,7 @@ export default function AboutScreen() {
         </View>
 
         <Text style={styles.version}>
-          SAFAT v1.0.0 · الصفاة · مؤسسة ماد يونيت للتجارة · جميع الحقوق محفوظة © 2024{'\n'}
+          {BRAND_FOOTER_AR}{'\n'}
           Uicons by Flaticon
         </Text>
         <View style={{ height: 40 }} />

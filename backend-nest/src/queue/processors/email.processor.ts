@@ -21,7 +21,7 @@ export class EmailProcessor extends WorkerHost {
 
     const { to, subject, template, variables } = job.data;
     const templates: Record<string, string> = {
-      welcome: `مرحباً بك في الصفاة، ${variables.name}! حسابك جاهز.`,
+      welcome: `مرحباً بك في سروح، ${variables.name}! حسابك جاهز.`,
       fee_reminder: `تذكير: لديك رسوم معلقة ${variables.amount} ريال مستحقة بتاريخ ${variables.dueDate}.`,
       order_update: `تحديث طلبك: ${variables.status}`,
       subscription_renew: `تجديد اشتراكك: ${variables.plan} - ${variables.amount} ريال`,

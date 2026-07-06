@@ -46,7 +46,7 @@ export const plans: SubscriptionPlan[] = [
     color: '#334155',
     colorEnd: '#1E293B',
     description: 'Start trading on SAFAT',
-    arabicDescription: 'ابدأ التداول في الصفاة',
+    arabicDescription: 'ابدأ التداول في سروح',
     listingsPerMonth: 5,
     featuredListings: 0,
     pinnedListings: 0,

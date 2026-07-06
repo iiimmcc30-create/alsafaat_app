@@ -30,9 +30,9 @@ export class ListingsService {
   ) {}
 
   async list(query: ListListingsQueryDto) {
-    const { cursor, category, country, search, featured, sellerId } = query;
+    const { cursor, category, country, search, featured, sellerId, minPrice, maxPrice } = query;
 
-    const cacheKey = search
+    const cacheKey = search || minPrice != null || maxPrice != null
       ? null
       : `listings:v2:${JSON.stringify({ cursor, category, country, featured, sellerId })}`;
 
@@ -56,8 +56,15 @@ export class ListingsService {
         { title: { contains: search, mode: 'insensitive' } },
         { arabicTitle: { contains: search } },
         { arabicLocation: { contains: search } },
+        { location: { contains: search, mode: 'insensitive' } },
         { breed: { contains: search, mode: 'insensitive' } },
       ];
+    }
+
+    if (minPrice != null || maxPrice != null) {
+      where.price = {};
+      if (minPrice != null) where.price.gte = minPrice;
+      if (maxPrice != null) where.price.lte = maxPrice;
     }
 
     const listings = await this.repo.findMany({

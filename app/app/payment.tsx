@@ -102,8 +102,8 @@ export default function PaymentScreen() {
           referenceId: subscription.id,
           planId: plan.id,
           billingCycle,
-          description: `SAFAT ${plan.name} subscription - ${billingCycle}`,
-          descriptionAr: `اشتراك الصفاة ${plan.arabicName} - ${billingCycle === 'yearly' ? 'سنوي' : 'شهري'}`,
+          description: `Srooh ${plan.name} subscription - ${billingCycle}`,
+          descriptionAr: `اشتراك سروح ${plan.arabicName} - ${billingCycle === 'yearly' ? 'سنوي' : 'شهري'}`,
         }),
       });
 

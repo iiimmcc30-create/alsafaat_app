@@ -90,7 +90,7 @@ export default function ButcherProfileScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl, gap: spacing.md }}>
           <Text style={{ fontSize: 60 }}>🥩</Text>
-          <Text style={{ ...typography.h2, color: colors.textPrimary, textAlign: 'center' }}>سجّل ملحمتك في صفاة</Text>
+          <Text style={{ ...typography.h2, color: colors.textPrimary, textAlign: 'center' }}>سجّل ملحمتك في سروح</Text>
           <Text style={{ ...typography.body, color: colors.textMuted, textAlign: 'center', paddingHorizontal: spacing.lg, lineHeight: 22 }}>
             ابدأ بعرض منتجاتك الحيوانية واللحوم الطازجة لآلاف المشترين في منطقة الخليج العربي.
           </Text>
@@ -151,8 +151,8 @@ export default function ButcherProfileScreen() {
                 style={styles.shareBtn}
                 onPress={() => {
                   Share.share({
-                    message: `تفقّد ملحمة ${butcher.nameAr} في تطبيق الصفاة 🥩\nتواصل مع الملحمة واطلب ذبيحتك مباشرة!`,
-                    title: 'الصفاة — سوق الثروة الحيوانية',
+                    message: `تفقّد ملحمة ${butcher.nameAr} في تطبيق سروح 🥩\nتواصل مع الملحمة واطلب ذبيحتك مباشرة!`,
+                    title: 'سروح — المنصة الوطنية للثروة الحيوانية',
                   });
                 }}
               >
@@ -239,7 +239,7 @@ export default function ButcherProfileScreen() {
                 { icon: 'call-outline', label: 'رقم هاتف الملحمة', value: butcher.phone },
                 { icon: 'checkmark-circle-outline', label: 'حالة التوثيق', value: butcher.type === 'verified' ? 'موثّق وبطاقة تجارية نشطة' : 'شريك عادي' },
                 { icon: 'shield-outline', label: 'نسبة إتمام الطلبات', value: `%${butcher.orderCompletionRate} من الطلبات الواردة` },
-                { icon: 'calendar-outline', label: 'تاريخ الانضمام للصفاة', value: new Date(butcher.createdAt).toLocaleDateString('ar-SA') },
+                { icon: 'calendar-outline', label: 'تاريخ الانضمام لسروح', value: new Date(butcher.createdAt).toLocaleDateString('ar-SA') },
               ].map((item, idx, arr) => (
                 <View
                   key={item.label}
@@ -308,7 +308,7 @@ export default function ButcherProfileScreen() {
                     </UserProfileLink>
                     <View style={{ flex: 1 }}>
                       <UserProfileLink userId={rev.reviewer?.id}>
-                        <Text style={styles.reviewAuthor}>{rev.reviewer?.arabicName || rev.reviewer?.displayName || 'عميل صفاة'}</Text>
+                        <Text style={styles.reviewAuthor}>{rev.reviewer?.arabicName || rev.reviewer?.displayName || 'عميل سروح'}</Text>
                       </UserProfileLink>
                       <Text style={styles.reviewTime}>
                         {new Date(rev.createdAt).toLocaleDateString('ar-SA')}

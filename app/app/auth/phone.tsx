@@ -26,6 +26,7 @@ import { AppLogo } from '@/components/ui/AppLogo';
 import { marginStart, marginEnd, rtlDirection, rtlRow } from '@/lib/rtl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGoogleSignIn } from '@/hooks/useGoogleSignIn';
+import { BRAND_LOGIN_SUBTITLE_AR, BRAND_LOGIN_WELCOME_AR, BRAND_TERMS_SHORT_AR } from '@/constants/brandCopy';
 
 const COUNTRY_CODES = [
   { flag: '🇸🇦', code: '+966', label: 'السعودية' },
@@ -196,8 +197,8 @@ export default function PhoneScreen() {
             {/* Logo and Header */}
             <View style={styles.header}>
               <AppLogo size={90} />
-              <Text style={styles.title}>مرحباً في صفاة</Text>
-              <Text style={styles.sub}>سجّل دخولك لشراء وبيع المواشي واللحوم في الخليج</Text>
+              <Text style={styles.title}>{BRAND_LOGIN_WELCOME_AR}</Text>
+              <Text style={styles.sub}>{BRAND_LOGIN_SUBTITLE_AR}</Text>
             </View>
 
             {/* Main Card */}
@@ -447,7 +448,7 @@ export default function PhoneScreen() {
               </Pressable>
               
               <Text style={styles.disclaimerText}>
-                بتسجيل الدخول فأنت توافق على <Text style={styles.disclaimerLink} onPress={() => router.push('/info/terms')}>شروط استخدام صفاة</Text>
+                بتسجيل الدخول فأنت توافق على <Text style={styles.disclaimerLink} onPress={() => router.push('/info/terms')}>{BRAND_TERMS_SHORT_AR}</Text>
               </Text>
             </View>
 
