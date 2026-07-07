@@ -10,12 +10,10 @@ export type ListingCategory =
   | 'equipment'
   | 'store';    // متجر / ملحمة → 5% بدون اشتراك، صفر مع اشتراك
 
-export type PaidPlanId = 'starter' | 'pro' | 'vip';
-export const PAID_PLANS: string[] = ['starter', 'pro', 'vip'];
-
-/** المتجر الموثّق بـ اشتراك مدفوع = صفر عمولة */
-export function isStoreExempt(planId: string): boolean {
-  return PAID_PLANS.includes(planId);
+export function isStoreExempt(permissions?: Record<string, unknown>): boolean {
+  const v = permissions?.storeCommission;
+  if (typeof v === 'number') return v <= 0;
+  return false;
 }
 
 export interface CommissionRule {
@@ -163,22 +161,20 @@ export interface CommissionCalcResult {
  * @param category   فئة الإعلان
  * @param price      سعر الإعلان بالريال
  * @param quantity   عدد الرؤوس (للإبل والأغنام والماعز)
- * @param planId     معرّف الاشتراك الحالي للمستخدم (للمتاجر)
+ * @param permissions  صلاحيات الاشتراك (للمتاجر)
  */
 export function calculateCommission(
   category: ListingCategory,
   price: number,
   quantity: number = 1,
-  planId: string = 'free',
+  permissions?: Record<string, unknown>,
 ): CommissionCalcResult {
   const rule = COMMISSION_RULES.find((r) => r.category === category)
     ?? COMMISSION_RULES.find((r) => r.category === 'equipment')!;
 
   let commission = 0;
 
-
-  // متجر موثّق بـ اشتراك → صفر عمولة
-  const isExempt = category === 'store' && isStoreExempt(planId);
+  const isExempt = category === 'store' && isStoreExempt(permissions);
 
   if (!isExempt) {
     if (rule.type === 'fixed') {

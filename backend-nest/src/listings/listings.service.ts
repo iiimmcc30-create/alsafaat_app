@@ -13,8 +13,9 @@ import {
   UpdateListingDto,
 } from './dto/listings.dto';
 import { ListingsRepository } from './repositories/listings.repository';
-import { SubscriptionEntitlementsService } from '../subscriptions/services/subscription-entitlements.service';
-import { planTier } from '../lib/subscription-lifecycle';
+import { SubscriptionEntitlementService } from '../subscriptions/services/subscription-entitlement.service';
+import { PlanResolverService } from '../plans/plan-resolver.service';
+import { notDeleted } from '../common/utils/soft-delete.util';
 
 const PAGE_SIZE = 20;
 
@@ -26,7 +27,8 @@ export class ListingsService {
     private readonly logger: LoggerService,
     private readonly feeCheckQueue: FeeCheckQueueService,
     private readonly notifications: AppNotificationsService,
-    private readonly entitlements: SubscriptionEntitlementsService,
+    private readonly entitlements: SubscriptionEntitlementService,
+    private readonly planResolver: PlanResolverService,
   ) {}
 
   async list(query: ListListingsQueryDto) {
@@ -45,7 +47,7 @@ export class ListingsService {
       if (cached) return cached;
     }
 
-    const where: Prisma.ListingWhereInput = { status: 'active' };
+    const where: Prisma.ListingWhereInput = { status: 'active', ...notDeleted };
     if (category) where.category = category;
     if (country) where.country = country;
     if (featured) where.featured = true;
@@ -80,11 +82,21 @@ export class ListingsService {
     const sorted = [...items].sort((a, b) => {
       const featuredDiff = Number(b.featured) - Number(a.featured);
       if (featuredDiff !== 0) return featuredDiff;
-      const aPlan = (a.seller as { subscription?: { planId?: string } })
-        ?.subscription?.planId;
-      const bPlan = (b.seller as { subscription?: { planId?: string } })
-        ?.subscription?.planId;
-      const tierDiff = planTier(bPlan ?? 'free') - planTier(aPlan ?? 'free');
+      const aPlan = (a.seller as {
+        subscription?: { planId?: string; planAudience?: 'USER' | 'BUTCHER' };
+      })?.subscription;
+      const bPlan = (b.seller as {
+        subscription?: { planId?: string; planAudience?: 'USER' | 'BUTCHER' };
+      })?.subscription;
+      const tierDiff =
+        this.planResolver.planTier(
+          bPlan?.planId ?? 'free',
+          bPlan?.planAudience ?? 'USER',
+        ) -
+        this.planResolver.planTier(
+          aPlan?.planId ?? 'free',
+          aPlan?.planAudience ?? 'USER',
+        );
       if (tierDiff !== 0) return tierDiff;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
@@ -120,27 +132,24 @@ export class ListingsService {
     const currency = dto.currency ?? 'SAR';
     const featured = dto.featured ?? false;
 
-    const effectivePlanId = await this.entitlements.assertCanCreateListing(
+    const effectivePlanSlug = await this.entitlements.assertCanCreateListing(
       user.userId,
       { images: dto.images, featured },
     );
+
+    const permissions = await this.entitlements.getPermissionsForUser(user.userId);
 
     const { commission, dueDate } = calculateCommission(
       dto.category as ListingCat,
       dto.price,
       quantity,
-      effectivePlanId,
+      permissions,
     );
 
     try {
       const listing = await this.repo.createListingWithFee({
         userId: user.userId,
-        effectivePlanId,
-        commission,
-        dueDate,
-        category: dto.category,
-        quantity,
-        price: dto.price,
+        featured,
         data: {
           title: dto.title,
           arabicTitle: dto.arabicTitle,
@@ -158,6 +167,11 @@ export class ListingsService {
           images: dto.images,
           featured,
         },
+        commission,
+        dueDate,
+        category: dto.category,
+        quantity,
+        price: dto.price,
       });
 
       const delayMs = dueDate.getTime() - Date.now() + 60_000;

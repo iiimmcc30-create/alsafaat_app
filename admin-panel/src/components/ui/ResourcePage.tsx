@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import type { Paginated } from '@/services/admin.service';
 
 export type Column<T> = {
   key: string;
@@ -11,16 +12,11 @@ export type Column<T> = {
   render?: (row: T) => React.ReactNode;
 };
 
-type Props<T> = {
+type Props<T extends { id: string }> = {
   title: string;
   description?: string;
   columns: Column<T>[];
-  fetchPage: (params: { page: number; search: string }) => Promise<{
-    items: T[];
-    total: number;
-    page: number;
-    totalPages: number;
-  }>;
+  fetchPage: (params: { page: number; search: string }) => Promise<Paginated<Record<string, unknown>>>;
   actions?: (row: T, reload: () => void) => React.ReactNode;
   filters?: React.ReactNode;
 };

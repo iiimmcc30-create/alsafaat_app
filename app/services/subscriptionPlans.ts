@@ -1,183 +1,209 @@
-// Powered by OnSpace.AI
-// SAFAT Subscription Plans — Powered by Network International Payment Gateway
+// API-driven subscription plan types (no hardcoded catalog)
 
-export type PlanId = 'free' | 'starter' | 'pro' | 'vip';
+export type PlanAudience = 'USER' | 'BUTCHER';
 export type BillingCycle = 'monthly' | 'yearly';
+export type PlanSlug = string;
 
-export interface PlanFeature {
-  text: string;
-  arabic: string;
-  included: boolean;
-  highlight?: boolean;
-}
-
-export interface SubscriptionPlan {
-  id: PlanId;
-  name: string;
-  arabicName: string;
-  price: number;          // SAR per month
-  yearlyPrice: number;    // SAR per year (discounted)
-  currency: 'SAR';
-  color: string;          // gradient start
-  colorEnd: string;       // gradient end
-  badge?: string;         // e.g. "الأشهر"
-  description: string;
-  arabicDescription: string;
-  features: PlanFeature[];
-  listingsPerMonth: number;
-  featuredListings: number;
-  pinnedListings: number;
-  liveMinutesPerWeek: number; // 0 = none
-  maxImages: number;
-  verified: boolean;
-  prioritySearch: boolean;
-  advancedAnalytics: boolean;
-  dedicatedSupport: boolean;
-}
-
-export const plans: SubscriptionPlan[] = [
-  {
-    id: 'free',
-    name: 'Free',
-    arabicName: 'مجاني',
-    price: 0,
-    yearlyPrice: 0,
-    currency: 'SAR',
-    color: '#334155',
-    colorEnd: '#1E293B',
-    description: 'Start trading on SAFAT',
-    arabicDescription: 'ابدأ التداول في سروح',
-    listingsPerMonth: 5,
-    featuredListings: 0,
-    pinnedListings: 0,
-    liveMinutesPerWeek: 0,
-    maxImages: 3,
-    verified: false,
-    prioritySearch: false,
-    advancedAnalytics: false,
-    dedicatedSupport: false,
-    features: [
-      { text: '5 listings per month', arabic: '٥ إعلانات شهريًا', included: true },
-      { text: 'Up to 3 photos per listing', arabic: '٣ صور لكل إعلان', included: true },
-      { text: 'Standard market visibility', arabic: 'ظهور عادي في السوق', included: true },
-      { text: 'Featured listings', arabic: 'إعلانات مميزة', included: false },
-      { text: 'Live streaming', arabic: 'بث مباشر', included: false },
-      { text: 'Priority search', arabic: 'أولوية البحث', included: false },
-      { text: 'Verified badge', arabic: 'شارة التوثيق', included: false },
-    ],
-  },
-
-  {
-    id: 'starter',
-    name: 'Starter',
-    arabicName: 'أساسي',
-    price: 59,
-    yearlyPrice: 590, // ~2 months free
-    currency: 'SAR',
-    color: '#1E3A8A',
-    colorEnd: '#3B82F6',
-    description: 'For active individual sellers',
-    arabicDescription: 'للبائعين الأفراد النشطين',
-    listingsPerMonth: 15,
-    featuredListings: 1,
-    pinnedListings: 0,
-    liveMinutesPerWeek: 60,
-    maxImages: 8,
-    verified: false,
-    prioritySearch: true,
-    advancedAnalytics: false,
-    dedicatedSupport: false,
-    features: [
-      { text: '15 listings per month', arabic: '١٥ إعلانًا شهريًا', included: true },
-      { text: 'Up to 8 photos per listing', arabic: '٨ صور لكل إعلان', included: true },
-      { text: 'Better search visibility', arabic: 'ظهور أفضل في البحث', included: true },
-      { text: '1 featured listing per week', arabic: 'إعلان مميز أسبوعيًا', included: true, highlight: true },
-      { text: 'Live stream 60 min/week', arabic: 'بث مباشر ٦٠ دقيقة أسبوعيًا', included: true, highlight: true },
-      { text: 'Basic support', arabic: 'دعم فني بسيط', included: true },
-      { text: 'Verified badge', arabic: 'شارة التوثيق', included: false },
-      { text: 'Advanced analytics', arabic: 'تحليلات متقدمة', included: false },
-    ],
-  },
-
-  {
-    id: 'pro',
-    name: 'Pro',
-    arabicName: 'احترافي',
-    price: 149,
-    yearlyPrice: 1490,
-    currency: 'SAR',
-    color: '#7C3AED',
-    colorEnd: '#A855F7',
-    badge: 'الأشهر',
-    description: 'For serious traders & breeders',
-    arabicDescription: 'للمتداولين الجادين والمربين',
-    listingsPerMonth: 30,
-    featuredListings: 3,
-    pinnedListings: 1,
-    liveMinutesPerWeek: 120,
-    maxImages: 15,
-    verified: false,
-    prioritySearch: true,
-    advancedAnalytics: true,
-    dedicatedSupport: false,
-    features: [
-      { text: '30 listings per month', arabic: '٣٠ إعلانًا شهريًا', included: true },
-      { text: 'Up to 15 photos per listing', arabic: '١٥ صورة لكل إعلان', included: true },
-      { text: '3 featured listings (Featured)', arabic: '٣ إعلانات مميزة', included: true, highlight: true },
-      { text: '1 pinned listing', arabic: 'تثبيت إعلان واحد', included: true, highlight: true },
-      { text: 'Live stream 120 min/week', arabic: 'بث مباشر ١٢٠ دقيقة أسبوعيًا', included: true, highlight: true },
-      { text: 'Priority search placement', arabic: 'أولوية الظهور في البحث', included: true },
-      { text: 'Advanced analytics', arabic: 'تحليلات متقدمة', included: true },
-      { text: 'Verified badge', arabic: 'شارة التوثيق', included: false },
-    ],
-  },
-
-  {
-    id: 'vip',
-    name: 'VIP',
-    arabicName: 'VIP',
-    price: 299,
-    yearlyPrice: 2990,
-    currency: 'SAR',
-    color: '#B45309',
-    colorEnd: '#F5C56A',
-    badge: 'للشركات',
-    description: 'For companies & major traders',
-    arabicDescription: 'للشركات والتجار الكبار',
-    listingsPerMonth: 999,
-    featuredListings: 999,
-    pinnedListings: 5,
-    liveMinutesPerWeek: 999,
-    maxImages: 30,
-    verified: true,
-    prioritySearch: true,
-    advancedAnalytics: true,
-    dedicatedSupport: true,
-    features: [
-      { text: 'Unlimited listings', arabic: 'إعلانات غير محدودة', included: true, highlight: true },
-      { text: 'Unlimited photos', arabic: 'صور غير محدودة', included: true },
-      { text: 'All listings pinned & featured', arabic: 'تثبيت وتمييز جميع الإعلانات', included: true, highlight: true },
-      { text: 'Verified account badge', arabic: 'حساب موثق رسميًا', included: true, highlight: true },
-      { text: 'Custom profile & branding', arabic: 'بروفايل خاص وهوية تجارية', included: true, highlight: true },
-      { text: 'Unlimited live streaming + tools', arabic: 'بث مباشر غير محدود + أدوات تسويق', included: true, highlight: true },
-      { text: 'Dedicated account manager', arabic: 'مدير حساب مخصص', included: true },
-      { text: 'All Pro features included', arabic: 'جميع مميزات الباقات الأخرى', included: true },
-    ],
-  },
-];
-
-export function getPlanById(id: PlanId): SubscriptionPlan {
-  return plans.find((p) => p.id === id) ?? plans[0];
-}
-
-export function getPlanColor(id: PlanId): [string, string] {
-  const p = getPlanById(id);
-  return [p.color, p.colorEnd];
-}
-
-export const PLAN_ICONS: Record<PlanId, string> = {
-  free: '🔓',
-  starter: '🔵',
-  pro: '💜',
-  vip: '👑',
+export type PlanFeatureRow = {
+  key: string;
+  label: string;
+  value: string | number | boolean;
+  valueType: 'BOOLEAN' | 'NUMBER' | 'STRING' | 'JSON';
 };
+
+export type PlanPermissions = Record<string, boolean | number | string | unknown>;
+
+export type SubscriptionPlan = {
+  id: string;
+  slug: string;
+  legacyId?: string;
+  name: string;
+  description: string;
+  audience: PlanAudience;
+  monthlyPrice: number;
+  yearlyPrice: number;
+  price: number;
+  currency: string;
+  yearlyDiscount: number;
+  isActive: boolean;
+  sortOrder: number;
+  permissions: PlanPermissions;
+  displayFeatures: PlanFeatureRow[];
+  features?: Array<{ key: string; value: string; valueType: string }>;
+};
+
+export const PLAN_ICONS: Record<string, string> = {
+  free: 'gift-outline',
+  'sarh-pro': 'diamond-outline',
+  growth: 'trending-up-outline',
+};
+
+export const PLAN_NAMES_AR: Record<string, string> = {
+  free: 'مجاني',
+  'sarh-pro': 'سرح برو',
+  growth: 'نمو',
+};
+
+export const PLAN_DESC_AR: Record<string, string> = {
+  free: 'ابدأ التداول في سرح مجاناً',
+  'sarh-pro': 'الباقة المميزة للمتداولين والمربين النشطين',
+  growth: 'باقة النمو للملاحم والمتاجر الموثّقة',
+};
+
+export const FEATURE_LABELS_AR: Record<string, string> = {
+  maxAdsPer24Hours: 'الحد الأقصى للإعلانات يومياً',
+  monthlyFeaturedAds: 'إعلانات مميزة شهرياً',
+  monthlyPinnedAds: 'إعلانات مثبتة شهرياً',
+  monthlyLiveHours: 'ساعات البث المباشر شهرياً',
+  verifiedBadge: 'شارة التوثيق',
+  prioritySupport: 'دعم أولوية',
+  prioritySearch: 'أولوية في البحث',
+  priorityHome: 'ظهور مميز في الصفحة الرئيسية',
+  canCreateLive: 'البث المباشر',
+  storeCommission: 'عمولة المتجر',
+  storeEnabled: 'تفعيل المتجر',
+  receiveOrders: 'استقبال الطلبات',
+  analyticsDashboard: 'لوحة التحليلات',
+};
+
+export const LEGACY_SLUG_MAP: Record<string, string> = {
+  starter: 'sarh-pro',
+  pro: 'sarh-pro',
+  vip: 'sarh-pro',
+};
+
+export function normalizeSlug(slug: string): string {
+  return LEGACY_SLUG_MAP[slug] ?? slug;
+}
+
+export function planIcon(slug: string): string {
+  return PLAN_ICONS[normalizeSlug(slug)] ?? 'pricetag-outline';
+}
+
+export function planGradientColors(sortOrder: number): [string, string] {
+  return sortOrder > 0 ? ['#7C3AED', '#A855F7'] : ['#334155', '#1E293B'];
+}
+
+export function planDisplayName(slug: string, fallback?: string): string {
+  return PLAN_NAMES_AR[normalizeSlug(slug)] ?? fallback ?? slug;
+}
+
+export function featureLabel(key: string, apiLabel?: string): string {
+  return FEATURE_LABELS_AR[key] ?? apiLabel ?? key;
+}
+
+export function localizePlan(plan: SubscriptionPlan): SubscriptionPlan {
+  const slug = normalizeSlug(plan.slug);
+  return {
+    ...plan,
+    name: planDisplayName(slug, plan.name),
+    description: PLAN_DESC_AR[slug] ?? plan.description,
+    displayFeatures: (plan.displayFeatures ?? []).map((f) => ({
+      ...f,
+      label: featureLabel(f.key, f.label),
+    })),
+  };
+}
+
+export function mapApiPlan(raw: Record<string, unknown>): SubscriptionPlan {
+  const slug = String(raw.slug ?? raw.legacyId ?? raw.id ?? 'free');
+  const mapped: SubscriptionPlan = {
+    id: String(raw.id ?? slug),
+    slug,
+    legacyId: raw.legacyId ? String(raw.legacyId) : slug,
+    name: String(raw.name ?? slug),
+    description: String(raw.description ?? ''),
+    audience: (raw.audience as PlanAudience) ?? 'USER',
+    monthlyPrice: Number(raw.monthlyPrice ?? raw.price ?? 0),
+    yearlyPrice: Number(raw.yearlyPrice ?? 0),
+    price: Number(raw.price ?? raw.monthlyPrice ?? 0),
+    currency: String(raw.currency ?? 'SAR'),
+    yearlyDiscount: Number(raw.yearlyDiscount ?? 0),
+    isActive: raw.isActive !== false,
+    sortOrder: Number(raw.sortOrder ?? 0),
+    permissions: (raw.permissions as PlanPermissions) ?? {},
+    displayFeatures:
+      (raw.displayFeatures as SubscriptionPlan['displayFeatures']) ?? [],
+    features: raw.features as SubscriptionPlan['features'],
+  };
+  return localizePlan(mapped);
+}
+
+export function formatFeatureValue(key: string, value: unknown): string {
+  if (typeof value === 'boolean') return value ? 'نعم' : 'لا';
+  if (key === 'maxAdsPer24Hours' && typeof value === 'number' && value < 0) {
+    return 'غير محدود';
+  }
+  if (key === 'storeCommission' && typeof value === 'number') {
+    return `${value}%`;
+  }
+  return String(value ?? '—');
+}
+
+export function formatPlanFeatureText(
+  key: string,
+  value: unknown,
+  valueType?: 'BOOLEAN' | 'NUMBER' | 'STRING' | 'JSON',
+): string {
+  if (valueType === 'BOOLEAN' || typeof value === 'boolean') {
+    return typeof value === 'boolean'
+      ? value
+        ? 'متاح'
+        : 'غير متاح'
+      : String(value);
+  }
+
+  if (key === 'maxAdsPer24Hours' && typeof value === 'number') {
+    if (value < 0) return 'إعلانات غير محدودة';
+    if (value === 1) return 'إعلان واحد كل 24 ساعة';
+    return `${value} إعلان كل 24 ساعة`;
+  }
+
+  if (key === 'monthlyLiveHours' && typeof value === 'number') {
+    if (value <= 0) return 'غير متاح';
+    return `${value} ساعة بث / شهر`;
+  }
+
+  if (key === 'monthlyFeaturedAds' && typeof value === 'number') {
+    if (value <= 0) return 'غير متاح';
+    return `${value} إعلان مميز / شهر`;
+  }
+
+  if (key === 'monthlyPinnedAds' && typeof value === 'number') {
+    if (value <= 0) return 'غير متاح';
+    return `${value} تثبيت / شهر`;
+  }
+
+  if (key === 'storeCommission' && typeof value === 'number') {
+    return `${value}%`;
+  }
+
+  return formatFeatureValue(key, value);
+}
+
+export function isStoreExemptFromPermissions(
+  permissions?: PlanPermissions,
+): boolean {
+  if (!permissions) return false;
+  const v = permissions.storeCommission;
+  if (typeof v === 'number') return v <= 0;
+  return false;
+}
+
+/** Minimal fallback when API is unavailable */
+export const EMPTY_PLAN: SubscriptionPlan = localizePlan({
+  id: 'free',
+  slug: 'free',
+  name: 'مجاني',
+  description: 'ابدأ التداول في سرح مجاناً',
+  audience: 'USER',
+  monthlyPrice: 0,
+  yearlyPrice: 0,
+  price: 0,
+  currency: 'SAR',
+  yearlyDiscount: 0,
+  isActive: true,
+  sortOrder: 0,
+  permissions: {},
+  displayFeatures: [],
+});

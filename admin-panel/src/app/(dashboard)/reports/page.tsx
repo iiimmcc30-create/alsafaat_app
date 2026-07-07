@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ResourcePage, Badge } from '@/components/ui/ResourcePage';
 import { Button } from '@/components/ui/Button';
-import { fetchReports, updateReport, deleteReport } from '@/services/admin.service';
+import { fetchReports, updateReport } from '@/services/admin.service';
 
 type ReportRow = {
   id: string;
@@ -25,7 +25,7 @@ export default function ReportsPage() {
   return (
     <ResourcePage<ReportRow>
       title="إدارة البلاغات"
-      description="بلاغات المستخدمين من مساعد سروح والتطبيق"
+      description="بلاغات المستخدمين من مساعد سرح والتطبيق"
       fetchPage={({ page, search }) => fetchReports({ page, search })}
       columns={[
         { key: 'ticketNumber', label: 'الرقم' },

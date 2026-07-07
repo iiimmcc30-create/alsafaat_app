@@ -1,13 +1,6 @@
-// src/lib/commissions.ts
-// SAFAT — نظام العمولات الرسمي المعتمد
-// ─────────────────────────────────────────────────────────────
-// 🐑 أغنام وماعز   → 20 ريال / رأس
-// 🐪 إبل            → 60 ريال / رأس
-// 🐎🐄🦅🌾⚙️ باقي   → 2% من السعر
-// 🥩 ملاحم          → عمولة على الطلب (يُحدَّد حسب الاتفاق)
-// 🏪 متجر عادي      → 5% من السعر
-// 🏪✅ متجر مشترك   → صفر عمولة (starter / pro / vip)
-// ─────────────────────────────────────────────────────────────
+// Commission calculation — store exemption driven by plan permissions (storeCommission = 0)
+import type { PlanPermissions } from '../plans/plan.types';
+import { permissionNumber } from '../plans/plan.types';
 
 export type ListingCat =
   | 'camels'
@@ -20,12 +13,17 @@ export type ListingCat =
   | 'equipment'
   | 'store';
 
-export const PAID_PLANS = ['starter', 'pro', 'vip'] as const;
-export type PaidPlan = (typeof PAID_PLANS)[number];
-
-/** المتجر الموثّق بـ اشتراك مدفوع = صفر عمولة */
+/** @deprecated Use isStoreExemptFromPermissions */
 export function isStoreExempt(planId: string): boolean {
-  return (PAID_PLANS as readonly string[]).includes(planId);
+  void planId;
+  return false;
+}
+
+export function isStoreExemptFromPermissions(
+  permissions?: PlanPermissions,
+): boolean {
+  if (!permissions) return false;
+  return permissionNumber(permissions, 'storeCommission', 5) <= 0;
 }
 
 type RuleEntry =
@@ -48,26 +46,18 @@ const RULES: Record<ListingCat, RuleEntry> = {
 export interface CommissionResult {
   commission: number;
   isExempt: boolean;
-
   dueDate: Date;
   ruleDescription: string;
 }
 
-/**
- * @param category  فئة الإعلان
- * @param price     سعر البيع بالريال
- * @param quantity  عدد الرؤوس (للإبل/أغنام/ماعز)
- * @param planId    اشتراك البائع الحالي
- */
 export function calculateCommission(
   category: ListingCat,
   price: number,
   quantity = 1,
-  planId = 'free',
+  permissions?: PlanPermissions,
 ): CommissionResult {
   const rule = RULES[category] ?? RULES.equipment;
-
-  const isExempt = category === 'store' && isStoreExempt(planId);
+  const isExempt = category === 'store' && isStoreExemptFromPermissions(permissions);
 
   let commission = 0;
   let ruleDescription = '';
@@ -78,26 +68,30 @@ export function calculateCommission(
     commission = rule.value * quantity;
     ruleDescription = `${rule.value} ريال × ${quantity} رأس = ${commission} ريال`;
   } else if (rule.type === 'percent' || rule.type === 'by_plan') {
-    commission = Math.ceil((price * rule.value) / 100);
-    ruleDescription = `${rule.value}% × ${price.toLocaleString('ar-SA')} ريال = ${commission} ريال`;
+    const rate =
+      category === 'store' && permissions
+        ? permissionNumber(permissions, 'storeCommission', rule.value)
+        : rule.value;
+    commission = Math.ceil((price * rate) / 100);
+    ruleDescription = `${rate}% × ${price.toLocaleString('ar-SA')} ريال = ${commission} ريال`;
   }
 
   return {
     commission,
     isExempt,
-
-    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 أيام
+    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     ruleDescription,
   };
 }
 
-/** للتحقق في الـ API قبل إنشاء listingFee في قاعدة البيانات */
-export function shouldCreateFee(category: ListingCat, planId: string): boolean {
-  if (category === 'store' && isStoreExempt(planId)) return false; // متجر/ملحمة بـ اشتراك — معفى
+export function shouldCreateFee(
+  category: ListingCat,
+  permissions?: PlanPermissions,
+): boolean {
+  if (category === 'store' && isStoreExemptFromPermissions(permissions)) return false;
   return true;
 }
 
-/** Commission rules table for API / frontend display */
 export const COMMISSION_TABLE = [
   {
     icon: '🐑',

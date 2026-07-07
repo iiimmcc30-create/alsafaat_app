@@ -6,8 +6,7 @@ import {
   generateViewerToken,
   streamIdToChannel,
 } from '../shared/lib/agora';
-import { checkLiveStreamAccess } from '../shared/lib/liveStreamAccess';
-import { getEffectivePlanId } from '../lib/subscription-lifecycle';
+import { SubscriptionEntitlementService } from '../subscriptions/services/subscription-entitlement.service';
 import { SubscriptionLifecycleService } from '../subscriptions/services/subscription-lifecycle.service';
 import { AppNotificationsService } from '../queue/services/app-notifications.service';
 import { LoggerService } from '../common/services/logger.service';
@@ -26,23 +25,12 @@ export class LivestreamsService {
     private readonly notifications: AppNotificationsService,
     private readonly logger: LoggerService,
     private readonly subscriptionLifecycle: SubscriptionLifecycleService,
+    private readonly entitlements: SubscriptionEntitlementService,
   ) {}
 
   private async resolveLiveAccess(userId: string) {
     await this.subscriptionLifecycle.expireIfNeededForUser(userId);
-    const fresh = await this.repo.findSubscription(userId);
-    if (!fresh) {
-      return checkLiveStreamAccess({ planId: 'free', liveMinutesUsed: 0 });
-    }
-    const effectivePlanId = getEffectivePlanId({
-      planId: fresh.planId,
-      renewDate: fresh.renewDate,
-      autoRenew: fresh.autoRenew,
-    });
-    return checkLiveStreamAccess({
-      planId: effectivePlanId,
-      liveMinutesUsed: fresh.liveMinutesUsed,
-    });
+    return this.entitlements.assertCanCreateLiveStream(userId);
   }
 
   async listStreams() {

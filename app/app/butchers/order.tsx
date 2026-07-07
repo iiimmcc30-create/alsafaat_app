@@ -142,8 +142,7 @@ export default function ButcherOrderScreen() {
         deliveryType,
         deliveryAddress: deliveryType === 'delivery' ? address : null,
         notes: notes || null,
-        totalPrice: computedTotal,
-        currency: currency.symbol,
+        currency: currency.code,
       };
 
       const res = await fetch(`${API_BASE}/api/butchers/orders`, {
@@ -159,12 +158,14 @@ export default function ButcherOrderScreen() {
 
       if (res.ok && json.success) {
         const orderId = json.data?.id;
+        const orderNumber = json.data?.orderNumber;
         setSubmitted(true);
         setTimeout(() => {
           router.replace({
             pathname: '/butchers/order-success',
             params: {
               orderId: orderId ?? '',
+              orderNumber: orderNumber ?? '',
               butcherId: butcherId ?? '',
             },
           });

@@ -143,7 +143,7 @@ export default function SearchScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="ابحث في سروح..."
+            placeholder="ابحث في سرح..."
             placeholderTextColor={colors.textMuted}
             style={styles.input}
             autoFocus
@@ -286,7 +286,7 @@ export default function SearchScreen() {
                   <View style={styles.liveInfo}>
                     <Text style={styles.liveTitle} numberOfLines={2}>{l.arabicTitle || l.title}</Text>
                     <UserProfileLink userId={l.host?.id}>
-                      <Text style={styles.liveHost}>{l.host?.arabicName || l.host?.displayName || 'عميل سروح'}</Text>
+                      <Text style={styles.liveHost}>{l.host?.arabicName || l.host?.displayName || 'عميل سرح'}</Text>
                     </UserProfileLink>
                     <View style={styles.liveStats}>
                       <View style={styles.liveBadge}>

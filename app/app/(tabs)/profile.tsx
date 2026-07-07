@@ -156,8 +156,8 @@ export default function ProfileScreen() {
                 style={styles.shareBtn}
                 onPress={() => {
                   Share.share({
-                    message: `تفقّد بروفايل ${me.arabicName} في تطبيق سروح 🐪\nhttps://alsfat.com/u/${me.username}`,
-                    title: 'سروح — المنصة الوطنية للثروة الحيوانية',
+                    message: `تفقّد بروفايل ${me.arabicName} في تطبيق سرح 🐪\nhttps://alsfat.com/u/${me.username}`,
+                    title: 'سرح — المنصة الوطنية للثروة الحيوانية',
                   });
                 }}
               >

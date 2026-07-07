@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ResourcePage, Badge } from '@/components/ui/ResourcePage';
 import { Button } from '@/components/ui/Button';
 import { fetchUsers, updateUser, deleteUser } from '@/services/admin.service';
+import { getApiErrorMessage } from '@/services/api.client';
 
 type UserRow = {
   id: string;
@@ -60,13 +61,16 @@ export default function UsersPage() {
             variant="danger"
             size="sm"
             onClick={async () => {
-              if (confirm('تأكيد الحذف؟')) {
+              if (!confirm('أرشفة المستخدم؟ سيُعطّل الحساب ويختفي من القائمة.')) return;
+              try {
                 await deleteUser(row.id);
                 reload();
+              } catch (err) {
+                alert(getApiErrorMessage(err, 'فشل حذف المستخدم'));
               }
             }}
           >
-            حذف
+            أرشفة
           </Button>
         </div>
       )}

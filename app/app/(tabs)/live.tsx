@@ -128,7 +128,7 @@ export default function LiveScreen() {
               <UserProfileLink userId={filtered[0].host?.id} style={styles.hostRow}>
                 <Image source={filtered[0].host?.avatar ? { uri: filtered[0].host.avatar } : undefined} style={styles.hostAvatar} contentFit="cover" />
                 <View>
-                  <Text style={styles.hostName}>{filtered[0].host?.arabicName || 'مستخدم سروح'}</Text>
+                  <Text style={styles.hostName}>{filtered[0].host?.arabicName || 'مستخدم سرح'}</Text>
                   <Text style={styles.hostHandle}>@{filtered[0].host?.username || 'user'}</Text>
                 </View>
               </UserProfileLink>

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { notDeleted, softDeleteFields } from '../../common/utils/soft-delete.util';
 
 const BUTCHER_LIST_INCLUDE = {
   user: { select: { id: true, username: true, avatar: true } },
@@ -48,15 +49,15 @@ export class ButchersRepository {
   }
 
   findButcherById(id: string) {
-    return this.prisma.butcher.findUnique({
-      where: { id },
+    return this.prisma.butcher.findFirst({
+      where: { id, ...notDeleted },
       include: BUTCHER_DETAIL_INCLUDE,
     });
   }
 
   findButcherByUserId(userId: string) {
-    return this.prisma.butcher.findUnique({
-      where: { userId },
+    return this.prisma.butcher.findFirst({
+      where: { userId, ...notDeleted },
       include: BUTCHER_DETAIL_INCLUDE,
     });
   }
@@ -112,7 +113,7 @@ export class ButchersRepository {
 
   findProducts(butcherId: string) {
     return this.prisma.butcherProduct.findMany({
-      where: { butcherId },
+      where: { butcherId, ...notDeleted },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -122,8 +123,8 @@ export class ButchersRepository {
   }
 
   findProductWithButcher(id: string) {
-    return this.prisma.butcherProduct.findUnique({
-      where: { id },
+    return this.prisma.butcherProduct.findFirst({
+      where: { id, ...notDeleted },
       include: { butcher: { select: { userId: true, id: true } } },
     });
   }
@@ -132,8 +133,11 @@ export class ButchersRepository {
     return this.prisma.butcherProduct.update({ where: { id }, data });
   }
 
-  deleteProduct(id: string) {
-    return this.prisma.butcherProduct.delete({ where: { id } });
+  softDeleteProduct(id: string) {
+    return this.prisma.butcherProduct.update({
+      where: { id },
+      data: { ...softDeleteFields(), inStock: false },
+    });
   }
 
   findButcherIdByUser(userId: string) {
@@ -145,7 +149,7 @@ export class ButchersRepository {
 
   findActiveOffers(butcherId: string) {
     return this.prisma.butcherOffer.findMany({
-      where: { butcherId, validUntil: { gte: new Date() } },
+      where: { butcherId, validUntil: { gte: new Date() }, ...notDeleted },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -165,8 +169,11 @@ export class ButchersRepository {
     return this.prisma.butcherOffer.update({ where: { id }, data });
   }
 
-  deleteOffer(id: string) {
-    return this.prisma.butcherOffer.delete({ where: { id } });
+  softDeleteOffer(id: string) {
+    return this.prisma.butcherOffer.update({
+      where: { id },
+      data: softDeleteFields(),
+    });
   }
 
   findOrdersForButcher(butcherId: string) {
@@ -184,6 +191,7 @@ export class ButchersRepository {
           },
         },
         product: true,
+        timeline: { orderBy: { createdAt: 'asc' } },
       },
     });
   }
@@ -192,7 +200,11 @@ export class ButchersRepository {
     return this.prisma.butcherOrder.findMany({
       where: { customerId },
       orderBy: { createdAt: 'desc' },
-      include: { butcher: true, product: true },
+      include: {
+        butcher: true,
+        product: true,
+        timeline: { orderBy: { createdAt: 'asc' } },
+      },
     });
   }
 
@@ -211,27 +223,43 @@ export class ButchersRepository {
     });
   }
 
-  createOrder(data: Prisma.ButcherOrderUncheckedCreateInput) {
-    return this.prisma.butcherOrder.create({
-      data,
-      include: { product: true, butcher: true },
-    });
-  }
-
   findOrderWithButcher(id: string) {
     return this.prisma.butcherOrder.findUnique({
       where: { id },
-      include: { butcher: { select: { userId: true } } },
+      include: { butcher: { select: { userId: true, id: true } } },
     });
   }
 
-  updateOrder(id: string, data: Prisma.ButcherOrderUpdateInput) {
-    return this.prisma.butcherOrder.update({ where: { id }, data });
+  findOrderById(id: string) {
+    return this.prisma.butcherOrder.findUnique({
+      where: { id },
+      include: {
+        butcher: true,
+        customer: {
+          select: {
+            id: true,
+            displayName: true,
+            arabicName: true,
+            avatar: true,
+            phone: true,
+          },
+        },
+        product: true,
+        timeline: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+  }
+
+  findOrderAudits(orderId: string) {
+    return this.prisma.orderStatusAudit.findMany({
+      where: { orderId },
+      orderBy: { changedAt: 'asc' },
+    });
   }
 
   findActiveStories() {
     return this.prisma.butcherStory.findMany({
-      where: { expiresAt: { gt: new Date() } },
+      where: { expiresAt: { gt: new Date() }, ...notDeleted },
       orderBy: { createdAt: 'desc' },
       include: {
         butcher: {
@@ -273,8 +301,11 @@ export class ButchersRepository {
     });
   }
 
-  deleteStory(id: string) {
-    return this.prisma.butcherStory.delete({ where: { id } });
+  softDeleteStory(id: string) {
+    return this.prisma.butcherStory.update({
+      where: { id },
+      data: softDeleteFields(),
+    });
   }
 
   findButcherForReview(id: string) {

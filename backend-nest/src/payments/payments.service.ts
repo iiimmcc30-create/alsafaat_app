@@ -1,19 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import crypto from 'crypto';
-import { PaymentReferenceType } from '@prisma/client';
-import {
-  getPlanPrice,
-  UPGRADABLE_PLANS,
-  type BillingCycle,
-  type PlanId,
-} from '../lib/plans';
-import { shouldBlockSubscriptionPayment } from '../lib/subscription-lifecycle';
+import { PaymentReferenceType, PlanAudience } from '@prisma/client';
+import { normalizePlanSlug, type BillingCycle } from '../lib/plans';
 import { throwApi } from '../common/exceptions/api.exception';
 import { LoggerService } from '../common/services/logger.service';
 import { AppNotificationsService } from '../queue/services/app-notifications.service';
 import { SubscriptionCacheService } from '../subscriptions/services/subscription-cache.service';
 import { SubscriptionLifecycleService } from '../subscriptions/services/subscription-lifecycle.service';
+import { SubscriptionEntitlementService } from '../subscriptions/services/subscription-entitlement.service';
+import { PlansService } from '../plans/plans.service';
 import type { JwtPayload } from '../common/types/jwt-payload.interface';
 import { InitiatePaymentDto } from './dto/payments.dto';
 import { PaymentsRepository } from './repositories/payments.repository';
@@ -67,7 +63,13 @@ export class PaymentsService {
     private readonly notifications: AppNotificationsService,
     private readonly subscriptionCache: SubscriptionCacheService,
     private readonly subscriptionLifecycle: SubscriptionLifecycleService,
+    private readonly entitlements: SubscriptionEntitlementService,
+    private readonly plans: PlansService,
   ) {}
+
+  private async resolveAudience(userId: string): Promise<PlanAudience> {
+    return this.entitlements.getAudienceForUser(userId);
+  }
 
   private async checkReference(
     userId: string,
@@ -82,9 +84,14 @@ export class PaymentsService {
         userId,
       );
       if (!sub) throwApi(404, 'ref_not_found', 'الاشتراك غير موجود');
+      const audience = await this.resolveAudience(userId);
       if (
         targetPlanId &&
-        shouldBlockSubscriptionPayment(sub, targetPlanId as PlanId)
+        this.subscriptionLifecycle.shouldBlockPayment(
+          sub,
+          normalizePlanSlug(targetPlanId),
+          audience,
+        )
       ) {
         throwApi(
           400,
@@ -130,11 +137,15 @@ export class PaymentsService {
       if (!planId || !billingCycle) {
         throwApi(400, 'validation_error', 'يجب تحديد الباقة ودورة الفوترة');
       }
-      if (!UPGRADABLE_PLANS.includes(planId)) {
+      const audience = await this.resolveAudience(user.userId);
+      const normalizedPlan = normalizePlanSlug(planId);
+      const upgradable = this.plans.getUpgradablePlans(audience);
+      if (!upgradable.includes(normalizedPlan)) {
         throwApi(400, 'invalid_plan', 'باقة غير صالحة للترقية');
       }
-      const expectedAmount = getPlanPrice(
-        planId as PlanId,
+      const expectedAmount = this.plans.getPlanPrice(
+        normalizedPlan,
+        audience,
         billingCycle as BillingCycle,
       );
       if (Math.abs(expectedAmount - amount) > 1) {
@@ -213,7 +224,7 @@ export class PaymentsService {
               value: Math.round(amount * 100),
             },
             language: 'ar',
-            description: descriptionAr || description || 'سروح Payment',
+            description: descriptionAr || description || 'سرح Payment',
             merchantAttributes: {
               redirectUrl: `${process.env.APP_URL}/payment/result`,
               cancelUrl: `${process.env.APP_URL}/payment/cancel`,
@@ -427,7 +438,8 @@ export class PaymentsService {
         if (sub) {
           await this.subscriptionLifecycle.downgradeUser(
             userId,
-            sub.planId as PlanId,
+            sub.planId,
+            sub.planAudience ?? (await this.resolveAudience(userId)),
             'refund',
           );
         }

@@ -49,8 +49,8 @@ export async function sendOtp(
         phone,
         channel,
         locale: 'ar',
-        app_name: 'سروح',
-        message_template: 'رمز التحقق في تطبيق سروح: {{code}}',
+        app_name: 'سرح',
+        message_template: 'رمز التحقق في تطبيق سرح: {{code}}',
       } satisfies TwilioSendOtpRequest & { app_name: string; message_template: string }),
     });
 

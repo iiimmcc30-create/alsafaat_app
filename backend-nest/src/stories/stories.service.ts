@@ -285,7 +285,7 @@ export class StoriesService {
       throwApi(403, 'forbidden', 'غير مسموح');
     }
 
-    await this.repo.deleteStory(id);
+    await this.repo.softDeleteStory(id);
     await this.invalidateFeedCache();
 
     this.logger.info(
@@ -496,7 +496,7 @@ export class StoriesService {
       throwApi(403, 'forbidden', 'غير مسموح');
     }
 
-    await this.repo.deleteButcherStory(id);
+    await this.repo.softDeleteButcherStory(id);
     await this.cache.del('butchers:stories:active');
 
     this.logger.info(

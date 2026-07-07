@@ -10,6 +10,7 @@
     "android": "node scripts/run-android-usb.js",
     "android:usb": "node scripts/run-android-usb.js",
     "android:dev": "node scripts/start-usb.js",
+    "adb:reverse": "node -e \"require('./scripts/start-usb.js').trySetupUsbReverse().then((u)=>{if(u){console.log('[adb:reverse] OK — API',u.apiUrl,', socket',u.socketUrl);}else{console.log('[adb:reverse] No USB device — connect phone and allow USB debugging');process.exit(1);}}).catch((e)=>{console.error(e.message||e);process.exit(1);})\"",
     "android:rebuild": "node scripts/run-android-usb.js",
     "android:install-all": "node scripts/install-android-all.js",
     "ios": "expo run:ios",
@@ -62,6 +63,8 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.1.10",
+    "eslint": "^9.39.4",
+    "eslint-config-expo": "^57.0.0",
     "typescript": "^5.3.3"
   },
   "expo": {

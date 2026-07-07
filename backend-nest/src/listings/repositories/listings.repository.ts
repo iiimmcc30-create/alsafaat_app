@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { PlanId } from '../../lib/plans';
-import { getListingLimit } from '../../lib/subscription-lifecycle';
 import { PrismaService } from '../../prisma/prisma.service';
+import { notDeleted, softDeleteFields } from '../../common/utils/soft-delete.util';
 
 const SELLER_SELECT = {
   id: true,
@@ -39,7 +38,9 @@ export class ListingsRepository {
         seller: {
           select: {
             ...SELLER_SELECT,
-            subscription: { select: { planId: true } },
+            subscription: {
+              select: { planId: true, planAudience: true },
+            },
           },
         },
       },
@@ -47,8 +48,8 @@ export class ListingsRepository {
   }
 
   findById(id: string) {
-    return this.prisma.listing.findUnique({
-      where: { id },
+    return this.prisma.listing.findFirst({
+      where: { id, ...notDeleted },
       include: {
         seller: { select: SELLER_DETAIL_SELECT },
         fee: { select: { status: true, commission: true, dueDate: true } },
@@ -84,13 +85,14 @@ export class ListingsRepository {
   markSold(id: string) {
     return this.prisma.listing.update({
       where: { id },
-      data: { status: 'sold' },
+      data: { status: 'sold', ...softDeleteFields() },
     });
   }
 
   createListingWithFee(params: {
     userId: string;
-    effectivePlanId: PlanId;
+    featured: boolean;
+    pinned?: boolean;
     data: Omit<Prisma.ListingUncheckedCreateInput, 'sellerId'>;
     commission: number;
     dueDate: Date;
@@ -99,19 +101,25 @@ export class ListingsRepository {
     price: number;
   }) {
     return this.prisma.$transaction(async (tx) => {
+      const now = new Date();
       const sub = await tx.subscription.findUnique({
         where: { userId: params.userId },
-        select: { planId: true, listingsUsed: true },
+        select: {
+          dailyAdsUsed: true,
+          dailyAdsWindowStart: true,
+        },
       });
 
-      const limit = getListingLimit(params.effectivePlanId);
-      if (limit < Number.MAX_SAFE_INTEGER && sub) {
-        if (sub.listingsUsed >= limit) {
-          throw Object.assign(new Error(`listing_limit:${limit}`), {
-            code: 'listing_limit',
-            limit,
-          });
-        }
+      const usageUpdate: Prisma.SubscriptionUpdateInput = {
+        listingsUsed: { increment: 1 },
+        dailyAdsUsed: { increment: 1 },
+        dailyAdsWindowStart: sub?.dailyAdsWindowStart ?? now,
+      };
+      if (params.featured) {
+        usageUpdate.featuredAdsUsed = { increment: 1 };
+      }
+      if (params.pinned) {
+        usageUpdate.pinnedAdsUsed = { increment: 1 };
       }
 
       const created = await tx.listing.create({
@@ -144,12 +152,10 @@ export class ListingsRepository {
         },
       });
 
-      if (sub) {
-        await tx.subscription.update({
-          where: { userId: params.userId },
-          data: { listingsUsed: { increment: 1 } },
-        });
-      }
+      await tx.subscription.update({
+        where: { userId: params.userId },
+        data: usageUpdate,
+      });
 
       return created;
     });

@@ -1,15 +1,15 @@
-// Official Srooh (سروح) brand copy — Vision 2030 aligned
+// Official sarh (سرح) brand copy — Vision 2030 aligned
 
-export const BRAND_NAME_AR = 'سروح';
-export const BRAND_NAME_EN = 'Srooh';
-export const BRAND_DISPLAY_NAME = 'سروح | Srooh';
+export const BRAND_NAME_AR = 'سرح';
+export const BRAND_NAME_EN = 'sarh';
+export const BRAND_DISPLAY_NAME = 'سرح | sarh';
 
 export const BRAND_TAGLINE_AR =
   'المنصة الوطنية الرائدة في خدمات الثروة الحيوانية';
 
 export const BRAND_MISSION_AR = `تمكين قطاع الثروة الحيوانية في المملكة العربية السعودية من خلال منصة رقمية موثوقة، تجمع الخدمات والحلول في تجربة واحدة، وتسهم في رفع الكفاءة، وتعزيز الاستدامة، ودعم التحول الرقمي بما يتوافق مع مستهدفات رؤية السعودية 2030.`;
 
-export const BRAND_VISION_AR = `أن يكون سروح المنصة الوطنية الرائدة في خدمات الثروة الحيوانية، ونموذجًا للتحول الرقمي والابتكار، بما يعكس مكانة المملكة وريادتها في بناء الخدمات الرقمية.`;
+export const BRAND_VISION_AR = `أن يكون سرح المنصة الوطنية الرائدة في خدمات الثروة الحيوانية، ونموذجًا للتحول الرقمي والابتكار، بما يعكس مكانة المملكة وريادتها في بناء الخدمات الرقمية.`;
 
 export const BRAND_GOAL_AR = `بناء منظومة رقمية متكاملة تربط ملاك الماشية، والمربين، والجهات الحكومية، والقطاع الخاص، ومقدمي الخدمات، في منصة واحدة توفر تجربة ذكية وآمنة وسهلة، وتدعم نمو القطاع ورفع جودة الخدمات.`;
 

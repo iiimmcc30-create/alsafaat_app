@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "سروح | Srooh",
+    "name": "Sarh",
     "slug": "safat",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,7 +14,7 @@
       "bundleIdentifier": "com.safat.app",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
-        "CFBundleDisplayName": "سروح | Srooh"
+        "CFBundleDisplayName": "سرح | Sarh"
       }
     },
     "android": {

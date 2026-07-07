@@ -6,6 +6,7 @@ import { Image } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
+import * as ImagePicker from 'expo-image-picker';
 import {
   Pressable,
   ScrollView,
@@ -15,6 +16,7 @@ import {
   View,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, gradients, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
@@ -22,6 +24,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
+import { uploadImageFromUri } from '@/services/upload';
 import {
   CATEGORY_LABELS,
   CUT_LABELS,
@@ -30,13 +33,24 @@ import {
   Country,
 } from '@/services/butcherData';
 import { ButcherLocationPicker } from '@/components/feature/ButcherLocationPicker';
+import { LocationMapPreview } from '@/components/feature/LocationMapPreview';
 import { hasValidCoords, formatCoords } from '@/lib/butcherLocation';
+import { formatLocationLabel } from '@/lib/formatAddress';
+import type { ResolvedAddress } from '@/lib/formatAddress';
 import { storyTimeLeftLabel } from '@/constants/stories';
 import { UserProfileLink } from '@/components/feature/UserProfileLink';
+import { connectSocket } from '@/lib/socket';
 
 type ManageTab = 'products' | 'offers' | 'stories' | 'orders';
 
 const MANAGE_TABS: ManageTab[] = ['orders', 'products', 'offers', 'stories'];
+
+const CANCEL_REASONS = [
+  'المنتج غير متوفر',
+  'الكمية غير كافية',
+  'تعذر التواصل مع العميل',
+  'طلب خارج نطاق الخدمة',
+] as const;
 
 function parseManageTab(value: string | undefined): ManageTab | null {
   return MANAGE_TABS.includes(value as ManageTab) ? (value as ManageTab) : null;
@@ -52,7 +66,14 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'ملغى',
 };
 
-
+function isLocalImageUri(uri: string) {
+  return (
+    uri.startsWith('file://') ||
+    uri.startsWith('content://') ||
+    uri.startsWith('ph://') ||
+    uri.startsWith('assets-library://')
+  );
+}
 
 // ─── Add / Edit Product Form ───────────────────────────────────────────────────
 function AddProductForm({
@@ -67,12 +88,18 @@ function AddProductForm({
   product?: any;
 }) {
   const { accessToken } = useAuth();
+  const { colors } = useTheme();
+  const apf = useThemedStyles(({ colors }) => createProductFormStyles(colors));
   const [loading, setLoading] = useState(false);
+  const [imageUris, setImageUris] = useState<string[]>(
+    Array.isArray(product?.images) ? product.images.filter(Boolean) : [],
+  );
   const [form, setForm] = useState({
     nameAr: product?.nameAr ?? '',
     category: (product?.category ?? 'lamb') as MeatCategory,
     pricePerKg: product?.pricePerKg?.toString() ?? '',
     priceFixed: product?.priceFixed?.toString() ?? '',
+    availableQuantity: product?.availableQuantity?.toString() ?? '',
     freshness: product?.freshness ?? 'fresh',
     inStock: product?.inStock ?? true,
   });
@@ -89,6 +116,31 @@ function AddProductForm({
     );
   };
 
+  const pickImages = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('إذن مطلوب', 'يرجى السماح بالوصول إلى الصور لإضافتها للمنتج');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: 5 - imageUris.length,
+      quality: 0.85,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      setImageUris((prev) =>
+        [...prev, ...result.assets.map((a) => a.uri)].slice(0, 5),
+      );
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImageUris((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSave = async () => {
     if (!form.nameAr.trim()) {
       Alert.alert('خطأ', 'يرجى إدخال اسم المنتج');
@@ -98,25 +150,40 @@ function AddProductForm({
       Alert.alert('خطأ', 'يرجى تحديد السعر');
       return;
     }
+    if (!accessToken) {
+      Alert.alert('خطأ', 'يرجى تسجيل الدخول أولاً');
+      return;
+    }
+
     setLoading(true);
     try {
+      const uploadedImages: string[] = [];
+      for (const uri of imageUris) {
+        if (isLocalImageUri(uri)) {
+          uploadedImages.push(await uploadImageFromUri(accessToken, uri, 'butchers'));
+        } else {
+          uploadedImages.push(uri);
+        }
+      }
+
       const payload: Record<string, unknown> = {
         nameAr: form.nameAr,
         nameEn: form.nameAr,
         category: form.category,
         pricePerKg: form.pricePerKg ? parseFloat(form.pricePerKg) : null,
         priceFixed: form.priceFixed ? parseFloat(form.priceFixed) : null,
+        availableQuantity: form.availableQuantity.trim()
+          ? parseFloat(form.availableQuantity)
+          : undefined,
         availableCuts: selectedCuts,
         freshness: form.freshness,
         descriptionAr: form.nameAr,
         descriptionEn: form.nameAr,
         inStock: form.inStock,
+        images: uploadedImages,
       };
 
-      if (product) {
-        if (product.images?.length) payload.images = product.images;
-      } else {
-        payload.images = [];
+      if (!product) {
         payload.country = butcherCountry || 'SA';
       }
 
@@ -143,7 +210,7 @@ function AddProductForm({
       }
     } catch (err) {
       console.error(err);
-      Alert.alert('خطأ', 'تعذر الاتصال بالخادم');
+      Alert.alert('خطأ', err instanceof Error ? err.message : 'تعذر الاتصال بالخادم');
     } finally {
       setLoading(false);
     }
@@ -209,6 +276,17 @@ function AddProductForm({
         </View>
       </View>
 
+      <Text style={apf.label}>الكمية المتاحة (كغ)</Text>
+      <TextInput
+        style={apf.input}
+        placeholder="مثال: 50"
+        placeholderTextColor={colors.textSubtle}
+        value={form.availableQuantity}
+        onChangeText={(v) => setForm({ ...form, availableQuantity: v })}
+        keyboardType="numeric"
+        textAlign="center"
+      />
+
       <Text style={apf.label}>طرق التقطيع المتاحة</Text>
       <View style={apf.cutsGrid}>
         {ALL_CUTS.map((cut) => (
@@ -257,11 +335,24 @@ function AddProductForm({
         ))}
       </View>
 
-      {/* Upload images */}
-      <Pressable style={apf.uploadBox}>
-        <AppIcon name="camera-outline" size={28} color={colors.electricBright} />
-        <Text style={apf.uploadText}>إضافة صور المنتج</Text>
-      </Pressable>
+      <Text style={apf.label}>صور المنتج</Text>
+      <View style={apf.imageGrid}>
+        {imageUris.map((uri, idx) => (
+          <View key={`${uri}-${idx}`} style={apf.imageThumbWrap}>
+            <Image source={{ uri }} style={apf.imageThumb} contentFit="cover" />
+            <Pressable style={apf.imageRemove} onPress={() => removeImage(idx)} hitSlop={6}>
+              <AppIcon name="close-circle" size={22} color={colors.danger} />
+            </Pressable>
+          </View>
+        ))}
+        {imageUris.length < 5 && (
+          <Pressable style={apf.uploadBox} onPress={pickImages} disabled={loading}>
+            <AppIcon name="camera-outline" size={28} color={colors.electricBright} />
+            <Text style={apf.uploadText}>إضافة صورة</Text>
+          </Pressable>
+        )}
+      </View>
+      <Text style={apf.uploadHint}>حتى 5 صور · JPG أو PNG</Text>
 
       <View style={apf.actions}>
         <Pressable style={apf.cancelBtn} onPress={onClose} disabled={loading}>
@@ -294,6 +385,8 @@ function AddOfferForm({
   offer?: any;
 }) {
   const { accessToken } = useAuth();
+  const { colors } = useTheme();
+  const apf = useThemedStyles(({ colors }) => createProductFormStyles(colors));
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     titleAr: offer?.titleAr ?? '',
@@ -481,6 +574,9 @@ export default function ButcherManageScreen() {
   const router = useRouter();
   const { colors, gradients } = useTheme();
   const styles = useThemedStyles(({ colors }) => createMainStyles(colors));
+  const pm = useThemedStyles(({ colors }) => createProductManageStyles(colors));
+  const ord = useThemedStyles(({ colors }) => createOrderStyles(colors));
+  const of = useThemedStyles(({ colors }) => createOfferManageStyles(colors));
   const statusColors: Record<string, string> = {
     pending: colors.amber,
     confirmed: colors.electricBright,
@@ -501,6 +597,7 @@ export default function ButcherManageScreen() {
   const [showLocationEditor, setShowLocationEditor] = useState(false);
   const [locationLat, setLocationLat] = useState<number | null>(null);
   const [locationLng, setLocationLng] = useState<number | null>(null);
+  const [locationAddress, setLocationAddress] = useState<ResolvedAddress | null>(null);
   const [savingLocation, setSavingLocation] = useState(false);
 
   const [butcher, setButcher] = useState<any>(null);
@@ -508,6 +605,9 @@ export default function ButcherManageScreen() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+  const [cancelReasonPreset, setCancelReasonPreset] = useState<string>(CANCEL_REASONS[0]);
+  const [cancelReasonCustom, setCancelReasonCustom] = useState('');
 
   const loadData = async () => {
     try {
@@ -566,8 +666,12 @@ export default function ButcherManageScreen() {
     if (butcher && hasValidCoords(butcher.lat, butcher.lng)) {
       setLocationLat(butcher.lat);
       setLocationLng(butcher.lng);
+      setLocationAddress({
+        cityAr: butcher.cityAr ?? '',
+        addressAr: butcher.addressAr ?? butcher.address ?? '',
+      });
     }
-  }, [butcher?.id, butcher?.lat, butcher?.lng]);
+  }, [butcher?.id, butcher?.lat, butcher?.lng, butcher?.cityAr, butcher?.addressAr]);
 
   const saveLocation = async () => {
     if (!accessToken || !hasValidCoords(locationLat, locationLng)) {
@@ -582,11 +686,22 @@ export default function ButcherManageScreen() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ lat: locationLat, lng: locationLng }),
+        body: JSON.stringify({
+          lat: locationLat,
+          lng: locationLng,
+          ...(locationAddress?.cityAr ? { cityAr: locationAddress.cityAr } : {}),
+          ...(locationAddress?.addressAr ? { addressAr: locationAddress.addressAr } : {}),
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok && json.success) {
-        setButcher((prev: any) => prev ? { ...prev, lat: locationLat, lng: locationLng } : prev);
+        setButcher((prev: any) => prev ? {
+          ...prev,
+          lat: locationLat,
+          lng: locationLng,
+          ...(locationAddress?.cityAr ? { cityAr: locationAddress.cityAr } : {}),
+          ...(locationAddress?.addressAr ? { addressAr: locationAddress.addressAr } : {}),
+        } : prev);
         setShowLocationEditor(false);
         Alert.alert('تم الحفظ', 'تم تحديث موقع الملحمة على الخريطة');
       } else {
@@ -599,11 +714,11 @@ export default function ButcherManageScreen() {
     }
   };
 
-  const advanceOrder = async (orderId: string, currentStatus: string) => {
-    const flow = ['pending', 'confirmed', 'preparing', 'ready', 'delivered'];
-    const idx = flow.indexOf(currentStatus);
-    if (idx < 0 || idx >= flow.length - 1) return;
-    const nextStatus = flow[idx + 1];
+  const transitionOrder = async (
+    orderId: string,
+    nextStatus: string,
+    cancellationReason?: string,
+  ) => {
 
     try {
       const res = await fetch(`${API_BASE}/api/butchers/orders/${orderId}`, {
@@ -612,14 +727,25 @@ export default function ButcherManageScreen() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ status: nextStatus }),
+        body: JSON.stringify({
+          status: nextStatus,
+          ...(cancellationReason ? { cancellationReason } : {}),
+        }),
       });
 
       const json = await res.json().catch(() => ({}));
 
       if (res.ok && json.success) {
         setOrders((prev) =>
-          prev.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o))
+          prev.map((o) =>
+            o.id === orderId
+              ? {
+                  ...o,
+                  ...json.data,
+                  status: nextStatus,
+                }
+              : o,
+          )
         );
       } else {
         Alert.alert('خطأ', json.messageAr || json.message || 'فشل تحديث حالة الطلب');
@@ -630,31 +756,44 @@ export default function ButcherManageScreen() {
     }
   };
 
-  const cancelOrder = async (orderId: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/api/butchers/orders/${orderId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ status: 'cancelled' }),
-      });
-
-      const json = await res.json().catch(() => ({}));
-
-      if (res.ok && json.success) {
-        setOrders((prev) =>
-          prev.map((o) => (o.id === orderId ? { ...o, status: 'cancelled' } : o))
-        );
-      } else {
-        Alert.alert('خطأ', json.messageAr || json.message || 'فشل إلغاء الطلب');
-      }
-    } catch (err) {
-      console.error(err);
-      Alert.alert('خطأ', 'تعذر الاتصال بالخادم');
-    }
+  const cancelOrder = (orderId: string) => {
+    setCancelOrderId(orderId);
+    setCancelReasonPreset(CANCEL_REASONS[0]);
+    setCancelReasonCustom('');
   };
+
+  const confirmCancelOrder = async () => {
+    if (!cancelOrderId) return;
+    const reason =
+      cancelReasonPreset === 'custom'
+        ? cancelReasonCustom.trim()
+        : cancelReasonPreset;
+    if (!reason) {
+      Alert.alert('خطأ', 'يرجى تحديد سبب الإلغاء');
+      return;
+    }
+    await transitionOrder(cancelOrderId, 'cancelled', reason);
+    setCancelOrderId(null);
+  };
+
+  useEffect(() => {
+    if (!accessToken) return;
+    const socket = connectSocket(accessToken);
+    const onOrderChanged = () => setRefreshTrigger((prev) => prev + 1);
+    socket.on('order.created', onOrderChanged);
+    socket.on('order.updated', onOrderChanged);
+    socket.on('order.cancelled', onOrderChanged);
+    socket.on('order.timeline.updated', onOrderChanged);
+    socket.on('inventory.updated', onOrderChanged);
+    return () => {
+      socket.off('order.created', onOrderChanged);
+      socket.off('order.updated', onOrderChanged);
+      socket.off('order.cancelled', onOrderChanged);
+      socket.off('order.timeline.updated', onOrderChanged);
+      socket.off('inventory.updated', onOrderChanged);
+      socket.disconnect();
+    };
+  }, [accessToken]);
 
   const deleteOffer = (offerId: string) => {
     Alert.alert('حذف العرض', 'هل تريد حذف هذا العرض؟', [
@@ -774,7 +913,7 @@ export default function ButcherManageScreen() {
       <SafeAreaView style={styles.screen} edges={['top']}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl, gap: spacing.md }}>
           <Text style={{ fontSize: 60 }}>🥩</Text>
-          <Text style={{ ...typography.h2, color: colors.textPrimary, textAlign: 'center' }}>سجّل ملحمتك في سروح</Text>
+          <Text style={{ ...typography.h2, color: colors.textPrimary, textAlign: 'center' }}>سجّل ملحمتك في سرح</Text>
           <Text style={{ ...typography.body, color: colors.textMuted, textAlign: 'center', paddingHorizontal: spacing.lg, lineHeight: 22 }}>
             ابدأ بعرض منتجاتك الحيوانية واللحوم الطازجة لآلاف المشترين في منطقة الخليج العربي.
           </Text>
@@ -877,7 +1016,7 @@ export default function ButcherManageScreen() {
               <Text style={styles.sectionTitle}>📍 موقع الملحمة</Text>
               <Text style={styles.locationSub}>
                 {hasValidCoords(butcher?.lat, butcher?.lng)
-                  ? formatCoords(butcher.lat, butcher.lng)
+                  ? formatLocationLabel(butcher?.cityAr, butcher?.addressAr ?? butcher?.address, butcher.lat, butcher.lng)
                   : 'لم يتم تحديد الموقع بعد — أضف موقعك ليظهر على الخريطة'}
               </Text>
             </View>
@@ -893,16 +1032,29 @@ export default function ButcherManageScreen() {
             </Pressable>
           </View>
 
+          {!showLocationEditor && hasValidCoords(butcher?.lat, butcher?.lng) ? (
+            <LocationMapPreview
+              country={(butcher?.country as Country) ?? 'SA'}
+              lat={butcher.lat}
+              lng={butcher.lng}
+              cityLabel={butcher?.cityAr}
+              height={180}
+            />
+          ) : null}
+
           {showLocationEditor && (
             <View style={styles.locationEditor}>
               <ButcherLocationPicker
                 country={(butcher?.country as Country) ?? 'SA'}
                 lat={locationLat}
                 lng={locationLng}
+                cityLabel={butcher?.cityAr}
+                addressLabel={butcher?.addressAr ?? butcher?.address}
                 onChange={({ lat, lng }) => {
                   setLocationLat(lat);
                   setLocationLng(lng);
                 }}
+                onAddressResolved={setLocationAddress}
                 height={240}
               />
               <Pressable
@@ -929,9 +1081,12 @@ export default function ButcherManageScreen() {
             {orders.map((order) => {
               const status = order.status;
               const statusColor = statusColors[status] ?? colors.textMuted;
-              const customerName = order.customer?.arabicName || order.customer?.displayName || 'عميل سروح';
+              const customerName = order.customer?.arabicName || order.customer?.displayName || 'عميل سرح';
               const productName = order.product?.nameAr || 'منتج لحم';
               const formattedDate = new Date(order.createdAt).toLocaleDateString('ar-SA');
+              const allowedNext: string[] = Array.isArray(order.allowedNextStatuses)
+                ? order.allowedNextStatuses
+                : [];
               return (
                 <View key={order.id} style={ord.card}>
                   <View style={ord.header}>
@@ -947,6 +1102,10 @@ export default function ButcherManageScreen() {
                       </Text>
                     </View>
                   </View>
+
+                  <Text style={ord.orderNumber}>
+                    رقم الطلب: {order.orderNumber || `#${order.id.slice(0, 8).toUpperCase()}`}
+                  </Text>
 
                   <View style={ord.detailRow}>
                     <View style={ord.detail}>
@@ -981,16 +1140,33 @@ export default function ButcherManageScreen() {
                   <View style={ord.actions}>
                     <Pressable
                       style={ord.chatBtn}
-                      onPress={() => router.push('/butchers/chat')}
+                      onPress={() => {
+                        const customerId = order.customer?.id;
+                        if (!customerId) {
+                          Alert.alert('خطأ', 'لا يمكن فتح المحادثة لعدم توفر بيانات العميل');
+                          return;
+                        }
+                        router.push({
+                          pathname: '/butchers/chat',
+                          params: {
+                            receiverId: customerId,
+                            receiverName: customerName,
+                            receiverAvatar: order.customer?.avatar || '',
+                          },
+                        });
+                      }}
                     >
                       <AppIcon name="chatbubble-outline" size={16} color={colors.electricBright} />
                       <Text style={ord.chatBtnText}>محادثة</Text>
                     </Pressable>
 
-                    {status !== 'delivered' && status !== 'cancelled' && (
+                    {allowedNext
+                      .filter((next) => next !== 'cancelled')
+                      .map((next) => (
                       <Pressable
+                        key={`${order.id}-${next}`}
                         style={ord.advanceBtn}
-                        onPress={() => advanceOrder(order.id, status)}
+                        onPress={() => transitionOrder(order.id, next)}
                       >
                         <LinearGradient
                           colors={[statusColor, statusColor + 'BB']}
@@ -999,17 +1175,20 @@ export default function ButcherManageScreen() {
                           end={{ x: 1, y: 0 }}
                         >
                           <Text style={ord.advanceBtnText}>
-                            {status === 'pending'   ? 'قبول الطلب' :
-                             status === 'confirmed' ? 'بدء التحضير' :
-                             status === 'preparing' ? 'جاهز للاستلام' :
-                             'تأكيد التسليم'}
+                            {next === 'confirmed'
+                              ? 'تأكيد'
+                              : next === 'preparing'
+                                ? 'بدء التحضير'
+                                : next === 'ready'
+                                  ? 'جاهز'
+                                  : 'تم التسليم'}
                           </Text>
                           <AppIcon name="arrow-forward" size={14} color="#fff" />
                         </LinearGradient>
                       </Pressable>
-                    )}
+                    ))}
 
-                    {status === 'pending' && (
+                    {allowedNext.includes('cancelled') && (
                       <Pressable
                         style={ord.rejectBtn}
                         onPress={() => cancelOrder(order.id)}
@@ -1237,6 +1416,62 @@ export default function ButcherManageScreen() {
 
         <View style={{ height: 80 }} />
       </ScrollView>
+
+      <Modal visible={!!cancelOrderId} transparent animationType="fade">
+        <View style={ord.modalBackdrop}>
+          <View style={ord.modalCard}>
+            <Text style={ord.modalTitle}>إلغاء الطلب</Text>
+            <Text style={ord.modalSub}>اختر سبب الإلغاء أو اكتب سبباً مخصصاً</Text>
+            {CANCEL_REASONS.map((reason) => (
+              <Pressable
+                key={reason}
+                style={[ord.reasonChip, cancelReasonPreset === reason && ord.reasonChipActive]}
+                onPress={() => setCancelReasonPreset(reason)}
+              >
+                <Text
+                  style={[
+                    ord.reasonChipText,
+                    cancelReasonPreset === reason && ord.reasonChipTextActive,
+                  ]}
+                >
+                  {reason}
+                </Text>
+              </Pressable>
+            ))}
+            <Pressable
+              style={[ord.reasonChip, cancelReasonPreset === '__custom__' && ord.reasonChipActive]}
+              onPress={() => setCancelReasonPreset('__custom__')}
+            >
+              <Text
+                style={[
+                  ord.reasonChipText,
+                  cancelReasonPreset === '__custom__' && ord.reasonChipTextActive,
+                ]}
+              >
+                سبب آخر
+              </Text>
+            </Pressable>
+            {cancelReasonPreset === '__custom__' && (
+              <TextInput
+                style={ord.customReasonInput}
+                placeholder="اكتب سبب الإلغاء"
+                placeholderTextColor={colors.textSubtle}
+                value={cancelReasonCustom}
+                onChangeText={setCancelReasonCustom}
+                textAlign="right"
+              />
+            )}
+            <View style={ord.modalActions}>
+              <Pressable style={ord.modalCancelBtn} onPress={() => setCancelOrderId(null)}>
+                <Text style={ord.modalCancelText}>تراجع</Text>
+              </Pressable>
+              <Pressable style={ord.modalConfirmBtn} onPress={confirmCancelOrder}>
+                <Text style={ord.modalConfirmText}>تأكيد الإلغاء</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1398,8 +1633,112 @@ function createMainStyles(colors: ThemeColors) {
   });
 }
 
-// Orders
-const ord = StyleSheet.create({
+// Add product / offer form
+function createProductFormStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  wrap: { gap: spacing.sm },
+  handle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: colors.borderMid,
+    alignSelf: 'center', marginBottom: spacing.md,
+  },
+  title: { ...typography.h3, color: colors.textPrimary, textAlign: 'center', marginBottom: spacing.md },
+  label: { ...typography.caption, color: colors.textSecondary, fontWeight: '600', marginBottom: 5, textAlign: 'right' },
+  input: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.xl, borderWidth: 1, borderColor: colors.borderSoft,
+    paddingHorizontal: spacing.md, paddingVertical: 12,
+    ...typography.body, color: colors.textPrimary,
+    marginBottom: spacing.md,
+  },
+  catChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: radius.pill, backgroundColor: colors.bgElevated,
+    borderWidth: 1.5, borderColor: colors.borderSoft,
+  },
+  catChipActive: { borderColor: colors.electric, backgroundColor: colors.electric + '22' },
+  catIcon: { fontSize: 14 },
+  catLabel: { ...typography.caption, color: colors.textMuted },
+  catLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
+  priceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.md },
+  priceLabel: { ...typography.micro, color: colors.textMuted, textAlign: 'center', marginBottom: 4 },
+  cutsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: spacing.lg },
+  cutChip: {
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: radius.pill, backgroundColor: colors.bgElevated,
+    borderWidth: 1.5, borderColor: colors.borderSoft,
+  },
+  cutChipActive: { borderColor: colors.electric, backgroundColor: colors.electric + '22' },
+  cutLabel: { ...typography.micro, color: colors.textMuted },
+  cutLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
+  freshnessRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+  freshnessBtn: {
+    flex: 1, paddingVertical: 10,
+    borderRadius: radius.xl, borderWidth: 1.5, borderColor: colors.borderSoft,
+    backgroundColor: colors.bgElevated, alignItems: 'center',
+  },
+  freshnessBtnActive: { borderColor: colors.electric, backgroundColor: colors.electric + '22' },
+  freshnessLabel: { ...typography.caption, color: colors.textSecondary },
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  imageThumbWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  imageThumb: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.bgElevated,
+  },
+  imageRemove: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: colors.bgOverlay,
+    borderRadius: 12,
+  },
+  uploadBox: {
+    width: 88,
+    height: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.electricBright + '55',
+    borderStyle: 'dashed',
+    backgroundColor: colors.electric + '08',
+  },
+  uploadText: { ...typography.micro, color: colors.textBrandStrong, fontWeight: '600', textAlign: 'center' },
+  uploadHint: { ...typography.micro, color: colors.textSubtle, textAlign: 'right', marginBottom: spacing.lg },
+  actions: { flexDirection: 'row', gap: spacing.md },
+  cancelBtn: {
+    flex: 1, paddingVertical: 13,
+    borderRadius: radius.xl,
+    borderWidth: 1, borderColor: colors.borderSoft,
+    alignItems: 'center',
+    backgroundColor: colors.bgElevated,
+  },
+  cancelText: { ...typography.bodyStrong, color: colors.textMuted },
+  saveBtn: { flex: 2, borderRadius: radius.xl, overflow: 'hidden' },
+  saveBtnGrad: {
+    paddingVertical: 13,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  saveBtnText: { ...typography.bodyStrong, color: '#fff' },
+  });
+}
+
+function createOrderStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   card: {
     backgroundColor: colors.bgSurface,
     borderRadius: radius.xxl,
@@ -1417,6 +1756,7 @@ const ord = StyleSheet.create({
     borderRadius: radius.pill, borderWidth: 1,
   },
   statusText: { ...typography.micro, fontWeight: '700' },
+  orderNumber: { ...typography.micro, color: colors.textMuted, textAlign: 'right' },
   detailRow: { flexDirection: 'row', gap: spacing.md },
   detail: { flex: 1, gap: 2 },
   detailLabel: { ...typography.micro, color: colors.textMuted },
@@ -1446,10 +1786,68 @@ const ord = StyleSheet.create({
     borderWidth: 1, borderColor: colors.danger + '55',
     backgroundColor: colors.danger + '11',
   },
-});
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: colors.bgSurface,
+    borderRadius: radius.xxl,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  modalTitle: { ...typography.h3, color: colors.textPrimary, textAlign: 'right' },
+  modalSub: { ...typography.caption, color: colors.textMuted, textAlign: 'right', marginBottom: spacing.sm },
+  reasonChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.bgElevated,
+  },
+  reasonChipActive: {
+    borderColor: colors.danger,
+    backgroundColor: colors.danger + '18',
+  },
+  reasonChipText: { ...typography.caption, color: colors.textSecondary, textAlign: 'right' },
+  reasonChipTextActive: { color: colors.danger, fontWeight: '700' },
+  customReasonInput: {
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    color: colors.textPrimary,
+    backgroundColor: colors.bgElevated,
+    marginTop: spacing.xs,
+  },
+  modalActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    alignItems: 'center',
+  },
+  modalCancelText: { ...typography.caption, color: colors.textMuted },
+  modalConfirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: radius.pill,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+  },
+  modalConfirmText: { ...typography.caption, color: '#fff', fontWeight: '700' },
+  });
+}
 
-// Products manage
-const pm = StyleSheet.create({
+function createProductManageStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   card: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     backgroundColor: colors.bgSurface,
@@ -1476,10 +1874,11 @@ const pm = StyleSheet.create({
     borderWidth: 1, borderColor: colors.danger + '44',
     alignItems: 'center', justifyContent: 'center',
   },
-});
+  });
+}
 
-// Offers manage
-const of = StyleSheet.create({
+function createOfferManageStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   card: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     backgroundColor: colors.bgSurface,
@@ -1494,7 +1893,8 @@ const of = StyleSheet.create({
   original: { ...typography.micro, color: colors.textMuted, textDecorationLine: 'line-through' },
   discBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.danger },
   discText: { ...typography.micro, color: '#fff', fontWeight: '700' },
-});
+  });
+}
 
 // Stories
 const sto = StyleSheet.create({
@@ -1554,76 +1954,4 @@ const sto = StyleSheet.create({
   },
   activeCaption: { ...typography.caption, color: colors.textPrimary, fontWeight: '600' },
   activeMeta: { ...typography.micro, color: colors.textMuted, marginTop: 2 },
-});
-
-// Add product form
-const apf = StyleSheet.create({
-  wrap: { gap: spacing.sm },
-  handle: {
-    width: 36, height: 4, borderRadius: 2,
-    backgroundColor: colors.borderMid,
-    alignSelf: 'center', marginBottom: spacing.md,
-  },
-  title: { ...typography.h3, color: colors.textPrimary, textAlign: 'center', marginBottom: spacing.md },
-  label: { ...typography.caption, color: colors.textSecondary, fontWeight: '600', marginBottom: 5, textAlign: 'right' },
-  input: {
-    backgroundColor: colors.bgElevated,
-    borderRadius: radius.xl, borderWidth: 1, borderColor: colors.borderSoft,
-    paddingHorizontal: spacing.md, paddingVertical: 12,
-    ...typography.body, color: colors.textPrimary,
-    marginBottom: spacing.md,
-  },
-  catChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: radius.pill, backgroundColor: colors.bgElevated,
-    borderWidth: 1.5, borderColor: colors.borderSoft,
-  },
-  catChipActive: { borderColor: colors.electric, backgroundColor: colors.electric + '22' },
-  catIcon: { fontSize: 14 },
-  catLabel: { ...typography.caption, color: colors.textMuted },
-  catLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
-  priceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.md },
-  priceLabel: { ...typography.micro, color: colors.textMuted, textAlign: 'center', marginBottom: 4 },
-  cutsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: spacing.lg },
-  cutChip: {
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: radius.pill, backgroundColor: colors.bgElevated,
-    borderWidth: 1.5, borderColor: colors.borderSoft,
-  },
-  cutChipActive: { borderColor: colors.electric, backgroundColor: colors.electric + '22' },
-  cutLabel: { ...typography.micro, color: colors.textMuted },
-  cutLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
-  freshnessRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
-  freshnessBtn: {
-    flex: 1, paddingVertical: 10,
-    borderRadius: radius.xl, borderWidth: 1.5, borderColor: colors.borderSoft,
-    backgroundColor: colors.bgElevated, alignItems: 'center',
-  },
-  freshnessBtnActive: { borderColor: colors.electric, backgroundColor: colors.electric + '22' },
-  freshnessLabel: { ...typography.caption, color: colors.textSecondary },
-  uploadBox: {
-    alignItems: 'center', gap: 8,
-    paddingVertical: spacing.xl,
-    borderRadius: radius.xl,
-    borderWidth: 1.5, borderColor: colors.electricBright + '55',
-    borderStyle: 'dashed',
-    backgroundColor: colors.electric + '08',
-    marginBottom: spacing.lg,
-  },
-  uploadText: { ...typography.caption, color: colors.textBrandStrong, fontWeight: '600' },
-  actions: { flexDirection: 'row', gap: spacing.md },
-  cancelBtn: {
-    flex: 1, paddingVertical: 13,
-    borderRadius: radius.xl,
-    borderWidth: 1, borderColor: colors.borderSoft,
-    alignItems: 'center',
-  },
-  cancelText: { ...typography.bodyStrong, color: colors.textMuted },
-  saveBtn: { flex: 2, borderRadius: radius.xl, overflow: 'hidden' },
-  saveBtnGrad: {
-    paddingVertical: 13,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  saveBtnText: { ...typography.bodyStrong, color: '#fff' },
 });

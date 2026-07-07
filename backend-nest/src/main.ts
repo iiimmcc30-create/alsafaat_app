@@ -1,6 +1,10 @@
+import { config as loadEnv } from 'dotenv';
+import { resolve } from 'path';
 import { ValidationPipe } from '@nestjs/common';
-import './load-env';
 import { NestFactory } from '@nestjs/core';
+
+loadEnv({ path: resolve(process.cwd(), '.env') });
+loadEnv({ path: resolve(process.cwd(), '../backend/.env') });
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import {
   json,
@@ -101,7 +105,7 @@ async function bootstrap() {
 
   if (swaggerEnabled) {
     const swaggerConfig = new DocumentBuilder()
-      .setTitle('سروح API')
+      .setTitle('سرح API')
       .setDescription(
         'NestJS migration — backward compatible with React Native client',
       )
@@ -114,7 +118,7 @@ async function bootstrap() {
 
   const port = parseInt(process.env.PORT || '3001', 10);
   await app.listen(port, '0.0.0.0');
-  logger.info({ port }, 'سروح NestJS API running');
+  logger.info({ port }, 'سرح NestJS API running');
 }
 
 bootstrap().catch((err) => {

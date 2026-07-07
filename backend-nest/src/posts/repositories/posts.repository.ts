@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { notDeleted, softDeleteFields } from '../../common/utils/soft-delete.util';
 
 export const POST_AUTHOR_SELECT = {
   id: true,
@@ -65,15 +66,15 @@ export class PostsRepository {
   }
 
   findById(id: string) {
-    return this.prisma.post.findUnique({
-      where: { id },
+    return this.prisma.post.findFirst({
+      where: { id, ...notDeleted },
       include: POST_INCLUDE,
     });
   }
 
   findOwnerMeta(id: string) {
-    return this.prisma.post.findUnique({
-      where: { id },
+    return this.prisma.post.findFirst({
+      where: { id, ...notDeleted },
       select: { id: true, authorId: true },
     });
   }
@@ -86,8 +87,11 @@ export class PostsRepository {
     });
   }
 
-  delete(id: string) {
-    return this.prisma.post.delete({ where: { id } });
+  softDelete(id: string) {
+    return this.prisma.post.update({
+      where: { id },
+      data: { ...softDeleteFields(), isHidden: true },
+    });
   }
 
   findLike(postId: string, userId: string) {

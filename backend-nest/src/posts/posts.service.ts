@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { throwApi } from '../common/exceptions/api.exception';
 import { RedisCacheService } from '../redis/services/redis-cache.service';
 import { AppNotificationsService } from '../queue/services/app-notifications.service';
@@ -10,6 +11,7 @@ import {
   UpdatePostDto,
 } from './dto/posts.dto';
 import { PostsRepository } from './repositories/posts.repository';
+import { notDeleted } from '../common/utils/soft-delete.util';
 
 const PAGE_SIZE = 20;
 
@@ -49,7 +51,9 @@ export class PostsService {
     }>(cacheKey);
     if (cached) return cached;
 
-    const where = authorId ? { authorId } : {};
+    const where: Prisma.PostWhereInput = authorId
+      ? { authorId, ...notDeleted, isHidden: false }
+      : { ...notDeleted, isHidden: false };
     const posts = await this.repo.findFeed({
       where,
       take: PAGE_SIZE + 1,
@@ -147,7 +151,7 @@ export class PostsService {
       throwApi(403, 'forbidden', 'غير مسموح');
     }
 
-    await this.repo.delete(id);
+    await this.repo.softDelete(id);
     await this.invalidatePostCaches(id, post.authorId);
     return { deleted: true };
   }

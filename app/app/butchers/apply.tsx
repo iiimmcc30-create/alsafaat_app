@@ -136,7 +136,7 @@ export default function ButcherApplyScreen() {
           </LinearGradient>
         </View>
 
-        <Text style={styles.title}>انضم كجزار في سروح</Text>
+        <Text style={styles.title}>انضم كجزار في سرح</Text>
         <Text style={styles.subtitle}>
           قدّم طلب تسجيل ملحمتك عبر نظام الطلبات الجديد. سنراجع بياناتك ومستنداتك ثم نفعّل حسابك
           كجزار بعد الموافقة.

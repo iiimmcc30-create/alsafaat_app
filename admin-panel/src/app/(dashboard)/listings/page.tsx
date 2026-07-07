@@ -3,6 +3,7 @@
 import { ResourcePage, Badge } from '@/components/ui/ResourcePage';
 import { Button } from '@/components/ui/Button';
 import { fetchListings, updateListing, deleteListing } from '@/services/admin.service';
+import { getApiErrorMessage } from '@/services/api.client';
 
 type ListingRow = {
   id: string;
@@ -57,13 +58,16 @@ export default function ListingsPage() {
             variant="danger"
             size="sm"
             onClick={async () => {
-              if (confirm('تعليق الإعلان؟')) {
+              if (!confirm('أرشفة الإعلان؟ سيختفي من التطبيق ويمكن استرجاعه خلال 90 يوماً.')) return;
+              try {
                 await deleteListing(row.id);
                 reload();
+              } catch (err) {
+                alert(getApiErrorMessage(err, 'فشل أرشفة الإعلان'));
               }
             }}
           >
-            تعليق
+            أرشفة
           </Button>
         </div>
       )}

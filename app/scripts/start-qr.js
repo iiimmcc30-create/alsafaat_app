@@ -1,5 +1,5 @@
 /**
- * Wi‑Fi dev: start Metro + generate QR for the installed سروح dev app.
+ * Wi‑Fi dev: start Metro + generate QR for the installed سرح dev app.
  * Usage: npm run start:qr
  */
 const { spawn, execFile } = require('child_process');
@@ -112,7 +112,7 @@ async function main() {
 
   console.log('');
   console.log('══════════════════════════════════════════');
-  console.log('  سروح — تشغيل Metro للواي فاي');
+  console.log('  سرح — تشغيل Metro للواي فاي');
   console.log('══════════════════════════════════════════');
   console.log('  IP:', lanIp);
   console.log('  Dev app (امسح QR):', devClientUrl);
@@ -122,7 +122,7 @@ async function main() {
   console.log('');
   console.log('  1) ثبّت التطبيق أولاً: npm run android');
   console.log('  2) نفس شبكة Wi‑Fi للهاتف والكمبيوتر');
-  console.log('  3) امسح expo-qr.png من تطبيق سروح المثبّت');
+  console.log('  3) امسح expo-qr.png من تطبيق سرح المثبّت');
   console.log('══════════════════════════════════════════');
   console.log('');
 

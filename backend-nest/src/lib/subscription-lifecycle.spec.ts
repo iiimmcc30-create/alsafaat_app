@@ -1,58 +1,66 @@
 import {
-  getEffectivePlanId,
+  daysUntilRenewDate,
+  getEffectivePlanSlug,
   getSubscriptionStatus,
   hasPaidAccess,
-  isUpgrade,
+  isPaidPlan,
   shouldBlockSubscriptionPayment,
-  planTier,
 } from './subscription-lifecycle';
 
 describe('subscription-lifecycle', () => {
-  const now = new Date('2026-06-01T12:00:00Z');
-  const future = new Date('2026-07-01T12:00:00Z');
-  const past = new Date('2026-05-01T12:00:00Z');
+  const now = new Date('2026-01-15T12:00:00Z');
+  const tierOf = (slug: string) =>
+    ({ free: 0, 'sarh-pro': 1, growth: 1 }[slug] ?? 0);
 
-  it('allows free users to upgrade regardless of renewDate', () => {
-    const sub = { planId: 'free', renewDate: future, autoRenew: true };
-    expect(shouldBlockSubscriptionPayment(sub, 'starter', now)).toBe(false);
-    expect(shouldBlockSubscriptionPayment(sub, 'pro', now)).toBe(false);
+  it('free plan is not paid', () => {
+    expect(isPaidPlan('free')).toBe(false);
+    expect(isPaidPlan('sarh-pro')).toBe(true);
   });
 
-  it('blocks early renewal of the same paid plan', () => {
-    const sub = { planId: 'starter', renewDate: future, autoRenew: true };
-    expect(shouldBlockSubscriptionPayment(sub, 'starter', now)).toBe(true);
+  it('effective plan falls back to free when expired', () => {
+    const sub = {
+      planId: 'sarh-pro',
+      renewDate: new Date('2026-01-01T00:00:00Z'),
+      autoRenew: false,
+    };
+    expect(getEffectivePlanSlug(sub, now)).toBe('free');
   });
 
-  it('allows paid tier upgrades before renewDate', () => {
-    const sub = { planId: 'starter', renewDate: future, autoRenew: true };
-    expect(shouldBlockSubscriptionPayment(sub, 'pro', now)).toBe(false);
-    expect(isUpgrade('starter', 'pro')).toBe(true);
-    expect(planTier('pro')).toBeGreaterThan(planTier('starter'));
-  });
-
-  it('allows renewal after renewDate passes', () => {
-    const sub = { planId: 'pro', renewDate: past, autoRenew: true };
-    expect(shouldBlockSubscriptionPayment(sub, 'pro', now)).toBe(false);
-  });
-
-  it('downgrades effective plan when expired', () => {
-    const sub = { planId: 'pro', renewDate: past, autoRenew: false };
-    expect(getSubscriptionStatus(sub, now)).toBe('expired');
-    expect(getEffectivePlanId(sub, now)).toBe('free');
-    expect(hasPaidAccess(sub, now)).toBe(false);
-  });
-
-  it('keeps paid access during grace with autoRenew', () => {
-    const renewDate = new Date('2026-05-30T12:00:00Z');
-    const sub = { planId: 'starter', renewDate, autoRenew: true };
+  it('grace period keeps paid plan slug', () => {
+    const sub = {
+      planId: 'sarh-pro',
+      renewDate: new Date('2026-01-14T00:00:00Z'),
+      autoRenew: true,
+    };
     expect(getSubscriptionStatus(sub, now)).toBe('grace_period');
-    expect(getEffectivePlanId(sub, now)).toBe('starter');
+    expect(getEffectivePlanSlug(sub, now)).toBe('sarh-pro');
+  });
+
+  it('blocks early renewal of same tier', () => {
+    const sub = {
+      planId: 'sarh-pro',
+      renewDate: new Date('2026-02-01T00:00:00Z'),
+      autoRenew: true,
+    };
+    expect(
+      shouldBlockSubscriptionPayment(sub, 'sarh-pro', tierOf, now),
+    ).toBe(true);
     expect(hasPaidAccess(sub, now)).toBe(true);
   });
 
-  it('marks cancelled but active subscriptions', () => {
-    const sub = { planId: 'pro', renewDate: future, autoRenew: false };
-    expect(getSubscriptionStatus(sub, now)).toBe('cancelled');
-    expect(hasPaidAccess(sub, now)).toBe(true);
+  it('allows upgrade while active', () => {
+    const sub = {
+      planId: 'free',
+      renewDate: new Date('2026-02-01T00:00:00Z'),
+      autoRenew: true,
+    };
+    expect(
+      shouldBlockSubscriptionPayment(sub, 'sarh-pro', tierOf, now),
+    ).toBe(false);
+  });
+
+  it('daysUntilRenewDate', () => {
+    const renew = new Date('2026-01-20T12:00:00Z');
+    expect(daysUntilRenewDate(renew, now)).toBe(5);
   });
 });

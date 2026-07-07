@@ -1,4 +1,5 @@
-import { Controller, Get, HttpCode } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Query } from '@nestjs/common';
+import { PlanAudience } from '@prisma/client';
 import { Public } from '../common/decorators/auth.decorators';
 import { successResponse } from '../common/utils/response.util';
 import { PlansService } from './plans.service';
@@ -9,8 +10,8 @@ export class PlansController {
 
   @Public()
   @Get()
-  @HttpCode(200)
-  getPlans() {
-    return successResponse(this.plans.getPlans());
+  @HttpCode(HttpStatus.OK)
+  async getPlans(@Query('audience') audience?: PlanAudience) {
+    return successResponse(await this.plans.getPlans(audience));
   }
 }

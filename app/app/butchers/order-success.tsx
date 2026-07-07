@@ -10,10 +10,12 @@ import { colors, gradients, radius, spacing, typography } from '@/constants/them
 
 export default function OrderSuccessScreen() {
   const router = useRouter();
-  const { orderId, butcherId } = useLocalSearchParams<{ orderId?: string; butcherId?: string }>();
-  const displayOrderId = orderId
-    ? `#${orderId.slice(0, 8).toUpperCase()}`
-    : '—';
+  const { orderId, orderNumber, butcherId } = useLocalSearchParams<{
+    orderId?: string;
+    orderNumber?: string;
+    butcherId?: string;
+  }>();
+  const displayOrderId = orderNumber || (orderId ? `#${orderId.slice(0, 8).toUpperCase()}` : '—');
 
   return (
     <SafeAreaView style={s.screen}>
@@ -77,19 +79,21 @@ export default function OrderSuccessScreen() {
         {/* Actions */}
         <Pressable
           style={({ pressed }) => [s.chatBtn, pressed && { opacity: 0.88 }]}
-          onPress={() => router.push({
-            pathname: '/butchers/chat',
-            params: butcherId ? { butcherId } : {},
-          } as any)}
+          onPress={() =>
+            router.push({
+              pathname: '/butchers/order/[id]',
+              params: { id: orderId ?? '' },
+            })
+          }
         >
           <LinearGradient
-            colors={[colors.electric, colors.cyan]}
+            colors={[colors.electricBright, colors.cyan]}
             style={s.chatBtnGrad}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           >
-            <AppIcon name="chatbubbles-outline" size={20} color="#fff" />
-            <Text style={s.chatBtnText}>فتح المحادثة مع الجزار</Text>
+            <AppIcon name="receipt-outline" size={20} color="#fff" />
+            <Text style={s.chatBtnText}>تتبع الطلب</Text>
           </LinearGradient>
         </Pressable>
 

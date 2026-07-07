@@ -3,6 +3,7 @@
 import { ResourcePage, Badge } from '@/components/ui/ResourcePage';
 import { Button } from '@/components/ui/Button';
 import { fetchPosts, setPostHidden, deletePost } from '@/services/admin.service';
+import { getApiErrorMessage } from '@/services/api.client';
 
 type PostRow = {
   id: string;
@@ -56,13 +57,16 @@ export default function PostsPage() {
             variant="danger"
             size="sm"
             onClick={async () => {
-              if (confirm('حذف نهائي؟')) {
+              if (!confirm('أرشفة المنشور؟ سيختفي من التطبيق.')) return;
+              try {
                 await deletePost(row.id);
                 reload();
+              } catch (err) {
+                alert(getApiErrorMessage(err, 'فشل أرشفة المنشور'));
               }
             }}
           >
-            حذف
+            أرشفة
           </Button>
         </div>
       )}

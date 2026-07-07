@@ -2,7 +2,7 @@
 import { AppIcon } from '@/components/ui/FlaticonIcon';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -13,11 +13,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { usePlans } from '@/hooks/usePlans';
-import { PLAN_ICONS, PlanId } from '@/services/subscriptionPlans';
+import { formatPlanFeatureText, planDisplayName, planGradientColors, planIcon, type PlanSlug, type SubscriptionPlan } from '@/services/subscriptionPlans';
 import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
-import { rtlBackIcon, rtlDirection, rtlRow } from '@/lib/rtl';
+import { rtlBackIcon, rtlDirection, rtlRow, inlineStart, ltrInputText } from '@/lib/rtl';
 
 type Cycle = 'monthly' | 'yearly';
 
@@ -26,18 +26,31 @@ export default function SubscriptionScreen() {
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
   const { subscription } = useSubscription();
-  const { plans, getPlanById } = usePlans();
+  const { plans, getPlanBySlug } = usePlans(subscription.planAudience);
   const [cycle, setCycle] = useState<Cycle>('monthly');
-  const [selected, setSelected] = useState<PlanId>(subscription.planId);
+  const paidDefault = plans.find((p) => p.monthlyPrice > 0)?.slug ?? 'sarh-pro';
+  const [selected, setSelected] = useState<PlanSlug>(
+    subscription.planSlug === 'free' ? paidDefault : subscription.planSlug,
+  );
 
-  const currentPlanOrder: PlanId[] = ['free', 'starter', 'pro', 'vip'];
-  const isUpgrade = (planId: PlanId) =>
-    currentPlanOrder.indexOf(planId) > currentPlanOrder.indexOf(subscription.planId);
-  const isCurrent = (planId: PlanId) => planId === subscription.planId;
+  useEffect(() => {
+    if (subscription.planSlug === 'free') {
+      setSelected((prev) => (prev === 'free' ? paidDefault : prev));
+    }
+  }, [subscription.planSlug, paidDefault]);
+
+  const isUpgrade = (slug: PlanSlug) => {
+    const cur = plans.find((p) => p.slug === subscription.planSlug);
+    const target = plans.find((p) => p.slug === slug);
+    return (target?.sortOrder ?? 0) > (cur?.sortOrder ?? 0);
+  };
+  const isCurrent = (slug: PlanSlug) => slug === subscription.planSlug;
+
+  const planColors = planGradientColors;
 
   const yearlyDiscount = (plan: typeof plans[0]) =>
-    plan.price > 0
-      ? Math.round(100 - (plan.yearlyPrice / (plan.price * 12)) * 100)
+    plan.monthlyPrice > 0
+      ? Math.round(100 - (plan.yearlyPrice / (plan.monthlyPrice * 12)) * 100)
       : 0;
 
   const handleContinue = () => {
@@ -45,12 +58,18 @@ export default function SubscriptionScreen() {
     router.push({ pathname: '/payment', params: { planId: selected, cycle } });
   };
 
+  const currentPlan = getPlanBySlug(subscription.planSlug);
+  const upgradePlans =
+    subscription.planSlug === 'free'
+      ? plans.filter((p) => p.slug !== 'free')
+      : plans;
+
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={[styles.screen, rtlDirection]} edges={['top']}>
       <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, rtlRow]}>
         <Pressable
           onPress={() => router.back()}
           hitSlop={12}
@@ -66,10 +85,10 @@ export default function SubscriptionScreen() {
       </View>
 
       {/* Billing toggle */}
-      <View style={styles.toggleRow}>
+      <View style={[styles.toggleRow, rtlRow]}>
         <Pressable
           onPress={() => setCycle('monthly')}
-          style={[styles.toggleBtn, cycle === 'monthly' && styles.toggleActive]}
+          style={[styles.toggleBtn, rtlRow, cycle === 'monthly' && styles.toggleActive]}
         >
           <Text style={[styles.toggleText, cycle === 'monthly' && styles.toggleTextActive]}>
             شهري
@@ -77,7 +96,7 @@ export default function SubscriptionScreen() {
         </Pressable>
         <Pressable
           onPress={() => setCycle('yearly')}
-          style={[styles.toggleBtn, cycle === 'yearly' && styles.toggleActive]}
+          style={[styles.toggleBtn, rtlRow, cycle === 'yearly' && styles.toggleActive]}
         >
           <Text style={[styles.toggleText, cycle === 'yearly' && styles.toggleTextActive]}>
             سنوي
@@ -88,22 +107,38 @@ export default function SubscriptionScreen() {
         </Pressable>
       </View>
 
+      {subscription.planSlug === 'free' ? (
+        <Text style={styles.pickHint}>اختار باقة للترقية ثم اضغط «متابعة الدفع» بالأسفل</Text>
+      ) : null}
+
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, rtlDirection]}
       >
-        {plans.map((plan) => {
-          const isSelected = selected === plan.id;
-          const isCur = isCurrent(plan.id);
-          const price = cycle === 'yearly' && plan.id !== 'free'
+        {/* بطاقة الباقة الحالية */}
+        <CurrentPlanCard
+          plan={currentPlan}
+          subscription={subscription}
+          styles={styles}
+        />
+
+        {subscription.planSlug === 'free' && upgradePlans.length > 0 ? (
+          <Text style={styles.sectionTitle}>باقات الترقية</Text>
+        ) : null}
+
+        {upgradePlans.map((plan) => {
+          const [color, colorEnd] = planColors(plan.sortOrder);
+          const isSelected = selected === plan.slug;
+          const isCur = isCurrent(plan.slug);
+          const price = cycle === 'yearly' && plan.slug !== 'free'
             ? Math.round(plan.yearlyPrice / 12)
-            : plan.price;
+            : plan.monthlyPrice;
           const discount = yearlyDiscount(plan);
 
           return (
             <Pressable
-              key={plan.id}
-              onPress={() => setSelected(plan.id)}
+              key={plan.slug}
+              onPress={() => setSelected(plan.slug)}
               style={({ pressed }) => [
                 styles.card,
                 isSelected && styles.cardSelected,
@@ -113,7 +148,7 @@ export default function SubscriptionScreen() {
               {/* Card gradient border */}
               {isSelected ? (
                 <LinearGradient
-                  colors={[plan.color, plan.colorEnd]}
+                  colors={[color, colorEnd]}
                   style={styles.cardBorderGrad}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
@@ -124,55 +159,39 @@ export default function SubscriptionScreen() {
               <View style={styles.cardInner}>
                 {/* Plan header */}
                 <View style={styles.planHeader}>
-                  <LinearGradient
-                    colors={[plan.color, plan.colorEnd]}
-                    style={styles.planIconBox}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <Text style={styles.planIconText}>{PLAN_ICONS[plan.id]}</Text>
-                  </LinearGradient>
-
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.planNameRow}>
-                      <Text style={styles.planName}>{plan.arabicName}</Text>
-                      {plan.badge ? (
-                        <LinearGradient
-                          colors={[plan.color, plan.colorEnd]}
-                          style={styles.badgePill}
-                        >
-                          <Text style={styles.badgeText}>{plan.badge}</Text>
-                        </LinearGradient>
-                      ) : null}
-                      {isCur ? (
-                        <View style={styles.currentPill}>
-                          <Text style={styles.currentText}>باقتك الحالية</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text style={styles.planDesc}>{plan.arabicDescription}</Text>
-                  </View>
-
-                  {/* Price */}
-                  <View style={styles.priceBlock}>
-                    {plan.price === 0 ? (
-                      <Text style={styles.priceFree}>مجاني</Text>
-                    ) : (
-                      <>
-                        <View style={styles.priceRow}>
-                          <Text style={[styles.priceAmount, { color: plan.colorEnd }]}>
-                            {price}
-                          </Text>
-                          <Text style={styles.priceCurrency}> ريال</Text>
-                        </View>
-                        <Text style={styles.pricePer}>/ شهر</Text>
-                        {cycle === 'yearly' && discount > 0 ? (
-                          <Text style={[styles.discountBadge, { color: plan.colorEnd }]}>
-                            -{discount}%
-                          </Text>
+                  <View style={[styles.planTopRow, rtlRow]}>
+                    <View style={styles.planHeaderBody}>
+                      <View style={styles.planNameRow}>
+                        <Text style={styles.planName}>{plan.name}</Text>
+                        {isCur ? (
+                          <View style={styles.currentPill}>
+                            <Text style={styles.currentText}>باقتك الحالية</Text>
+                          </View>
                         ) : null}
-                      </>
-                    )}
+                      </View>
+                      <Text style={styles.planDesc}>{plan.description}</Text>
+                      {plan.monthlyPrice === 0 ? (
+                        <Text style={styles.priceFree}>مجاني</Text>
+                      ) : (
+                        <Text style={styles.priceLine}>
+                          {price} ريال
+                          <Text style={styles.pricePer}> / شهر</Text>
+                          {cycle === 'yearly' && discount > 0 ? (
+                            <Text style={[styles.discountBadge, { color: colorEnd }]}>
+                              {' '}(-{discount}%)
+                            </Text>
+                          ) : null}
+                        </Text>
+                      )}
+                    </View>
+                    <LinearGradient
+                      colors={[color, colorEnd]}
+                      style={styles.planIconBox}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <AppIcon name={planIcon(plan.slug) as never} size={22} color="#fff" />
+                    </LinearGradient>
                   </View>
                 </View>
 
@@ -181,38 +200,44 @@ export default function SubscriptionScreen() {
 
                 {/* Features */}
                 <View style={styles.featuresList}>
-                  {plan.features.map((f, i) => (
+                  {(plan.displayFeatures ?? []).map((f, i) => {
+                    const included =
+                      f.valueType === 'BOOLEAN'
+                        ? Boolean(f.value)
+                        : f.valueType === 'NUMBER'
+                          ? Number(f.value) > 0 || Number(f.value) < 0
+                          : true;
+                    return (
                     <View key={i} style={styles.featureRow}>
+                      <Text
+                        style={[
+                          styles.featureText,
+                          !included && { color: colors.textSubtle, textDecorationLine: 'line-through' },
+                        ]}
+                      >
+                        {f.label}: {formatPlanFeatureText(f.key, f.value, f.valueType)}
+                      </Text>
                       <View
                         style={[
                           styles.featureIconWrap,
-                          f.included
-                            ? { backgroundColor: `${plan.colorEnd}22` }
+                          included
+                            ? { backgroundColor: `${colorEnd}22` }
                             : { backgroundColor: 'rgba(100,116,139,0.15)' },
                         ]}
                       >
                         <AppIcon
-                          name={f.included ? 'check' : 'close'}
+                          name={included ? 'check' : 'close'}
                           size={13}
-                          color={f.included ? plan.colorEnd : colors.textSubtle}
+                          color={included ? colorEnd : colors.textSubtle}
                         />
                       </View>
-                      <Text
-                        style={[
-                          styles.featureText,
-                          !f.included && { color: colors.textSubtle, textDecorationLine: 'line-through' },
-                          f.highlight && f.included && { color: colors.textPrimary, fontWeight: '600' },
-                        ]}
-                      >
-                        {f.arabic}
-                      </Text>
                     </View>
-                  ))}
+                  );})}
                 </View>
 
                 {/* Select indicator */}
                 {isSelected ? (
-                  <View style={[styles.selectedCheck, { backgroundColor: plan.colorEnd }]}>
+                  <View style={[styles.selectedCheck, inlineStart(spacing.md), { backgroundColor: colorEnd }]}>
                     <AppIcon name="checkmark" size={16} color="#fff" />
                   </View>
                 ) : null}
@@ -222,13 +247,13 @@ export default function SubscriptionScreen() {
         })}
 
         {/* NI trust strip */}
-        <View style={styles.paymentBadge}>
-          <AppIcon name="shield-check" size={18} color={colors.success} />
+        <View style={[styles.paymentBadge, rtlRow]}>
           <Text style={styles.paymentBadgeText}>
             مدفوعات آمنة عبر{' '}
             <Text style={{ color: colors.textBrand, fontWeight: '700' }}>Network International</Text>
             {' '}· مدى · فيزا · آبل باي · STC Pay
           </Text>
+          <AppIcon name="shield-check" size={18} color={colors.success} />
         </View>
 
         <View style={{ height: 100 }} />
@@ -241,39 +266,218 @@ export default function SubscriptionScreen() {
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
-        {selected === 'free' || isCurrent(selected) ? (
+        {selected === 'free' ? (
           <Pressable
             onPress={() => router.back()}
             style={styles.ctaSecondary}
           >
-            <Text style={styles.ctaSecondaryText}>
-              {isCurrent(selected) ? 'باقتك الحالية' : 'متابعة بالباقة المجانية'}
-            </Text>
+            <Text style={styles.ctaSecondaryText}>متابعة بالباقة المجانية</Text>
           </Pressable>
-        ) : (
+        ) : isCurrent(selected) ? (
+          (() => {
+            const selectedPlan = getPlanBySlug(selected);
+            const [ctaStart, ctaEnd] = planColors(selectedPlan.sortOrder);
+            const ctaAmount =
+              cycle === 'yearly' ? selectedPlan.yearlyPrice : selectedPlan.monthlyPrice;
+            return (
           <Pressable
             onPress={handleContinue}
             style={({ pressed }) => [styles.ctaBtn, pressed && { opacity: 0.88 }]}
           >
             <LinearGradient
-              colors={[plans.find((p) => p.id === selected)!.color, plans.find((p) => p.id === selected)!.colorEnd]}
-              style={styles.ctaBtnGrad}
+              colors={[ctaStart, ctaEnd]}
+              style={[styles.ctaBtnGrad, rtlRow]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <AppIcon name="refresh-circle-outline" size={20} color="#fff" />
+              <Text style={styles.ctaBtnText}>
+                تجديد الاشتراك · {ctaAmount} ريال
+              </Text>
+            </LinearGradient>
+          </Pressable>
+            );
+          })()
+        ) : (
+          (() => {
+            const selectedPlan = getPlanBySlug(selected);
+            const [ctaStart, ctaEnd] = planColors(selectedPlan.sortOrder);
+            const ctaAmount =
+              cycle === 'yearly' ? selectedPlan.yearlyPrice : selectedPlan.monthlyPrice;
+            return (
+          <Pressable
+            onPress={handleContinue}
+            style={({ pressed }) => [styles.ctaBtn, pressed && { opacity: 0.88 }]}
+          >
+            <LinearGradient
+              colors={[ctaStart, ctaEnd]}
+              style={[styles.ctaBtnGrad, rtlRow]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
               <AppIcon name="credit-card-check-outline" size={20} color="#fff" />
               <Text style={styles.ctaBtnText}>
-                متابعة الدفع ·{' '}
-                {cycle === 'yearly'
-                  ? plans.find((p) => p.id === selected)!.yearlyPrice
-                  : plans.find((p) => p.id === selected)!.price}{' '}
-                ريال
+                متابعة الدفع · {ctaAmount} ريال
               </Text>
             </LinearGradient>
           </Pressable>
+            );
+          })()
         )}
       </SafeAreaView>
     </SafeAreaView>
+  );
+}
+
+type CurrentPlanCardProps = {
+  plan: SubscriptionPlan;
+  subscription: {
+    planSlug: string;
+    renewDate: string;
+    permissions: SubscriptionPlan['permissions'];
+    usageCounters: {
+      dailyAdsUsed: number;
+      liveMinutesUsed: number;
+    };
+    plan: SubscriptionPlan;
+  };
+  styles: ReturnType<typeof createStyles>;
+};
+
+function CurrentPlanCard({ plan, subscription, styles }: CurrentPlanCardProps) {
+  const [color, colorEnd] = planGradientColors(plan.sortOrder);
+  const features = plan.displayFeatures?.length
+    ? plan.displayFeatures
+    : subscription.plan.displayFeatures ?? [];
+
+  const dailyLimit = subscription.permissions.maxAdsPer24Hours;
+  const dailyUsed = subscription.usageCounters.dailyAdsUsed;
+  const liveHours = subscription.permissions.monthlyLiveHours;
+  const liveUsed = subscription.usageCounters.liveMinutesUsed;
+  const liveLimitMin =
+    typeof liveHours === 'number' && liveHours < 0
+      ? null
+      : typeof liveHours === 'number'
+        ? liveHours * 60
+        : null;
+
+  return (
+    <LinearGradient
+      colors={[color, colorEnd]}
+      style={[styles.currentPlanCard, rtlDirection]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+    >
+      <View style={[styles.currentPlanTop, rtlRow]}>
+        <View style={styles.currentPlanInfo}>
+          <Text style={styles.currentPlanLabel}>باقتك الحالية</Text>
+          <Text style={styles.currentPlanName}>
+            {planDisplayName(subscription.planSlug, plan.name)}
+          </Text>
+          <Text style={styles.currentPlanDesc}>{plan.description}</Text>
+          <Text style={styles.currentPlanPrice}>
+            {plan.monthlyPrice === 0 ? 'مجاني' : `${plan.monthlyPrice} ريال / شهر`}
+          </Text>
+          {subscription.planSlug !== 'free' ? (
+            <Text style={styles.currentPlanRenew}>
+              التجديد: {new Date(subscription.renewDate).toLocaleDateString('ar-SA')}
+            </Text>
+          ) : (
+            <Text style={styles.currentPlanRenew}>أنت على الباقة المجانية حالياً</Text>
+          )}
+        </View>
+        <LinearGradient
+          colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.08)']}
+          style={styles.currentPlanIcon}
+        >
+          <AppIcon name={planIcon(plan.slug) as never} size={24} color="#fff" />
+        </LinearGradient>
+      </View>
+
+      <View style={styles.currentPlanUsage}>
+        <View style={styles.usageItem}>
+          <View style={styles.usageTop}>
+            <Text style={styles.usageLabel}>إعلانات اليوم</Text>
+            <Text style={styles.usageVal}>
+              {dailyUsed}/
+              {typeof dailyLimit === 'number' && dailyLimit < 0
+                ? '∞'
+                : String(dailyLimit ?? '—')}
+            </Text>
+          </View>
+          <View style={styles.usageTrack}>
+            <View
+              style={[
+                styles.usageFill,
+                {
+                  width:
+                    typeof dailyLimit === 'number' && dailyLimit > 0
+                      ? `${Math.min((dailyUsed / dailyLimit) * 100, 100)}%`
+                      : typeof dailyLimit === 'number' && dailyLimit < 0
+                        ? '12%'
+                        : '0%',
+                },
+              ]}
+            />
+          </View>
+        </View>
+        <View style={styles.usageItem}>
+          <View style={styles.usageTop}>
+            <Text style={styles.usageLabel}>دقائق البث</Text>
+            <Text style={styles.usageVal}>
+              {liveUsed}/{liveLimitMin === null ? '∞' : liveLimitMin}
+            </Text>
+          </View>
+          <View style={styles.usageTrack}>
+            <View
+              style={[
+                styles.usageFill,
+                {
+                  width:
+                    liveLimitMin && liveLimitMin > 0
+                      ? `${Math.min((liveUsed / liveLimitMin) * 100, 100)}%`
+                      : '0%',
+                },
+              ]}
+            />
+          </View>
+        </View>
+      </View>
+
+      {features.length > 0 ? (
+        <>
+          <View style={styles.currentPlanDivider} />
+          <Text style={styles.currentPlanFeaturesTitle}>مميزات باقتك</Text>
+          <View style={styles.currentPlanFeatures}>
+            {features.map((f, i) => {
+              const included =
+                f.valueType === 'BOOLEAN'
+                  ? Boolean(f.value)
+                  : f.valueType === 'NUMBER'
+                    ? Number(f.value) > 0 || Number(f.value) < 0
+                    : true;
+              return (
+                <View key={i} style={styles.currentFeatureRow}>
+                  <Text
+                    style={[
+                      styles.currentFeatureText,
+                      !included && styles.currentFeatureTextMuted,
+                    ]}
+                  >
+                    {f.label}: {formatPlanFeatureText(f.key, f.value, f.valueType)}
+                  </Text>
+                  <AppIcon
+                    name={included ? 'check' : 'close'}
+                    size={14}
+                    color={included ? '#fff' : 'rgba(255,255,255,0.45)'}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        </>
+      ) : null}
+    </LinearGradient>
   );
 }
 
@@ -281,7 +485,6 @@ function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bgDeep },
   header: {
-    flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
@@ -292,11 +495,131 @@ function createStyles(colors: ThemeColors) {
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: colors.borderSoft,
   },
-  headerTitle: { ...typography.h2, color: colors.textPrimary },
-  headerSub: { ...typography.caption, color: colors.textBrand },
+  headerTitle: { ...typography.h2, color: colors.textPrimary, textAlign: 'center' },
+  headerSub: { ...typography.caption, color: colors.textBrand, textAlign: 'center' },
+
+  sectionTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
+    marginTop: spacing.xs,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+
+  currentPlanCard: {
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    gap: spacing.md,
+  },
+  currentPlanTop: {
+    ...rtlRow,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  currentPlanIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  currentPlanInfo: { flex: 1, gap: 4, alignItems: 'flex-end' },
+  currentPlanLabel: {
+    ...typography.caption,
+    color: 'rgba(255,255,255,0.75)',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  currentPlanName: {
+    ...typography.h2,
+    color: '#fff',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  currentPlanDesc: {
+    ...typography.caption,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 20,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  currentPlanPrice: {
+    ...typography.bodyStrong,
+    color: '#fff',
+    marginTop: 4,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  currentPlanRenew: {
+    ...typography.micro,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 2,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  currentPlanUsage: { gap: spacing.sm },
+  usageItem: { gap: 6 },
+  usageTop: {
+    ...rtlRow,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  usageLabel: {
+    ...typography.caption,
+    color: 'rgba(255,255,255,0.85)',
+  },
+  usageVal: {
+    ...typography.caption,
+    color: '#fff',
+    fontWeight: '700',
+    ...ltrInputText,
+  },
+  usageTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    overflow: 'hidden',
+  },
+  usageFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignSelf: 'flex-end',
+  },
+  currentPlanDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  currentPlanFeaturesTitle: {
+    ...typography.caption,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '700',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  currentPlanFeatures: { gap: 8 },
+  currentFeatureRow: {
+    ...rtlRow,
+    alignItems: 'center',
+    gap: 8,
+  },
+  currentFeatureText: {
+    ...typography.caption,
+    color: '#fff',
+    flex: 1,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  currentFeatureTextMuted: {
+    color: 'rgba(255,255,255,0.5)',
+    textDecorationLine: 'line-through',
+  },
 
   toggleRow: {
-    flexDirection: 'row',
+    ...rtlRow,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
     backgroundColor: colors.bgSurface,
@@ -307,7 +630,6 @@ function createStyles(colors: ThemeColors) {
   },
   toggleBtn: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
@@ -326,6 +648,15 @@ function createStyles(colors: ThemeColors) {
     borderRadius: radius.pill,
   },
   saveText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+
+  pickHint: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: 'center',
+    writingDirection: 'rtl',
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
 
   scroll: { paddingHorizontal: spacing.lg, paddingTop: 4 },
 
@@ -351,29 +682,31 @@ function createStyles(colors: ThemeColors) {
     margin: 1.5,
     borderRadius: radius.xl - 1,
     backgroundColor: colors.bgSurface,
-    padding: spacing.lg,
+    padding: spacing.md,
     zIndex: 1,
   },
 
-  planHeader: {
-    flexDirection: 'row',
+  planHeader: { gap: spacing.sm },
+  planTopRow: {
+    ...rtlRow,
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: spacing.md,
   },
+  planHeaderBody: { flex: 1, gap: 4, alignItems: 'flex-end' },
   planIconBox: {
-    width: 48, height: 48, borderRadius: radius.lg,
+    width: 44, height: 44, borderRadius: radius.lg,
     alignItems: 'center', justifyContent: 'center',
   },
   planIconText: { fontSize: 22 },
   planNameRow: {
-    flexDirection: 'row',
+    ...rtlRow,
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 6,
-    marginBottom: 2,
   },
-  planName: { ...typography.h3, color: colors.textPrimary },
-  planDesc: { ...typography.caption, color: colors.textMuted },
+  planName: { ...typography.h3, color: colors.textPrimary, textAlign: 'right', writingDirection: 'rtl' },
+  planDesc: { ...typography.caption, color: colors.textMuted, textAlign: 'right', writingDirection: 'rtl', lineHeight: 20 },
   badgePill: {
     paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: radius.pill,
@@ -388,31 +721,47 @@ function createStyles(colors: ThemeColors) {
   },
   currentText: { fontSize: 10, fontWeight: '700', color: colors.textBrandSuccess },
 
-  priceBlock: { alignItems: 'flex-end', minWidth: 70 },
-  priceFree: { ...typography.h3, color: colors.textMuted },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline' },
-  priceAmount: { fontSize: 28, fontWeight: '800' },
-  priceCurrency: { ...typography.caption, color: colors.textMuted },
-  pricePer: { ...typography.micro, color: colors.textSubtle, marginTop: 1 },
-  discountBadge: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+  priceFree: { ...typography.h3, color: colors.textBrand, marginTop: 4, textAlign: 'right', writingDirection: 'rtl' },
+  priceLine: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
+    marginTop: 6,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  pricePer: { ...typography.micro, color: colors.textSubtle },
+  discountBadge: { fontSize: 11, fontWeight: '700' },
 
   divider: {
     height: 1,
     backgroundColor: colors.borderSoft,
-    marginVertical: spacing.md,
+    marginVertical: spacing.sm,
   },
-  featuresList: { gap: 8 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  featuresList: { gap: 0 },
+  featureRow: {
+    ...rtlRow,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSoft,
+  },
   featureIconWrap: {
     width: 22, height: 22, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
   },
-  featureText: { ...typography.caption, color: colors.textSecondary, flex: 1 },
+  featureText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    flex: 1,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
 
   selectedCheck: {
     position: 'absolute',
     top: spacing.md,
-    right: spacing.md,
     width: 26, height: 26,
     borderRadius: 13,
     alignItems: 'center', justifyContent: 'center',
@@ -420,7 +769,7 @@ function createStyles(colors: ThemeColors) {
   },
 
   paymentBadge: {
-    flexDirection: 'row',
+    ...rtlRow,
     alignItems: 'center',
     gap: 8,
     backgroundColor: colors.bgGlass,
@@ -430,7 +779,12 @@ function createStyles(colors: ThemeColors) {
     padding: spacing.md,
     marginBottom: spacing.lg,
   },
-  paymentBadgeText: { ...typography.caption, color: colors.textMuted, flex: 1, lineHeight: 18 },
+  paymentBadgeText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    flex: 1,
+    lineHeight: 20,
+  },
 
   ctaWrap: {
     position: 'absolute',
@@ -443,7 +797,7 @@ function createStyles(colors: ThemeColors) {
   },
   ctaBtn: { borderRadius: radius.xl, overflow: 'hidden' },
   ctaBtnGrad: {
-    flexDirection: 'row',
+    ...rtlRow,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,

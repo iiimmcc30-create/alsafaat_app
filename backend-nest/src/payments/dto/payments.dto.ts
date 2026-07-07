@@ -7,6 +7,7 @@ import {
   Max,
   MaxLength,
   Min,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -18,7 +19,6 @@ const PAYMENT_METHODS = [
   'stc_pay',
 ] as const;
 const PAYMENT_TYPES = ['subscription', 'fee', 'listing_fee'] as const;
-const PLAN_IDS = ['starter', 'pro', 'vip'] as const;
 const BILLING_CYCLES = ['monthly', 'yearly'] as const;
 
 export class InitiatePaymentDto {
@@ -51,9 +51,12 @@ export class InitiatePaymentDto {
   @MaxLength(200)
   descriptionAr?: string;
 
+  /** Plan slug (e.g. sarh-pro, growth). Legacy slugs starter/pro/vip still accepted. */
   @IsOptional()
-  @IsEnum(PLAN_IDS)
-  planId?: (typeof PLAN_IDS)[number];
+  @IsString()
+  @MaxLength(80)
+  @Matches(/^[a-z0-9-]+$/)
+  planId?: string;
 
   @IsOptional()
   @IsEnum(BILLING_CYCLES)

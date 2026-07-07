@@ -3,6 +3,7 @@
 import { ResourcePage, Badge } from '@/components/ui/ResourcePage';
 import { Button } from '@/components/ui/Button';
 import { fetchLiveStreams, stopLiveStream, deleteLiveStream } from '@/services/admin.service';
+import { getApiErrorMessage } from '@/services/api.client';
 
 type LiveRow = {
   id: string;
@@ -38,9 +39,15 @@ export default function LivePage() {
             </Button>
           )}
           <Button variant="secondary" size="sm" onClick={async () => {
-            if (confirm('حذف البث؟')) { await deleteLiveStream(row.id); reload(); }
+            if (!confirm('أرشفة البث؟')) return;
+            try {
+              await deleteLiveStream(row.id);
+              reload();
+            } catch (err) {
+              alert(getApiErrorMessage(err, 'فشل أرشفة البث'));
+            }
           }}>
-            حذف
+            أرشفة
           </Button>
         </div>
       )}

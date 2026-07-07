@@ -58,7 +58,7 @@ export default function ButcherMessagesScreen() {
       user: {
         id: n.data?.actorId || undefined,
         avatar: n.data?.actorAvatar || undefined,
-        arabicName: n.titleAr || 'إشعار سروح',
+        arabicName: n.titleAr || 'إشعار سرح',
       },
       arabicText: n.bodyAr,
       time: new Date(n.createdAt).toLocaleDateString('ar-SA'),

@@ -104,9 +104,33 @@ export async function fetchButchers(params: ListParams = {}) {
   return unwrap<Paginated<Record<string, unknown>>>(res);
 }
 
+export async function fetchButcher(id: string) {
+  const res = await apiClient.get(`/admin/butchers/${id}`);
+  return unwrap<{ butcher: Record<string, unknown>; user: Record<string, unknown> }>(res);
+}
+
 export async function updateButcher(id: string, data: Record<string, unknown>) {
   const res = await apiClient.patch(`/admin/butchers/${id}`, data);
   return unwrap(res);
+}
+
+export async function fetchOrders(
+  params: ListParams & {
+    status?: string;
+    butcherId?: string;
+    customerId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    orderNumber?: string;
+  } = {},
+) {
+  const res = await apiClient.get('/admin/orders', { params });
+  return unwrap<Paginated<Record<string, unknown>>>(res);
+}
+
+export async function fetchOrder(id: string) {
+  const res = await apiClient.get(`/admin/orders/${id}`);
+  return unwrap<{ order: Record<string, unknown> }>(res);
 }
 
 export async function fetchApplications(params: Record<string, string> = {}) {
@@ -161,5 +185,80 @@ export async function updateSection(id: string, data: Record<string, unknown>) {
 
 export async function deleteSection(id: string) {
   const res = await apiClient.delete(`/admin/sections/${id}`);
+  return unwrap(res);
+}
+
+// ─── Plans ───────────────────────────────────────────────────────────────────
+
+export type AdminPlan = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  audience: 'USER' | 'BUTCHER';
+  monthlyPrice: number;
+  yearlyPrice: number;
+  currency: string;
+  yearlyDiscount: number;
+  isActive: boolean;
+  sortOrder: number;
+  features: Array<{
+    id?: string;
+    key: string;
+    value: string;
+    valueType: 'BOOLEAN' | 'NUMBER' | 'STRING' | 'JSON';
+  }>;
+};
+
+export type PlanFeatureCatalogItem = {
+  key: string;
+  labelAr: string;
+  descriptionAr: string;
+  valueType: 'BOOLEAN' | 'NUMBER' | 'STRING' | 'JSON';
+  audiences: Array<'USER' | 'BUTCHER'>;
+  suggestedValue?: string;
+};
+
+export async function fetchPlans(audience?: 'USER' | 'BUTCHER') {
+  const res = await apiClient.get('/admin/plans', {
+    params: audience ? { audience } : undefined,
+  });
+  return unwrap<{ plans: AdminPlan[] }>(res);
+}
+
+export async function fetchPlan(id: string) {
+  const res = await apiClient.get(`/admin/plans/${id}`);
+  return unwrap<{ plan: AdminPlan }>(res);
+}
+
+export async function fetchPlanFeatureCatalog(audience?: 'USER' | 'BUTCHER') {
+  const res = await apiClient.get('/admin/plans/feature-catalog/list', {
+    params: audience ? { audience } : undefined,
+  });
+  return unwrap<{ features: PlanFeatureCatalogItem[] }>(res);
+}
+
+export async function createPlan(data: Record<string, unknown>) {
+  const res = await apiClient.post('/admin/plans', data);
+  return unwrap(res);
+}
+
+export async function updatePlan(id: string, data: Record<string, unknown>) {
+  const res = await apiClient.patch(`/admin/plans/${id}`, data);
+  return unwrap(res);
+}
+
+export async function deactivatePlan(id: string) {
+  const res = await apiClient.post(`/admin/plans/${id}/deactivate`);
+  return unwrap(res);
+}
+
+export async function duplicatePlan(id: string) {
+  const res = await apiClient.post(`/admin/plans/${id}/duplicate`);
+  return unwrap(res);
+}
+
+export async function deletePlan(id: string) {
+  const res = await apiClient.delete(`/admin/plans/${id}`);
   return unwrap(res);
 }

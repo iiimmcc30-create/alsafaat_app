@@ -1,7 +1,7 @@
 {
   "name": "safat-backend-nest",
   "version": "1.0.0",
-  "description": "سروح Backend — NestJS API + Socket.IO + PostgreSQL + Redis",
+  "description": "سرح Backend — NestJS API + Socket.IO + PostgreSQL + Redis",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
@@ -14,14 +14,17 @@
     "socket:dev": "ts-node -r tsconfig-paths/register src/gateway/socket.main.ts",
     "worker:dev": "ts-node -r tsconfig-paths/register src/queue/worker.main.ts",
     "dev:all": "concurrently \"npm run start:dev\" \"npm run socket:dev\" \"npm run worker:dev\"",
+    "dev:lite": "concurrently \"npm run start:dev\" \"npm run socket:dev\"",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:migrate:status": "prisma migrate status"
+    "prisma:migrate:status": "prisma migrate status",
+    "seed:plans": "ts-node -r tsconfig-paths/register scripts/seed-plans.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.521.0",

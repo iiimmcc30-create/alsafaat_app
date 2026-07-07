@@ -1,15 +1,25 @@
 import { Injectable } from '@nestjs/common';
-import { PlanId, Prisma } from '@prisma/client';
+import { PlanAudience, Prisma } from '@prisma/client';
+import { normalizePlanSlug, buildPermissions } from '../../plans/plan.types';
+import { PlanPermissionService } from '../../plans/plan-permission.service';
+import { PlanResolverService } from '../../plans/plan-resolver.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const SUBSCRIPTION_SELECT = {
   id: true,
   userId: true,
   planId: true,
+  planAudience: true,
+  planDbId: true,
   billingCycle: true,
+  status: true,
   renewDate: true,
   listingsUsed: true,
   liveMinutesUsed: true,
+  featuredAdsUsed: true,
+  pinnedAdsUsed: true,
+  dailyAdsUsed: true,
+  dailyAdsWindowStart: true,
   autoRenew: true,
   createdAt: true,
   updatedAt: true,
@@ -17,7 +27,11 @@ const SUBSCRIPTION_SELECT = {
 
 @Injectable()
 export class SubscriptionLifecycleRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly planResolver: PlanResolverService,
+    private readonly planPermissions: PlanPermissionService,
+  ) {}
 
   findByUserId(userId: string) {
     return this.prisma.subscription.findUnique({
@@ -31,6 +45,12 @@ export class SubscriptionLifecycleRepository {
       where: { id },
       select: SUBSCRIPTION_SELECT,
     });
+  }
+
+  findUserRole(userId: string) {
+    return this.prisma.user
+      .findUnique({ where: { id: userId }, select: { role: true } })
+      .then((u) => u?.role ?? 'USER');
   }
 
   findExpirablePaidSubscriptions(now: Date) {
@@ -61,28 +81,66 @@ export class SubscriptionLifecycleRepository {
     });
   }
 
+  resetDailyAdsWindow(userId: string, windowStart: Date) {
+    return this.prisma.subscription.update({
+      where: { userId },
+      data: { dailyAdsUsed: 0, dailyAdsWindowStart: windowStart },
+    });
+  }
+
+  private async applyVerifiedBadgeSideEffect(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    planSlug: string,
+    audience: PlanAudience,
+    enabled: boolean,
+  ) {
+    const plan = this.planResolver.resolveSync(planSlug, audience);
+    const shouldVerify =
+      enabled &&
+      !!plan &&
+      this.planPermissions.hasVerifiedBadge(buildPermissions(plan.features));
+    await tx.user
+      .update({
+        where: { id: userId },
+        data: { verified: shouldVerify },
+      })
+      .catch(() => {});
+  }
+
   downgradeToFreeTx(
     userId: string,
-    previousPlanId: PlanId,
-  ): Promise<{ previousPlanId: PlanId }> {
+    previousPlanId: string,
+    audience: PlanAudience,
+  ): Promise<{ previousPlanId: string }> {
     return this.prisma.$transaction(async (tx) => {
+      const freePlan = await tx.plan.findUnique({
+        where: { slug_audience: { slug: 'free', audience } },
+      });
+
       await tx.subscription.update({
         where: { userId },
         data: {
           planId: 'free',
+          planAudience: audience,
+          ...(freePlan?.id ? { plan: { connect: { id: freePlan.id } } } : {}),
+          status: 'downgraded',
           listingsUsed: 0,
           liveMinutesUsed: 0,
+          featuredAdsUsed: 0,
+          pinnedAdsUsed: 0,
+          dailyAdsUsed: 0,
+          dailyAdsWindowStart: null,
         },
       });
 
-      if (previousPlanId === 'vip') {
-        await tx.user
-          .update({
-            where: { id: userId },
-            data: { verified: false },
-          })
-          .catch(() => {});
-      }
+      await this.applyVerifiedBadgeSideEffect(
+        tx,
+        userId,
+        'free',
+        audience,
+        true,
+      );
 
       await tx.butcher
         .updateMany({
@@ -101,21 +159,35 @@ export class SubscriptionLifecycleRepository {
   activatePaidPlanTx(params: {
     subscriptionId: string;
     userId: string;
-    targetPlanId: PlanId;
+    targetPlanId: string;
+    planAudience: PlanAudience;
     billingCycle: string;
     newRenewDate: Date;
     resetCounters: boolean;
   }) {
     return this.prisma.$transaction(async (tx) => {
+      const normalized = normalizePlanSlug(params.targetPlanId);
+      const plan = await tx.plan.findFirst({
+        where: { slug: normalized, audience: params.planAudience },
+        include: { features: true },
+      });
+
       const updateData: Prisma.SubscriptionUpdateInput = {
-        planId: params.targetPlanId,
+        planId: normalized,
+        planAudience: params.planAudience,
+        ...(plan?.id ? { plan: { connect: { id: plan.id } } } : {}),
         billingCycle: params.billingCycle,
         renewDate: params.newRenewDate,
         autoRenew: true,
+        status: 'active',
       };
       if (params.resetCounters) {
         updateData.listingsUsed = 0;
         updateData.liveMinutesUsed = 0;
+        updateData.featuredAdsUsed = 0;
+        updateData.pinnedAdsUsed = 0;
+        updateData.dailyAdsUsed = 0;
+        updateData.dailyAdsWindowStart = null;
       }
 
       await tx.subscription.update({
@@ -123,22 +195,31 @@ export class SubscriptionLifecycleRepository {
         data: updateData,
       });
 
-      if (params.targetPlanId === 'vip') {
-        await tx.user.update({
-          where: { id: params.userId },
-          data: { verified: true },
-        });
-      }
+      if (plan) {
+        const perms = buildPermissions(plan.features);
 
-      await tx.butcher
-        .updateMany({
-          where: { userId: params.userId },
-          data: {
-            subscriptionActive: true,
-            subscriptionExpiry: params.newRenewDate,
-          },
-        })
-        .catch(() => {});
+        if (this.planPermissions.hasVerifiedBadge(perms)) {
+          await tx.user.update({
+            where: { id: params.userId },
+            data: { verified: true },
+          });
+        }
+
+        const isButcherPaid =
+          params.planAudience === 'BUTCHER' && normalized !== 'free';
+
+        if (isButcherPaid) {
+          await tx.butcher
+            .updateMany({
+              where: { userId: params.userId },
+              data: {
+                subscriptionActive: true,
+                subscriptionExpiry: params.newRenewDate,
+              },
+            })
+            .catch(() => {});
+        }
+      }
     });
   }
 
@@ -153,7 +234,23 @@ export class SubscriptionLifecycleRepository {
   resetUsageCounters(userId: string) {
     return this.prisma.subscription.update({
       where: { userId },
-      data: { listingsUsed: 0, liveMinutesUsed: 0 },
+      data: {
+        listingsUsed: 0,
+        liveMinutesUsed: 0,
+        featuredAdsUsed: 0,
+        pinnedAdsUsed: 0,
+        dailyAdsUsed: 0,
+      },
+    });
+  }
+
+  resetMonthlyUsageCounters() {
+    return this.prisma.subscription.updateMany({
+      data: {
+        liveMinutesUsed: 0,
+        featuredAdsUsed: 0,
+        pinnedAdsUsed: 0,
+      },
     });
   }
 

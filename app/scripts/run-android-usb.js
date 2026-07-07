@@ -85,6 +85,9 @@ async function main() {
     expoArgs.push('--no-bundler');
   }
 
+  const useUsbLocalhost =
+    urls.apiUrl.includes('127.0.0.1') || urls.apiUrl.includes('localhost');
+
   const child = spawn('npx', expoArgs, {
     stdio: 'inherit',
     shell: true,
@@ -93,6 +96,12 @@ async function main() {
       ...process.env,
       EXPO_PUBLIC_API_URL: urls.apiUrl,
       EXPO_PUBLIC_SOCKET_URL: urls.socketUrl,
+      ...(useUsbLocalhost
+        ? {
+            REACT_NATIVE_PACKAGER_HOSTNAME: '127.0.0.1',
+            RCT_METRO_PORT: process.env.EXPO_PORT || '8081',
+          }
+        : {}),
       ...(serial ? { ANDROID_SERIAL: serial } : {}),
       SAFAT_USB_REVERSE_DONE: '1',
       ORG_GRADLE_PROJECT_reactNativeArchitectures: 'arm64-v8a',

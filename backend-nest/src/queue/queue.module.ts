@@ -3,7 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { CommonModule } from '../common/common.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
-import { QUEUE_CONNECTION, QUEUE_NAMES } from './constants';
+import { isRedisEnabled, QUEUE_CONNECTION, QUEUE_NAMES } from './constants';
 import { NotificationProcessor } from './processors/notification.processor';
 import { PushProcessor } from './processors/push.processor';
 import { EmailProcessor } from './processors/email.processor';
@@ -23,41 +23,47 @@ import { WorkerCronService } from './services/worker-cron.service';
 import { SubscriptionProcessor } from './processors/subscription.processor';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
+const bullImports = isRedisEnabled()
+  ? [
+      BullModule.forRoot({ connection: QUEUE_CONNECTION }),
+      BullModule.registerQueue(
+        { name: QUEUE_NAMES.NOTIFICATIONS },
+        {
+          name: QUEUE_NAMES.EMAILS,
+          defaultJobOptions: { removeOnComplete: 50, removeOnFail: 100 },
+        },
+        {
+          name: QUEUE_NAMES.PUSH,
+          defaultJobOptions: { removeOnComplete: 50, removeOnFail: 100 },
+        },
+        {
+          name: QUEUE_NAMES.FEE_CHECKS,
+          defaultJobOptions: { removeOnComplete: 50, removeOnFail: 100 },
+        },
+        {
+          name: QUEUE_NAMES.IMAGE_PROCESSING,
+          defaultJobOptions: { removeOnComplete: 20, removeOnFail: 50 },
+        },
+        {
+          name: QUEUE_NAMES.SUBSCRIPTIONS,
+          defaultJobOptions: {
+            removeOnComplete: 50,
+            removeOnFail: 100,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+          },
+        },
+      ),
+    ]
+  : [];
+
 @Global()
 @Module({
   imports: [
     CommonModule,
     PrismaModule,
     RedisModule,
-    BullModule.forRoot({ connection: QUEUE_CONNECTION }),
-    BullModule.registerQueue(
-      { name: QUEUE_NAMES.NOTIFICATIONS },
-      {
-        name: QUEUE_NAMES.EMAILS,
-        defaultJobOptions: { removeOnComplete: 50, removeOnFail: 100 },
-      },
-      {
-        name: QUEUE_NAMES.PUSH,
-        defaultJobOptions: { removeOnComplete: 50, removeOnFail: 100 },
-      },
-      {
-        name: QUEUE_NAMES.FEE_CHECKS,
-        defaultJobOptions: { removeOnComplete: 50, removeOnFail: 100 },
-      },
-      {
-        name: QUEUE_NAMES.IMAGE_PROCESSING,
-        defaultJobOptions: { removeOnComplete: 20, removeOnFail: 50 },
-      },
-      {
-        name: QUEUE_NAMES.SUBSCRIPTIONS,
-        defaultJobOptions: {
-          removeOnComplete: 50,
-          removeOnFail: 100,
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 5000 },
-        },
-      },
-    ),
+    ...bullImports,
   ],
   providers: [
     NotificationRepository,

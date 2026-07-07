@@ -1,45 +1,72 @@
-// Powered by OnSpace.AI
-// SAFAT — Subscription Context (API-driven)
 
-import { createContext, ReactNode, useContext, useState, useEffect, useCallback } from 'react';
-import { plans, PlanId, SubscriptionPlan } from '@/services/subscriptionPlans';
+
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from 'react';
+import {
+  EMPTY_PLAN,
+  mapApiPlan,
+  normalizeSlug,
+  type PlanPermissions,
+  type SubscriptionPlan,
+} from '@/services/subscriptionPlans';
 import { useAuth } from './AuthContext';
 import { API_BASE } from '@/services/api';
 import { authFetch } from '@/services/authFetch';
 
 interface SubscriptionState {
   id: string | null;
-  planId: PlanId;
+  planSlug: string;
+  planAudience: 'USER' | 'BUTCHER';
   plan: SubscriptionPlan;
   renewDate: string;
-  listingsUsed: number;
-  liveMinutesUsed: number;
+  permissions: PlanPermissions;
+  usageCounters: {
+    listingsUsed: number;
+    liveMinutesUsed: number;
+    featuredAdsUsed: number;
+    pinnedAdsUsed: number;
+    dailyAdsUsed: number;
+  };
   loading: boolean;
 }
 
 interface SubscriptionContextValue {
   subscription: SubscriptionState;
-  upgradePlan: (planId: PlanId) => void;
+  upgradePlan: (planSlug: string) => void;
   refetchSubscription: () => Promise<void>;
 }
 
-const defaultPlan = plans.find((p) => p.id === 'free')!;
-
 const defaultState: SubscriptionState = {
   id: null,
-  planId: 'free',
-  plan: defaultPlan,
+  planSlug: 'free',
+  planAudience: 'USER',
+  plan: EMPTY_PLAN,
   renewDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-  listingsUsed: 0,
-  liveMinutesUsed: 0,
+  permissions: {},
+  usageCounters: {
+    listingsUsed: 0,
+    liveMinutesUsed: 0,
+    featuredAdsUsed: 0,
+    pinnedAdsUsed: 0,
+    dailyAdsUsed: 0,
+  },
   loading: true,
 };
 
-export const SubscriptionContext = createContext<SubscriptionContextValue | null>(null);
+export const SubscriptionContext = createContext<SubscriptionContextValue | null>(
+  null,
+);
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const { accessToken, isAuthenticated } = useAuth();
-  const [subscription, setSubscription] = useState<SubscriptionState>(defaultState);
+  const [subscription, setSubscription] =
+    useState<SubscriptionState>(defaultState);
 
   const fetchSubscription = useCallback(async () => {
     if (!isAuthenticated || !accessToken) {
@@ -47,20 +74,51 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const res = await authFetch(`${API_BASE}/api/subscriptions`);
-      if (res.ok) {
-        const json = await res.json();
+      const audienceRes = await authFetch(`${API_BASE}/api/subscriptions`);
+      const subRes = audienceRes;
+
+      if (subRes.ok) {
+        const json = await subRes.json();
         if (json.success && json.data) {
           const data = json.data;
-          const planId = (data.planId || 'free') as PlanId;
-          const plan = plans.find((p) => p.id === planId) ?? defaultPlan;
+          const planAudience = (data.planAudience ?? 'USER') as 'USER' | 'BUTCHER';
+          const planSlug = normalizeSlug(data.effectivePlanSlug ?? data.planId ?? 'free');
+
+          const plansRes = await fetch(
+            `${API_BASE}/api/plans?audience=${planAudience}`,
+          );
+          let planCatalog: SubscriptionPlan[] = [];
+          if (plansRes.ok) {
+            const plansJson = await plansRes.json();
+            if (plansJson.success && Array.isArray(plansJson.data?.plans)) {
+              planCatalog = plansJson.data.plans.map((p: Record<string, unknown>) =>
+                mapApiPlan(p),
+              );
+            }
+          }
+
+          const apiPlan = data.plan
+            ? mapApiPlan(data.plan as Record<string, unknown>)
+            : undefined;
+          const catalogPlan = planCatalog.find(
+            (p) => p.slug === planSlug && p.audience === planAudience,
+          );
+          const plan = apiPlan ?? catalogPlan ?? { ...EMPTY_PLAN, slug: planSlug, audience: planAudience };
+
           setSubscription({
             id: data.id ?? null,
-            planId,
+            planSlug,
+            planAudience,
             plan,
             renewDate: data.renewDate || defaultState.renewDate,
-            listingsUsed: data.listingsUsed ?? 0,
-            liveMinutesUsed: data.liveMinutesUsed ?? 0,
+            permissions: data.permissions ?? plan.permissions ?? {},
+            usageCounters: data.usageCounters ?? {
+              listingsUsed: data.listingsUsed ?? 0,
+              liveMinutesUsed: data.liveMinutesUsed ?? 0,
+              featuredAdsUsed: data.featuredAdsUsed ?? 0,
+              pinnedAdsUsed: data.pinnedAdsUsed ?? 0,
+              dailyAdsUsed: data.dailyAdsUsed ?? 0,
+            },
             loading: false,
           });
           return;
@@ -76,13 +134,18 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     fetchSubscription();
   }, [fetchSubscription]);
 
-  const upgradePlan = (_planId: PlanId) => {
-    // Subscription changes are applied via payment webhook — refetch from API
+  const upgradePlan = (_planSlug: string) => {
     fetchSubscription();
   };
 
   return (
-    <SubscriptionContext.Provider value={{ subscription, upgradePlan, refetchSubscription: fetchSubscription }}>
+    <SubscriptionContext.Provider
+      value={{
+        subscription,
+        upgradePlan,
+        refetchSubscription: fetchSubscription,
+      }}
+    >
       {children}
     </SubscriptionContext.Provider>
   );
@@ -90,6 +153,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
 export function useSubscription() {
   const ctx = useContext(SubscriptionContext);
-  if (!ctx) throw new Error('useSubscription must be used within SubscriptionProvider');
+  if (!ctx) {
+    throw new Error('useSubscription must be used within SubscriptionProvider');
+  }
   return ctx;
 }

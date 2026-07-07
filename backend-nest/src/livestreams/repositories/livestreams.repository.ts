@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { notDeleted } from '../../common/utils/soft-delete.util';
 
 const LIVE_LIST_SELECT = {
   id: true,
@@ -73,7 +74,7 @@ export class LivestreamsRepository {
 
   findLiveStreams() {
     return this.prisma.liveStream.findMany({
-      where: { isLive: true },
+      where: { isLive: true, ...notDeleted },
       orderBy: { viewers: 'desc' },
       take: 30,
       select: LIVE_LIST_SELECT,
@@ -82,7 +83,7 @@ export class LivestreamsRepository {
 
   findActiveStreamByHost(hostId: string) {
     return this.prisma.liveStream.findFirst({
-      where: { hostId, isLive: true },
+      where: { hostId, isLive: true, ...notDeleted },
       select: { id: true },
     });
   }
@@ -169,8 +170,8 @@ export class LivestreamsRepository {
   }
 
   findStreamDetail(id: string) {
-    return this.prisma.liveStream.findUnique({
-      where: { id },
+    return this.prisma.liveStream.findFirst({
+      where: { id, ...notDeleted },
       select: STREAM_DETAIL_SELECT,
     });
   }

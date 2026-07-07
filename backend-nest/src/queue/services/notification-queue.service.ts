@@ -1,5 +1,5 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { LoggerService } from '../../common/services/logger.service';
 import { RedisCacheService } from '../../redis/services/redis-cache.service';
@@ -10,7 +10,9 @@ import { NotificationPersistService } from './notification-persist.service';
 @Injectable()
 export class NotificationQueueService {
   constructor(
-    @InjectQueue(QUEUE_NAMES.NOTIFICATIONS) private readonly queue: Queue,
+    @Optional()
+    @InjectQueue(QUEUE_NAMES.NOTIFICATIONS)
+    private readonly queue: Queue | null,
     private readonly cache: RedisCacheService,
     private readonly persist: NotificationPersistService,
     private readonly logger: LoggerService,
@@ -21,7 +23,7 @@ export class NotificationQueueService {
   }
 
   async addNotification(job: NotificationJob) {
-    if (!this.isEnabled()) {
+    if (!this.isEnabled() || !this.queue) {
       await this.persist
         .persistNotificationAndEnqueuePush(job)
         .catch((err) =>
@@ -39,6 +41,7 @@ export class NotificationQueueService {
   }
 
   async getJobCounts() {
+    if (!this.queue) return {};
     return this.queue.getJobCounts();
   }
 }

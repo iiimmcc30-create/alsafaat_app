@@ -26,7 +26,7 @@ export default function ContactScreen() {
       return;
     }
     setSending(true);
-    const subject = encodeURIComponent(`رسالة من ${name} - تطبيق سروح`);
+    const subject = encodeURIComponent(`رسالة من ${name} - تطبيق سرح`);
     const body = encodeURIComponent(`الاسم: ${name}\n\n${message}`);
     await Linking.openURL(`mailto:info@alsfat.com?subject=${subject}&body=${body}`);
     setSending(false);

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PaymentReferenceType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { buildPermissions, normalizePlanSlug } from '../../plans/plan.types';
 
 @Injectable()
 export class PaymentsRepository {
@@ -9,7 +10,13 @@ export class PaymentsRepository {
   findSubscriptionForPayment(referenceId: string, userId: string) {
     return this.prisma.subscription.findFirst({
       where: { id: referenceId, userId },
-      select: { id: true, planId: true, renewDate: true, autoRenew: true },
+      select: {
+        id: true,
+        planId: true,
+        planAudience: true,
+        renewDate: true,
+        autoRenew: true,
+      },
     });
   }
 
@@ -203,22 +210,65 @@ export class PaymentsRepository {
           baseDate.getTime() + renewDays * msPerDay,
         );
 
-        const planId =
-          params.targetPlanId &&
-          ['starter', 'pro', 'vip'].includes(params.targetPlanId)
-            ? (params.targetPlanId as Prisma.SubscriptionUpdateInput['planId'])
-            : undefined;
+        const normalizedPlan = params.targetPlanId
+          ? normalizePlanSlug(params.targetPlanId)
+          : undefined;
+
+        const subRow = await tx.subscription.findUnique({
+          where: { id: params.referenceId },
+          select: { planAudience: true },
+        });
+        const audience = subRow?.planAudience ?? 'USER';
+
+        let planDbId: string | undefined;
+        if (normalizedPlan) {
+          const plan = await tx.plan.findFirst({
+            where: { slug: normalizedPlan, audience },
+            include: { features: true },
+          });
+          planDbId = plan?.id;
+
+          if (plan && buildPermissions(plan.features).verifiedBadge === true) {
+            await tx.user
+              .update({
+                where: { id: params.userId },
+                data: { verified: true },
+              })
+              .catch(() => {});
+          }
+
+          if (normalizedPlan !== 'free' && audience === 'BUTCHER') {
+            await tx.butcher
+              .updateMany({
+                where: { userId: params.userId },
+                data: {
+                  subscriptionActive: true,
+                  subscriptionExpiry: newRenewDate,
+                },
+              })
+              .catch(() => {});
+          }
+        }
 
         const updateData: Prisma.SubscriptionUpdateInput = {
           renewDate: newRenewDate,
           billingCycle:
             params.billingCycle as Prisma.SubscriptionUpdateInput['billingCycle'],
           autoRenew: true,
+          status: 'active',
           listingsUsed: 0,
           liveMinutesUsed: 0,
+          featuredAdsUsed: 0,
+          pinnedAdsUsed: 0,
+          dailyAdsUsed: 0,
+          dailyAdsWindowStart: null,
         };
-        if (planId) {
-          updateData.planId = planId;
+        if (normalizedPlan) {
+          updateData.planId = normalizedPlan;
+          updateData.planAudience = audience;
+          if (planDbId) {
+            updateData.plan = { connect: { id: planDbId } };
+          }
         }
         await tx.subscription.update({
           where: { id: params.referenceId },
@@ -235,27 +285,8 @@ export class PaymentsRepository {
           },
         });
 
-        if (params.targetPlanId === 'vip') {
-          await tx.user
-            .update({
-              where: { id: params.userId },
-              data: { verified: true },
-            })
-            .catch(() => {});
-        }
-
-        await tx.butcher
-          .updateMany({
-            where: { userId: params.userId },
-            data: {
-              subscriptionActive: true,
-              subscriptionExpiry: newRenewDate,
-            },
-          })
-          .catch(() => {});
-
         subscriptionResult = {
-          targetPlanId: params.targetPlanId ?? 'starter',
+          targetPlanId: normalizedPlan ?? params.targetPlanId ?? 'sarh-pro',
           newRenewDate,
         };
       }

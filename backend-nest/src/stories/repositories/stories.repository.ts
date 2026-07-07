@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { notDeleted, softDeleteFields } from '../../common/utils/soft-delete.util';
 
 export const STORY_USER_SELECT = {
   id: true,
@@ -41,7 +42,7 @@ export class StoriesRepository {
 
   findActiveStories() {
     return this.prisma.story.findMany({
-      where: { expiresAt: { gt: new Date() } },
+      where: { expiresAt: { gt: new Date() }, ...notDeleted },
       orderBy: { createdAt: 'asc' },
       include: STORY_DETAIL_INCLUDE,
     });
@@ -49,15 +50,15 @@ export class StoriesRepository {
 
   findActiveStoriesForUser(userId: string) {
     return this.prisma.story.findMany({
-      where: { userId, expiresAt: { gt: new Date() } },
+      where: { userId, expiresAt: { gt: new Date() }, ...notDeleted },
       orderBy: { createdAt: 'asc' },
       include: STORY_DETAIL_INCLUDE,
     });
   }
 
   findStoryById(id: string) {
-    return this.prisma.story.findUnique({
-      where: { id },
+    return this.prisma.story.findFirst({
+      where: { id, ...notDeleted },
       include: STORY_DETAIL_INCLUDE,
     });
   }
@@ -82,8 +83,11 @@ export class StoriesRepository {
     });
   }
 
-  deleteStory(id: string) {
-    return this.prisma.story.delete({ where: { id } });
+  softDeleteStory(id: string) {
+    return this.prisma.story.update({
+      where: { id },
+      data: softDeleteFields(),
+    });
   }
 
   findListingOwnedByUser(listingId: string, userId: string) {
@@ -115,7 +119,7 @@ export class StoriesRepository {
 
   findActiveButcherStories() {
     return this.prisma.butcherStory.findMany({
-      where: { expiresAt: { gt: new Date() } },
+      where: { expiresAt: { gt: new Date() }, ...notDeleted },
       orderBy: { createdAt: 'desc' },
       include: { butcher: { select: BUTCHER_STORY_SELECT } },
     });
@@ -142,7 +146,10 @@ export class StoriesRepository {
     });
   }
 
-  deleteButcherStory(id: string) {
-    return this.prisma.butcherStory.delete({ where: { id } });
+  softDeleteButcherStory(id: string) {
+    return this.prisma.butcherStory.update({
+      where: { id },
+      data: softDeleteFields(),
+    });
   }
 }

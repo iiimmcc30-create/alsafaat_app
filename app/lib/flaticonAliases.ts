@@ -122,6 +122,7 @@ export const FLATICON_ALIASES: Record<string, string> = {
   'bar-chart': 'chart-histogram',
   dashboard: 'dashboard',
   'trending-up': 'chart-line-up',
+  'trending-up-outline': 'chart-line-up',
   'view-grid-outline': 'apps',
   'view-list': 'list',
 
@@ -166,6 +167,8 @@ export const FLATICON_ALIASES: Record<string, string> = {
   'notifications-outline': 'bell',
 
   // Subscription & payment
+  'gift-outline': 'gift',
+  'diamond-outline': 'diamond',
   'crown-outline': 'crown',
   crown: 'crown',
   'credit-card-outline': 'credit-card',
@@ -180,6 +183,7 @@ export const FLATICON_ALIASES: Record<string, string> = {
   // Live / tools
   'calendar-outline': 'calendar',
   'time-outline': 'clock',
+  'clock-outline': 'clock',
   'link-outline': 'link',
   'cube-outline': 'cube',
   tools: 'tool-box',

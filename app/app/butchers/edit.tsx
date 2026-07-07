@@ -21,14 +21,17 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
 import { authFetch } from '@/services/authFetch';
 import { Country, countries } from '@/services/types';
 import { ButcherLocationPicker } from '@/components/feature/ButcherLocationPicker';
-import { hasValidCoords, formatCoords } from '@/lib/butcherLocation';
+import { formatLocationLabel } from '@/lib/formatAddress';
+import { hasValidCoords } from '@/lib/butcherLocation';
 import { uploadImageFromUri } from '@/services/upload';
 import { useRequireApprovedButcher } from '@/hooks/useRequireApprovedButcher';
 
@@ -97,6 +100,8 @@ function stripLocalPhone(fullPhone: string, country: Country): string {
 
 export default function EditButcherScreen() {
   const router = useRouter();
+  const { colors, gradients: themeGradients } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const { accessToken } = useAuth();
   const { hasApprovedApplication, loading: accessLoading } = useRequireApprovedButcher();
 
@@ -341,7 +346,7 @@ export default function EditButcherScreen() {
             disabled={saving}
           >
             <LinearGradient
-              colors={saving ? [colors.bgSurface, colors.bgSurface] : gradients.royal}
+              colors={saving ? [colors.bgSurface, colors.bgSurface] : themeGradients.royal}
               style={styles.saveBtnInner}
             >
               <Text style={[styles.saveBtnText, saving && { color: colors.textMuted }]}>
@@ -390,10 +395,10 @@ export default function EditButcherScreen() {
           </View>
 
           <View style={styles.form}>
-            <Field label="اسم الملحمة بالعربي *" value={nameAr} onChange={setNameAr} placeholder="مثال: ملحمة الطازج" />
-            <Field label="اسم الملحمة بالإنجليزي *" value={nameEn} onChange={setNameEn} placeholder="Al-Tazej Butcher" rtl={false} />
-            <Field label="نبذة بالعربي" value={bioAr} onChange={setBioAr} placeholder="وصف مختصر عن ملحمتك..." multiline />
-            <Field label="نبذة بالإنجليزي" value={bioEn} onChange={setBioEn} placeholder="Short bio in English..." multiline rtl={false} />
+            <Field styles={styles} colors={colors} label="اسم الملحمة بالعربي *" value={nameAr} onChange={setNameAr} placeholder="مثال: ملحمة الطازج" />
+            <Field styles={styles} colors={colors} label="اسم الملحمة بالإنجليزي *" value={nameEn} onChange={setNameEn} placeholder="Al-Tazej Butcher" rtl={false} />
+            <Field styles={styles} colors={colors} label="نبذة بالعربي" value={bioAr} onChange={setBioAr} placeholder="وصف مختصر عن ملحمتك..." multiline />
+            <Field styles={styles} colors={colors} label="نبذة بالإنجليزي" value={bioEn} onChange={setBioEn} placeholder="Short bio in English..." multiline rtl={false} />
 
             <Text style={styles.fieldLabel}>البلد</Text>
             <View style={styles.countryFixed}>
@@ -417,9 +422,9 @@ export default function EditButcherScreen() {
               />
             </View>
 
-            <Field label="المدينة *" value={city} onChange={setCity} placeholder="مثال: الرياض" />
-            <Field label="العنوان التفصيلي *" value={address} onChange={setAddress} placeholder="الحي، الشارع، رقم المبنى" multiline />
-            <Field label="السجل التجاري" value={commercialReg} onChange={setCommercialReg} placeholder="رقم السجل التجاري" />
+            <Field styles={styles} colors={colors} label="المدينة *" value={city} onChange={setCity} placeholder="مثال: الرياض" />
+            <Field styles={styles} colors={colors} label="العنوان التفصيلي *" value={address} onChange={setAddress} placeholder="الحي، الشارع، رقم المبنى" multiline />
+            <Field styles={styles} colors={colors} label="السجل التجاري" value={commercialReg} onChange={setCommercialReg} placeholder="رقم السجل التجاري" />
 
             <View style={styles.sectionDivider}>
               <Text style={styles.sectionLabel}>ساعات العمل</Text>
@@ -503,9 +508,15 @@ export default function EditButcherScreen() {
               country={country}
               lat={lat}
               lng={lng}
+              cityLabel={city}
+              addressLabel={address}
               onChange={({ lat: newLat, lng: newLng }) => {
                 setLat(newLat);
                 setLng(newLng);
+              }}
+              onAddressResolved={({ cityAr, addressAr }) => {
+                if (cityAr) setCity(cityAr);
+                if (addressAr) setAddress(addressAr);
               }}
               height={260}
             />
@@ -513,7 +524,7 @@ export default function EditButcherScreen() {
               <View style={styles.coordsBox}>
                 <AppIcon name="checkmark-circle" size={16} color={colors.success} />
                 <Text style={styles.coordsText}>
-                  {city ? `${city} · ` : ''}{formatCoords(lat!, lng!)}
+                  {formatLocationLabel(city, address, lat, lng)}
                 </Text>
               </View>
             )}
@@ -527,6 +538,8 @@ export default function EditButcherScreen() {
 }
 
 function Field({
+  styles,
+  colors,
   label,
   value,
   onChange,
@@ -534,6 +547,8 @@ function Field({
   multiline,
   rtl = true,
 }: {
+  styles: ReturnType<typeof createStyles>;
+  colors: ThemeColors;
   label: string;
   value: string;
   onChange: (v: string) => void;
@@ -559,7 +574,8 @@ function Field({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgDeep },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.xl },
   loadingText: { ...typography.body, color: colors.textMuted },
@@ -724,3 +740,4 @@ const styles = StyleSheet.create({
   },
   coordsText: { ...typography.caption, color: colors.textBrandSuccess, flex: 1, textAlign: 'right' },
 });
+}

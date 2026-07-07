@@ -16,7 +16,7 @@ describe('route schemas', () => {
   describe('snapshotSchema', () => {
     it('accepts valid partial draft snapshot', () => {
       const result = snapshotSchema.safeParse({
-        nameAr: 'ملحمة سروح',
+        nameAr: 'ملحمة سرح',
         nameEn: 'Sarouh Butchery',
         shopPhone: '+966501234567',
         country: 'SA',

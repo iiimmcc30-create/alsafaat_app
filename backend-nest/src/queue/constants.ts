@@ -1,3 +1,5 @@
+export const isRedisEnabled = () => process.env.REDIS_ENABLED !== 'false';
+
 export const QUEUE_CONNECTION = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379', 10),

@@ -225,7 +225,7 @@ export default function BroadcastScreen() {
   const handleShare = useCallback(async () => {
     try {
       await Share.share({
-        message: `شاهد بث "${streamTitle}" مباشرة على سروح`,
+        message: `شاهد بث "${streamTitle}" مباشرة على سرح`,
         title: streamTitle,
       });
     } catch {

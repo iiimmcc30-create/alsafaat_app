@@ -29,6 +29,7 @@ model User {
   fcmToken         String?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
   activities       Activity[]     @relation("ActivityActor")
   activityTargets  Activity[]     @relation("ActivityTarget")
   butcherProfile   Butcher?
@@ -55,11 +56,13 @@ model User {
   butcherApplications              ButcherApplication[]
   butcherApplicationTimelineEvents ButcherApplicationTimelineEvent[]
   verifiedButcherApplicationDocuments ButcherApplicationDocument[] @relation("DocumentVerifiedBy")
+  supportTickets                   SupportTicket[]
 
   @@index([username])
   @@index([email])
   @@index([country])
   @@index([isActive])
+  @@index([deletedAt])
 }
 
 model UserSession {
@@ -89,19 +92,63 @@ model Follow {
   @@index([followingId])
 }
 
+model Plan {
+  id             String        @id @default(uuid())
+  slug           String
+  name           String
+  description    String        @default("")
+  audience       PlanAudience
+  monthlyPrice   Float         @default(0)
+  yearlyPrice    Float         @default(0)
+  currency       String        @default("SAR")
+  yearlyDiscount Float         @default(0)
+  isActive       Boolean       @default(true)
+  sortOrder      Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  features       PlanFeature[]
+  subscriptions  Subscription[]
+
+  @@unique([slug, audience])
+  @@index([audience, isActive, sortOrder])
+}
+
+model PlanFeature {
+  id        String           @id @default(uuid())
+  planId    String
+  key       String
+  value     String
+  valueType FeatureValueType
+  plan      Plan             @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, key])
+  @@index([planId])
+}
+
 model Subscription {
-  id              String    @id @default(uuid())
-  userId          String    @unique
-  planId          PlanId    @default(free)
-  billingCycle    String    @default("monthly")
-  renewDate       DateTime
-  listingsUsed    Int       @default(0)
-  liveMinutesUsed Int       @default(0)
-  autoRenew       Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  payments        Payment[]
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String       @id @default(uuid())
+  userId              String       @unique
+  planId              String       @default("free")
+  planAudience        PlanAudience @default(USER)
+  planDbId            String?
+  billingCycle        String       @default("monthly")
+  status              String       @default("active")
+  renewDate           DateTime
+  listingsUsed        Int          @default(0)
+  liveMinutesUsed     Int          @default(0)
+  featuredAdsUsed     Int          @default(0)
+  pinnedAdsUsed       Int          @default(0)
+  dailyAdsUsed        Int          @default(0)
+  dailyAdsWindowStart DateTime?
+  autoRenew           Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  payments            Payment[]
+  plan                Plan?        @relation(fields: [planDbId], references: [id])
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@index([planDbId])
 }
 
 model Payment {
@@ -158,6 +205,7 @@ model Listing {
   expiresAt         DateTime?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
+  deletedAt         DateTime?
   seller            User            @relation(fields: [sellerId], references: [id])
   fee               ListingFee?
   offers            ListingOffer[]
@@ -170,6 +218,7 @@ model Listing {
   @@index([featured])
   @@index([createdAt])
   @@index([status, createdAt])
+  @@index([deletedAt])
 }
 
 model ListingFee {
@@ -216,12 +265,14 @@ model Post {
   content       String
   arabicContent String
   image         String?
+  isHidden      Boolean       @default(false)
   likesCount    Int           @default(0)
   repostsCount  Int           @default(0)
   commentsCount Int           @default(0)
   viewsCount    Int           @default(0)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
   author        User          @relation(fields: [authorId], references: [id])
   comments      PostComment[]
   likes         PostLike[]
@@ -229,6 +280,7 @@ model Post {
 
   @@index([authorId])
   @@index([createdAt])
+  @@index([deletedAt])
 }
 
 model PostLike {
@@ -281,6 +333,7 @@ model Story {
   reactionsCount  Int             @default(0)
   expiresAt       DateTime
   createdAt       DateTime        @default(now())
+  deletedAt       DateTime?
   user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   listing         Listing?        @relation(fields: [listingId], references: [id], onDelete: SetNull)
   views           StoryView[]
@@ -291,6 +344,7 @@ model Story {
   @@index([userId, expiresAt, createdAt])
   @@index([expiresAt, createdAt])
   @@index([listingId])
+  @@index([deletedAt])
 }
 
 model StoryView {
@@ -339,11 +393,13 @@ model LiveStream {
   startedAt   DateTime?
   endedAt     DateTime?
   createdAt   DateTime      @default(now())
+  deletedAt   DateTime?
   comments    LiveComment[]
   host        User          @relation(fields: [hostId], references: [id])
 
   @@index([hostId])
   @@index([isLive])
+  @@index([deletedAt])
 }
 
 model LiveComment {
@@ -466,6 +522,7 @@ model Butcher {
   sourceApplicationId String?          @unique
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
+  deletedAt           DateTime?
   user                User                 @relation(fields: [userId], references: [id])
   sourceApplication   ButcherApplication?  @relation("ButcherSourceApplication", fields: [sourceApplicationId], references: [id])
   offers              ButcherOffer[]
@@ -478,6 +535,7 @@ model Butcher {
   @@index([subscriptionActive])
   @@index([rating])
   @@index([country, subscriptionActive, rating])
+  @@index([deletedAt])
 }
 
 model ButcherProduct {
@@ -493,6 +551,8 @@ model ButcherProduct {
   availableCuts String[]
   weightMin     Float?
   weightMax     Float?
+  availableQuantity Float          @default(0)
+  reservedQuantity  Float          @default(0)
   inStock       Boolean        @default(true)
   freshness     String         @default("fresh")
   descriptionAr String
@@ -500,11 +560,13 @@ model ButcherProduct {
   country       Country
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
   orderItems    ButcherOrder[]
   butcher       Butcher        @relation(fields: [butcherId], references: [id])
 
   @@index([butcherId])
   @@index([inStock])
+  @@index([deletedAt])
 }
 
 model ButcherOffer {
@@ -521,10 +583,12 @@ model ButcherOffer {
   validUntil      DateTime
   country         Country
   createdAt       DateTime @default(now())
+  deletedAt       DateTime?
   butcher         Butcher  @relation(fields: [butcherId], references: [id])
 
   @@index([butcherId])
   @@index([validUntil])
+  @@index([deletedAt])
 }
 
 model ButcherStory {
@@ -539,35 +603,77 @@ model ButcherStory {
   seen      Boolean   @default(false)
   expiresAt DateTime
   createdAt DateTime  @default(now())
+  deletedAt DateTime?
   butcher   Butcher   @relation(fields: [butcherId], references: [id])
 
   @@index([butcherId])
   @@index([expiresAt])
+  @@index([deletedAt])
 }
 
 model ButcherOrder {
   id              String         @id @default(uuid())
+  orderNumber     String         @unique
   butcherId       String
   customerId      String
   productId       String
   cutType         String
   weightKg        Float
+  reservedQuantity Float         @default(0)
   deliveryType    String         @default("pickup")
   deliveryAddress String?
   status          OrderStatus    @default(pending)
   totalPrice      Float
   currency        String         @default("SAR")
   notes           String?
+  cancelledBy     String?
+  cancellationReason String?
+  cancelledAt     DateTime?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   butcher         Butcher        @relation(fields: [butcherId], references: [id])
   customer        User           @relation(fields: [customerId], references: [id])
   product         ButcherProduct @relation(fields: [productId], references: [id])
+  timeline        OrderTimeline[]
+  audits          OrderStatusAudit[]
 
   @@index([butcherId])
   @@index([customerId])
   @@index([status])
   @@index([butcherId, status])
+  @@index([orderNumber])
+}
+
+model OrderTimeline {
+  id        String      @id @default(uuid())
+  orderId   String
+  status    OrderStatus
+  note      String?
+  createdBy String
+  createdAt DateTime    @default(now())
+  order     ButcherOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+}
+
+model OrderStatusAudit {
+  id             String      @id @default(uuid())
+  orderId        String
+  previousStatus OrderStatus
+  newStatus      OrderStatus
+  changedBy      String
+  changedAt      DateTime    @default(now())
+  order          ButcherOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, changedAt])
+  @@index([changedBy, changedAt])
+}
+
+model OrderNumberSequence {
+  id         String   @id @default(uuid())
+  year       Int      @unique
+  lastNumber Int      @default(0)
+  updatedAt  DateTime @updatedAt
 }
 
 model ButcherReview {
@@ -692,11 +798,16 @@ enum Role {
   MODERATOR
 }
 
-enum PlanId {
-  free
-  starter
-  pro
-  vip
+enum PlanAudience {
+  USER
+  BUTCHER
+}
+
+enum FeatureValueType {
+  BOOLEAN
+  NUMBER
+  STRING
+  JSON
 }
 
 enum ListingCategory {
@@ -823,4 +934,67 @@ enum ButcherApplicationTimelineAction {
   REJECT
   WITHDRAW
   COMMENT
+}
+
+model SupportTicket {
+  id           String         @id @default(uuid())
+  ticketNumber String         @unique
+  category     String
+  priority     TicketPriority @default(NORMAL)
+  status       TicketStatus   @default(OPEN)
+  subject      String
+  description  String
+  adminNotes   String?
+  reporterId   String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+  reporter     User?          @relation(fields: [reporterId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([category])
+  @@index([priority])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model AppSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  labelAr   String?
+  category  String   @default("general")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ContentSection {
+  id        String   @id @default(uuid())
+  slug      String   @unique
+  titleAr   String
+  titleEn   String?
+  bodyAr    String
+  bodyEn    String?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([deletedAt])
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN
+  IN_REVIEW
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
 }

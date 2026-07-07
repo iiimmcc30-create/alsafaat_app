@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { notDeleted } from '../common/utils/soft-delete.util';
 
 const HASHTAG_RE = /#[\u0600-\u06FF\w_]+/g;
 
@@ -9,7 +10,7 @@ export class SearchRepository {
 
   findRecentPosts(since: Date) {
     return this.prisma.post.findMany({
-      where: { createdAt: { gte: since } },
+      where: { createdAt: { gte: since }, ...notDeleted, isHidden: false },
       select: { content: true, arabicContent: true },
       take: 500,
       orderBy: { createdAt: 'desc' },

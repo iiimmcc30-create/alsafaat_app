@@ -2,17 +2,17 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { LoggerService } from '../../common/services/logger.service';
-import { PrismaService } from '../../prisma/prisma.service';
 import { QUEUE_NAMES } from '../constants';
 import type { SubscriptionJob } from '../types/queue.types';
 import { SubscriptionLifecycleService } from '../../subscriptions/services/subscription-lifecycle.service';
+import { SubscriptionLifecycleRepository } from '../../subscriptions/repositories/subscription-lifecycle.repository';
 
 @Injectable()
 @Processor(QUEUE_NAMES.SUBSCRIPTIONS, { concurrency: 3 })
 export class SubscriptionProcessor extends WorkerHost {
   constructor(
     private readonly lifecycle: SubscriptionLifecycleService,
-    private readonly prisma: PrismaService,
+    private readonly subscriptionRepo: SubscriptionLifecycleRepository,
     private readonly logger: LoggerService,
   ) {
     super();
@@ -33,13 +33,10 @@ export class SubscriptionProcessor extends WorkerHost {
         return;
       }
       case 'reset_live_minutes': {
-        const result = await this.prisma.subscription.updateMany({
-          where: { planId: { not: 'vip' } },
-          data: { liveMinutesUsed: 0 },
-        });
+        const result = await this.subscriptionRepo.resetMonthlyUsageCounters();
         this.logger.info(
           { count: result.count },
-          'Weekly live minutes usage reset',
+          'Monthly usage counters reset',
         );
         return;
       }

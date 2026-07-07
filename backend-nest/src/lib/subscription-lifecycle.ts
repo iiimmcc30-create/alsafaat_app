@@ -1,8 +1,5 @@
-// Subscription lifecycle helpers — single source of truth for gating + status
-import type { PlanId } from './plans';
-import { getPlanById } from './plans';
-
-export const PLAN_ORDER: PlanId[] = ['free', 'starter', 'pro', 'vip'];
+// Subscription lifecycle helpers — status + gating (plan features resolved via DB services)
+import { normalizePlanSlug, FREE_PLAN_SLUG } from '../plans/plan.types';
 
 export const SUBSCRIPTION_GRACE_DAYS = parseInt(
   process.env.SUBSCRIPTION_GRACE_DAYS || '3',
@@ -20,17 +17,16 @@ export type SubscriptionRow = {
   autoRenew: boolean;
 };
 
-export function planTier(planId: string): number {
-  const idx = PLAN_ORDER.indexOf(planId as PlanId);
-  return idx >= 0 ? idx : 0;
-}
-
 export function isPaidPlan(planId: string): boolean {
-  return planId !== 'free';
+  return normalizePlanSlug(planId) !== FREE_PLAN_SLUG;
 }
 
-export function isUpgrade(fromPlanId: string, toPlanId: string): boolean {
-  return planTier(toPlanId) > planTier(fromPlanId);
+export function isUpgrade(
+  fromPlanId: string,
+  toPlanId: string,
+  tierOf: (slug: string) => number,
+): boolean {
+  return tierOf(normalizePlanSlug(toPlanId)) > tierOf(normalizePlanSlug(fromPlanId));
 }
 
 /** Paid access window: active until renewDate (+ grace if autoRenew). */
@@ -69,22 +65,22 @@ export function getSubscriptionStatus(
   return 'expired';
 }
 
-/** Plan used for limits / features (free when expired). */
-export function getEffectivePlanId(
+/** Plan slug used for limits / features (free when expired). */
+export function getEffectivePlanSlug(
   sub: SubscriptionRow,
   now: Date = new Date(),
-): PlanId {
+): string {
   if (hasPaidAccess(sub, now)) {
-    return sub.planId as PlanId;
+    return normalizePlanSlug(sub.planId);
   }
   if (!isPaidPlan(sub.planId)) {
-    return 'free';
+    return FREE_PLAN_SLUG;
   }
   const status = getSubscriptionStatus(sub, now);
   if (status === 'grace_period') {
-    return sub.planId as PlanId;
+    return normalizePlanSlug(sub.planId);
   }
-  return 'free';
+  return FREE_PLAN_SLUG;
 }
 
 /**
@@ -93,35 +89,14 @@ export function getEffectivePlanId(
  */
 export function shouldBlockSubscriptionPayment(
   sub: SubscriptionRow,
-  targetPlanId: PlanId,
+  targetPlanId: string,
+  tierOf: (slug: string) => number,
   now: Date = new Date(),
 ): boolean {
   if (!isPaidPlan(sub.planId)) return false;
-  if (isUpgrade(sub.planId, targetPlanId)) return false;
+  if (isUpgrade(sub.planId, targetPlanId, tierOf)) return false;
   if (sub.renewDate > now) return true;
   return false;
-}
-
-export function getListingLimit(planId: PlanId): number {
-  const plan = getPlanById(planId);
-  return plan.listingsPerMonth >= 999
-    ? Number.MAX_SAFE_INTEGER
-    : plan.listingsPerMonth;
-}
-
-export function getFeaturedLimit(planId: PlanId): number {
-  const plan = getPlanById(planId);
-  return plan.featuredListings >= 999
-    ? Number.MAX_SAFE_INTEGER
-    : plan.featuredListings;
-}
-
-export function getMaxImages(planId: PlanId): number {
-  return getPlanById(planId).maxImages;
-}
-
-export function hasPrioritySearch(planId: PlanId): boolean {
-  return getPlanById(planId).prioritySearch;
 }
 
 export function msUntilRenewDate(
@@ -136,4 +111,18 @@ export function daysUntilRenewDate(
   now: Date = new Date(),
 ): number {
   return Math.ceil(msUntilRenewDate(renewDate, now) / MS_PER_DAY);
+}
+
+/** @deprecated Use PlanResolverService.planTier — kept for gradual migration */
+export function planTier(planId: string): number {
+  const slug = normalizePlanSlug(planId);
+  const tiers: Record<string, number> = {
+    free: 0,
+    'sarh-pro': 1,
+    growth: 1,
+    starter: 1,
+    pro: 2,
+    vip: 3,
+  };
+  return tiers[slug] ?? 0;
 }

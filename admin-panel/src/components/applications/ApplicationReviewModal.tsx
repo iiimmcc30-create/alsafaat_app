@@ -215,7 +215,7 @@ export function ApplicationReviewModal({ applicationId, open, onClose, onUpdated
                 <Field label="التخصصات" value={(app.specialties as string[])?.join('، ')} />
                 <Field label="تاريخ التقديم" value={fmtDate(app.submittedAt)} />
               </dl>
-              {(app.bioAr || app.bioEn) && (
+              {Boolean(app.bioAr || app.bioEn) && (
                 <div className="mt-3">
                   <p className="text-xs text-slate-500">نبذة</p>
                   <p className="mt-1 text-sm text-slate-300 whitespace-pre-wrap">

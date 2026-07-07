@@ -77,7 +77,10 @@ export default function DashboardPage() {
                   cx="50%"
                   cy="50%"
                   outerRadius={90}
-                  label={({ category, count }) => `${category}: ${count}`}
+                  label={(props) => {
+                    const entry = props as { category?: string; count?: number };
+                    return `${entry.category ?? ''}: ${entry.count ?? 0}`;
+                  }}
                 >
                   {stats.charts.ticketsByCategory.map((_, i) => (
                     <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />

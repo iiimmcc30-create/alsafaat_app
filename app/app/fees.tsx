@@ -33,7 +33,7 @@ import {
   ListingCategory,
 } from '@/services/commissions';
 import { PAYMENT_METHODS, NIPaymentMethod } from '@/services/network_international';
-import { PLAN_ICONS } from '@/services/subscriptionPlans';
+import { formatPlanFeatureText, planDisplayName, planGradientColors, planIcon } from '@/services/subscriptionPlans';
 
 type PageTab = 'fees' | 'subscription' | 'history' | 'rules';
 
@@ -203,12 +203,7 @@ export default function FeesScreen() {
     }
   };
 
-  const planColors: [string, string] = {
-    free: ['#334155', '#1E293B'],
-    starter: ['#1E3A8A', '#3B82F6'],
-    pro: ['#7C3AED', '#A855F7'],
-    vip: ['#B45309', '#F5C56A'],
-  }[subscription.planId] as [string, string];
+  const planColors = planGradientColors(subscription.plan?.sortOrder ?? 0);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -393,12 +388,14 @@ export default function FeesScreen() {
               <View style={styles.planCardTop}>
                 <View>
                   <Text style={styles.planCardLabel}>باقتك الحالية</Text>
-                  <Text style={styles.planCardName}>{subscription.plan.arabicName}</Text>
+                  <Text style={styles.planCardName}>
+                    {planDisplayName(subscription.planSlug, subscription.plan?.name)}
+                  </Text>
                   <Text style={styles.planCardRenew}>
                     التجديد: {new Date(subscription.renewDate).toLocaleDateString('ar-SA')}
                   </Text>
                 </View>
-                <Text style={styles.planCardIcon}>{PLAN_ICONS[subscription.planId]}</Text>
+                <AppIcon name={planIcon(subscription.planSlug) as never} size={22} color="#fff" />
               </View>
 
               {/* Usage bars */}
@@ -407,14 +404,23 @@ export default function FeesScreen() {
                   <View style={styles.usageTop}>
                     <Text style={styles.usageLabel}>الإعلانات</Text>
                     <Text style={styles.usageVal}>
-                      {subscription.listingsUsed}/{subscription.plan.listingsPerMonth === 999 ? '∞' : subscription.plan.listingsPerMonth}
+                      {subscription.usageCounters.dailyAdsUsed}/
+                      {(() => {
+                        const v = subscription.permissions.maxAdsPer24Hours;
+                        if (typeof v === 'number' && v < 0) return '∞';
+                        return String(v ?? '—');
+                      })()}
                     </Text>
                   </View>
                   <View style={styles.usageTrack}>
                     <View style={[styles.usageFill, {
-                      width: subscription.plan.listingsPerMonth === 999
-                        ? '15%'
-                        : `${Math.min((subscription.listingsUsed / subscription.plan.listingsPerMonth) * 100, 100)}%`
+                      width: (() => {
+                        const limit = subscription.permissions.maxAdsPer24Hours;
+                        if (typeof limit === 'number' && limit < 0) return '15%';
+                        const used = subscription.usageCounters.dailyAdsUsed;
+                        const max = typeof limit === 'number' ? limit : 1;
+                        return `${Math.min((used / max) * 100, 100)}%`;
+                      })()
                     }]} />
                   </View>
                 </View>
@@ -422,7 +428,12 @@ export default function FeesScreen() {
                   <View style={styles.usageTop}>
                     <Text style={styles.usageLabel}>دقائق البث</Text>
                     <Text style={styles.usageVal}>
-                      {subscription.liveMinutesUsed}/{subscription.plan.liveMinutesPerWeek === 999 ? '∞' : subscription.plan.liveMinutesPerWeek}
+                      {subscription.usageCounters.liveMinutesUsed}/
+                      {(() => {
+                        const hours = subscription.permissions.monthlyLiveHours;
+                        if (typeof hours === 'number' && hours < 0) return '∞';
+                        return typeof hours === 'number' ? hours * 60 : '—';
+                      })()}
                     </Text>
                   </View>
                   <View style={styles.usageTrack}>
@@ -430,10 +441,41 @@ export default function FeesScreen() {
                   </View>
                 </View>
               </View>
+
+              {(subscription.plan?.displayFeatures ?? []).length > 0 && (
+                <View style={styles.planFeaturesWrap}>
+                  <Text style={styles.planFeaturesTitle}>مميزات الباقة</Text>
+                  {(subscription.plan.displayFeatures ?? []).map((f, i) => {
+                    const included =
+                      f.valueType === 'BOOLEAN'
+                        ? Boolean(f.value)
+                        : f.valueType === 'NUMBER'
+                          ? Number(f.value) > 0 || Number(f.value) < 0
+                          : true;
+                    return (
+                      <View key={`${f.key}-${i}`} style={styles.planFeatureRow}>
+                        <Text
+                          style={[
+                            styles.planFeatureText,
+                            !included && styles.planFeatureTextMuted,
+                          ]}
+                        >
+                          {f.label}: {formatPlanFeatureText(f.key, f.value, f.valueType)}
+                        </Text>
+                        <AppIcon
+                          name={included ? 'check' : 'close'}
+                          size={14}
+                          color={included ? '#fff' : 'rgba(255,255,255,0.45)'}
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </LinearGradient>
 
             {/* Upgrade CTA */}
-            {subscription.planId !== 'vip' && (
+            {subscription.plan?.monthlyPrice === 0 && (
               <Pressable
                 style={styles.upgradeBtn}
                 onPress={() => router.push('/subscription')}
@@ -456,14 +498,14 @@ export default function FeesScreen() {
                   title: 'تجديد الاشتراك',
                   subtitle: 'دفع رسوم الاشتراك الشهري',
                   color: colors.electric,
-                  onPress: () => router.push({ pathname: '/payment', params: { planId: subscription.planId, cycle: 'monthly' } }),
+                  onPress: () => router.push({ pathname: '/payment', params: { planId: subscription.planSlug, cycle: 'monthly' } }),
                 },
                 {
                   icon: 'calendar-outline',
                   title: 'الاشتراك السنوي',
                   subtitle: 'وفّر ٢٠٪ مع الدفع السنوي',
                   color: colors.gold,
-                  onPress: () => router.push({ pathname: '/payment', params: { planId: subscription.planId, cycle: 'yearly' } }),
+                  onPress: () => router.push({ pathname: '/payment', params: { planId: subscription.planSlug, cycle: 'yearly' } }),
                 },
                 {
                   icon: 'receipt-outline',
@@ -791,20 +833,50 @@ function createStyles(colors: ThemeColors) {
     borderRadius: radius.xl, padding: spacing.xl, marginBottom: spacing.lg, gap: spacing.lg,
   },
   planCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  planCardLabel: { ...typography.micro, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
-  planCardName: { ...typography.h2, color: '#fff' },
-  planCardRenew: { ...typography.caption, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+  planCardLabel: { ...typography.micro, color: 'rgba(255,255,255,0.7)', marginBottom: 4, textAlign: 'right', writingDirection: 'rtl' },
+  planCardName: { ...typography.h2, color: '#fff', textAlign: 'right', writingDirection: 'rtl' },
+  planCardRenew: { ...typography.caption, color: 'rgba(255,255,255,0.6)', marginTop: 2, textAlign: 'right', writingDirection: 'rtl' },
   planCardIcon: { fontSize: 36 },
   usageBars: { gap: spacing.md },
   usageItem: { gap: 6 },
   usageTop: { flexDirection: 'row', justifyContent: 'space-between' },
-  usageLabel: { ...typography.micro, color: 'rgba(255,255,255,0.7)' },
+  usageLabel: { ...typography.micro, color: 'rgba(255,255,255,0.7)', textAlign: 'right', writingDirection: 'rtl' },
   usageVal: { ...typography.micro, color: '#fff', fontWeight: '700' },
   usageTrack: {
     height: 4, borderRadius: 2,
     backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden',
   },
   usageFill: { height: '100%', borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.8)' },
+  planFeaturesWrap: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.2)',
+    paddingTop: spacing.md,
+    gap: 8,
+  },
+  planFeaturesTitle: {
+    ...typography.caption,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '700',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  planFeatureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  planFeatureText: {
+    ...typography.caption,
+    color: '#fff',
+    flex: 1,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  planFeatureTextMuted: {
+    color: 'rgba(255,255,255,0.5)',
+    textDecorationLine: 'line-through',
+  },
 
   upgradeBtn: { borderRadius: radius.xl, overflow: 'hidden', marginBottom: spacing.lg },
   upgradeBtnInner: {

@@ -1,4 +1,4 @@
-# سروح — لوحة الإدارة (Admin Panel)
+# سرح — لوحة الإدارة (Admin Panel)
 
 منصة إدارة ويب مستقلة عن تطبيق الموبايل. تُنشر على **alsfat.com/admin** أو **admin.alsfat.com** وترتبط بـ Backend API.
 

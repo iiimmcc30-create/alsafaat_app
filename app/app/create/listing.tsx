@@ -28,6 +28,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
 import { useApp } from '@/hooks/useApp';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { calculateCommission, ListingCategory } from '@/services/commissions';
 import { Country } from '@/services/types';
 import { uploadImageFromUri } from '@/services/upload';
@@ -67,6 +68,7 @@ export default function CreateListingScreen() {
   const router = useRouter();
   const { addListing } = useApp();
   const { accessToken } = useAuth();
+  const { subscription } = useSubscription();
 
   const [step, setStep] = useState(0);
   const [category, setCategory] = useState<Category | null>(null);
@@ -456,7 +458,12 @@ export default function CreateListingScreen() {
                     <Text style={styles.commissionTitle}>رسوم الإعلان المستحقة</Text>
                   </View>
                   {(() => {
-                    const calc = calculateCommission(category as ListingCategory, Number(price), 1);
+                    const calc = calculateCommission(
+                      category as ListingCategory,
+                      Number(price),
+                      1,
+                      subscription.permissions,
+                    );
                     return (
                       <View style={styles.commissionDetails}>
                         <View style={styles.commissionRow}>
@@ -559,7 +566,7 @@ export default function CreateListingScreen() {
               <View style={styles.termsBox}>
                 <AppIcon name="information-circle-outline" size={16} color={colors.textMuted} />
                 <Text style={styles.termsText}>
-                  بالنشر، تؤكد أن الإعلان صحيح ويتوافق مع شروط سروح.
+                  بالنشر، تؤكد أن الإعلان صحيح ويتوافق مع شروط سرح.
                 </Text>
               </View>
             </View>
@@ -627,7 +634,7 @@ export default function CreateListingScreen() {
                 <View style={[styles.pledgeCard, styles.pledgeCardGold]}>
                   <Text style={styles.pledgeCardTitleGold}>💰 تعهد السعي (العمولة)</Text>
                   <Text style={styles.pledgeBodyText}>
-                    أتعهد بدفع سعي (عمولة) منصة سروح عند إتمام أي بيع يتم عبر المنصة، وفق النظام التالي:
+                    أتعهد بدفع سعي (عمولة) منصة سرح عند إتمام أي بيع يتم عبر المنصة، وفق النظام التالي:
                   </Text>
                   {[
                     { icon: '🐑', label: 'الأغنام والماعز',              value: '٢٠ ريال / رأس' },
@@ -666,7 +673,7 @@ export default function CreateListingScreen() {
                     {pledgeChecked && <Text style={styles.checkmark}>✓</Text>}
                   </View>
                   <Text style={styles.checkboxText}>
-                    أقر بأنني قرأت وفهمت جميع الشروط، وأتعهد بدفع السعي (العمولة) وفق نظام سوق سروح عند إتمام أي بيع، وأقسم بالله على صحة المعلومات.
+                    أقر بأنني قرأت وفهمت جميع الشروط، وأتعهد بدفع السعي (العمولة) وفق نظام سوق سرح عند إتمام أي بيع، وأقسم بالله على صحة المعلومات.
                   </Text>
                 </Pressable>
 

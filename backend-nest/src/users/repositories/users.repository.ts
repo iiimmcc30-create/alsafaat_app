@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Country, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { softDeleteFields } from '../../common/utils/soft-delete.util';
 
 const listUserSelect = {
   id: true,
@@ -122,6 +123,7 @@ export class UsersRepository {
         where: { id },
         data: {
           isActive: false,
+          ...softDeleteFields(),
           email: `deleted_${Date.now()}@safat.deleted`,
           fcmToken: null,
         },
@@ -135,8 +137,8 @@ export class UsersRepository {
   }
 
   findActiveUserId(id: string) {
-    return this.prisma.user.findUnique({
-      where: { id, isActive: true },
+    return this.prisma.user.findFirst({
+      where: { id, isActive: true, deletedAt: null },
       select: { id: true },
     });
   }

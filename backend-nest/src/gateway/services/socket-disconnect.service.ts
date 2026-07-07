@@ -12,6 +12,8 @@ export class SocketDisconnectService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     if (process.env.REDIS_ENABLED === 'false') return;
+    if (process.env.SOCKET_USE_MEMORY_ADAPTER === 'true') return;
+
     this.pub = new IORedis({
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379', 10),

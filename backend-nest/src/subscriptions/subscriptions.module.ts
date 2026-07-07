@@ -5,7 +5,10 @@ import { SubscriptionsRepository } from './repositories/subscriptions.repository
 import { SubscriptionLifecycleRepository } from './repositories/subscription-lifecycle.repository';
 import { SubscriptionCacheService } from './services/subscription-cache.service';
 import { SubscriptionLifecycleService } from './services/subscription-lifecycle.service';
-import { SubscriptionEntitlementsService } from './services/subscription-entitlements.service';
+import { SubscriptionEntitlementService } from './services/subscription-entitlement.service';
+
+/** @deprecated Use SubscriptionEntitlementService */
+export { SubscriptionEntitlementService as SubscriptionEntitlementsService } from './services/subscription-entitlement.service';
 
 @Global()
 @Module({
@@ -16,13 +19,13 @@ import { SubscriptionEntitlementsService } from './services/subscription-entitle
     SubscriptionLifecycleRepository,
     SubscriptionCacheService,
     SubscriptionLifecycleService,
-    SubscriptionEntitlementsService,
+    SubscriptionEntitlementService,
   ],
   exports: [
     SubscriptionsService,
     SubscriptionCacheService,
     SubscriptionLifecycleService,
-    SubscriptionEntitlementsService,
+    SubscriptionEntitlementService,
     SubscriptionLifecycleRepository,
   ],
 })

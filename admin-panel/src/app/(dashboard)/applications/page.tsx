@@ -34,7 +34,9 @@ export default function ApplicationsPage() {
   const [reviewId, setReviewId] = useState<string | null>(null);
 
   const loadList = useCallback(() => {
-    fetchApplications().then(setData).catch(console.error);
+    fetchApplications()
+      .then((res) => setData(res as { applications?: Record<string, unknown>[] }))
+      .catch(console.error);
   }, []);
 
   useEffect(() => {

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { adminLogin, persistSession } from '@/services/auth.service';
+import { useEffect, useState } from 'react';
+import { adminLogin, persistSession, clearSession } from '@/services/auth.service';
+import { getApiErrorMessage } from '@/services/api.client';
 import { Button } from '@/components/ui/Button';
 import {
   BRAND_ADMIN_SUBTITLE_AR,
@@ -12,23 +12,35 @@ import {
 } from '@/constants/brandCopy';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [backendDown, setBackendDown] = useState(false);
+
+  useEffect(() => {
+    // Stale cookie without localStorage breaks middleware (redirect loop).
+    if (!localStorage.getItem('admin_access_token')) {
+      document.cookie = 'admin_token=; path=/; max-age=0';
+    }
+
+    fetch('/api/health', { cache: 'no-store' })
+      .then((r) => setBackendDown(!r.ok))
+      .catch(() => setBackendDown(true));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    clearSession();
     try {
       const session = await adminLogin(login, password);
       persistSession(session);
-      router.replace('/');
+      // Full navigation so middleware receives the new admin_token cookie.
+      window.location.assign('/');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل تسجيل الدخول';
-      setError(msg);
+      setError(getApiErrorMessage(err, 'فشل تسجيل الدخول'));
     } finally {
       setLoading(false);
     }
@@ -65,6 +77,11 @@ export default function LoginPage() {
               autoComplete="current-password"
             />
           </div>
+          {backendDown && (
+            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+              الباك إند غير متصل. شغّل: <code className="text-amber-200">cd backend-nest && npm run dev:lite</code>
+            </p>
+          )}
           {error && <p className="text-sm text-rose-400">{error}</p>}
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'جارٍ الدخول...' : 'تسجيل الدخول'}

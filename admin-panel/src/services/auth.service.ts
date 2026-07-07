@@ -30,7 +30,8 @@ export function persistSession(data: LoginResult) {
   localStorage.setItem('admin_access_token', data.accessToken);
   localStorage.setItem('admin_refresh_token', data.refreshToken);
   localStorage.setItem('admin_user', JSON.stringify(data.user));
-  document.cookie = `admin_token=${data.accessToken}; path=/; max-age=${60 * 60 * 12}; SameSite=Lax`;
+  const maxAge = 60 * 60 * 12;
+  document.cookie = `admin_token=${encodeURIComponent(data.accessToken)}; path=/; max-age=${maxAge}; SameSite=Lax`;
 }
 
 export function clearSession() {

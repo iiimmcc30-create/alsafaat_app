@@ -12,8 +12,10 @@ import {
   Radio,
   Store,
   ClipboardList,
+  CreditCard,
   Settings,
   Layers,
+  ReceiptText,
   LogOut,
 } from 'lucide-react';
 import { clearSession, getStoredUser } from '@/services/auth.service';
@@ -28,6 +30,8 @@ const nav = [
   { href: '/live', label: 'البث المباشر', icon: Radio },
   { href: '/butchers', label: 'الملاحم', icon: Store },
   { href: '/applications', label: 'طلبات الملاحم', icon: ClipboardList },
+  { href: '/orders', label: 'الطلبات', icon: ReceiptText },
+  { href: '/plans', label: 'الباقات', icon: CreditCard },
   { href: '/content', label: 'المحتوى', icon: Layers },
   { href: '/settings', label: 'الإعدادات', icon: Settings },
 ];

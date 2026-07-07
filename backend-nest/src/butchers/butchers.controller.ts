@@ -156,6 +156,13 @@ export class ButchersController {
     return successResponse(await this.butchers.updateOrder(id, user, body));
   }
 
+  @RateLimit('api')
+  @Get('orders/:id')
+  @HttpCode(HttpStatus.OK)
+  async getOrderById(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return successResponse(await this.butchers.getOrderById(id, user));
+  }
+
   @Public()
   @RateLimit('api')
   @Get('stories')

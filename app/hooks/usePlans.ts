@@ -1,36 +1,45 @@
 import { useCallback, useEffect, useState } from 'react';
 import { API_BASE } from '@/services/api';
-import type { PlanId, SubscriptionPlan } from '@/services/subscriptionPlans';
-import { plans as fallbackPlans } from '@/services/subscriptionPlans';
+import {
+  EMPTY_PLAN,
+  mapApiPlan,
+  normalizeSlug,
+  type PlanAudience,
+  type SubscriptionPlan,
+} from '@/services/subscriptionPlans';
 
-export function usePlans() {
-  const [plans, setPlans] = useState<SubscriptionPlan[]>(fallbackPlans);
+export function usePlans(audience: PlanAudience = 'USER') {
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([EMPTY_PLAN]);
   const [loading, setLoading] = useState(true);
 
   const fetchPlans = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/plans`);
+      const res = await fetch(`${API_BASE}/api/plans?audience=${audience}`);
       if (res.ok) {
         const json = await res.json();
-        if (json.success && json.data?.plans) {
-          setPlans(json.data.plans);
+        if (json.success && Array.isArray(json.data?.plans)) {
+          const mapped = json.data.plans.map((p: Record<string, unknown>) =>
+            mapApiPlan(p),
+          );
+          if (mapped.length > 0) setPlans(mapped);
         }
       }
     } catch {
-      // keep fallback
+      // keep last known plans
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [audience]);
 
   useEffect(() => {
     fetchPlans();
   }, [fetchPlans]);
 
-  const getPlanById = useCallback(
-    (id: PlanId) => plans.find((p) => p.id === id) ?? plans[0],
-    [plans]
+  const getPlanBySlug = useCallback(
+    (slug: string) =>
+      plans.find((p) => p.slug === normalizeSlug(slug)) ?? plans[0] ?? EMPTY_PLAN,
+    [plans],
   );
 
-  return { plans, loading, getPlanById, refetch: fetchPlans };
+  return { plans, loading, getPlanBySlug, refetch: fetchPlans };
 }

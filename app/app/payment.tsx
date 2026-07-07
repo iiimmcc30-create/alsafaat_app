@@ -5,7 +5,8 @@ import { AppIcon } from '@/components/ui/FlaticonIcon';
 
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
 import {
   ActivityIndicator,
   Alert,
@@ -26,7 +27,7 @@ import {
   NIPaymentMethod,
   PAYMENT_METHODS,
 } from '@/services/network_international';
-import { PlanId } from '@/services/subscriptionPlans';
+import { normalizeSlug, planGradientColors } from '@/services/subscriptionPlans';
 import { usePlans } from '@/hooks/usePlans';
 import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -39,14 +40,16 @@ export default function PaymentScreen() {
   const { colors, gradients } = useTheme();
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
-  const { planId, cycle } = useLocalSearchParams<{ planId: PlanId; cycle: 'monthly' | 'yearly' }>();
+  const { planId, cycle } = useLocalSearchParams<{ planId: string; cycle: 'monthly' | 'yearly' }>();
   const { me } = useApp();
   const { user: authUser, accessToken } = useAuth();
   const { upgradePlan, subscription, refetchSubscription } = useSubscription();
-  const { getPlanById } = usePlans();
-  const plan = getPlanById(planId ?? 'starter');
+  const { getPlanBySlug } = usePlans(subscription.planAudience);
+  const slug = normalizeSlug(planId ?? 'sarh-pro');
+  const plan = getPlanBySlug(slug);
+  const [planColor, planColorEnd] = planGradientColors(plan.sortOrder);
   const billingCycle = cycle ?? 'monthly';
-  const amount = billingCycle === 'yearly' ? plan.yearlyPrice : plan.price;
+  const amount = billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice;
 
   const [step, setStep] = useState<Step>('method');
   const [selectedMethod, setSelectedMethod] = useState<NIPaymentMethod | null>(null);
@@ -56,6 +59,12 @@ export default function PaymentScreen() {
   const [cardName, setCardName] = useState('');
   const [loading, setLoading] = useState(false);
   const [transactionId, setTransactionId] = useState('');
+
+  useEffect(() => {
+    if (!subscription.id && accessToken) {
+      void refetchSubscription();
+    }
+  }, [subscription.id, accessToken, refetchSubscription]);
 
   const needsCardForm =
     selectedMethod === 'mada' ||
@@ -80,7 +89,10 @@ export default function PaymentScreen() {
     }
 
     if (!subscription.id) {
-      Alert.alert('خطأ', 'تعذر تحميل بيانات الاشتراك. حاول مجدداً.');
+      Alert.alert(
+        'خطأ',
+        'تعذر تحميل بيانات الاشتراك. تأكدي أن الباك إند شغال وأنك مسجّلة الدخول، ثم حاولي مجدداً.',
+      );
       return;
     }
 
@@ -100,10 +112,10 @@ export default function PaymentScreen() {
           method: selectedMethod,
           type: 'subscription',
           referenceId: subscription.id,
-          planId: plan.id,
+          planId: plan.slug,
           billingCycle,
-          description: `Srooh ${plan.name} subscription - ${billingCycle}`,
-          descriptionAr: `اشتراك سروح ${plan.arabicName} - ${billingCycle === 'yearly' ? 'سنوي' : 'شهري'}`,
+          description: `sarh ${plan.name} subscription - ${billingCycle}`,
+          descriptionAr: `اشتراك سرح ${plan.name} - ${billingCycle === 'yearly' ? 'سنوي' : 'شهري'}`,
         }),
       });
 
@@ -111,7 +123,12 @@ export default function PaymentScreen() {
 
       if (res.ok && json.success && json.data?.checkoutUrl) {
         const { checkoutUrl } = json.data;
-        await Linking.openURL(checkoutUrl);
+        const canOpen = await Linking.canOpenURL(checkoutUrl);
+        if (canOpen) {
+          await Linking.openURL(checkoutUrl);
+        } else {
+          await WebBrowser.openBrowserAsync(checkoutUrl);
+        }
         Alert.alert(
           'أكمل الدفع',
           'تم فتح صفحة الدفع عبر الشبكة الدولية. بعد إتمام الدفع سيتم تحديث اشتراكك تلقائياً.',
@@ -125,7 +142,13 @@ export default function PaymentScreen() {
         );
       } else {
         setStep('method');
-        Alert.alert('فشل الدفع', json.messageAr || json.message || 'حدث خطأ أثناء الدفع. يرجى المحاولة مجددًا.');
+        const detail =
+          json.messageAr ||
+          json.message ||
+          (Array.isArray(json.message) ? json.message.join('\n') : null) ||
+          json.error ||
+          'حدث خطأ أثناء الدفع. يرجى المحاولة مجددًا.';
+        Alert.alert('فشل الدفع', String(detail));
       }
     } catch {
       setStep('method');
@@ -141,16 +164,16 @@ export default function PaymentScreen() {
       <View style={styles.screen}>
         <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
         <SafeAreaView style={styles.successWrap} edges={['top', 'bottom']}>
-          <LinearGradient colors={[plan.color, plan.colorEnd]} style={styles.successIconBg}>
+          <LinearGradient colors={[planColor, planColorEnd]} style={styles.successIconBg}>
             <AppIcon name="check-bold" size={56} color="#fff" />
           </LinearGradient>
           <Text style={styles.successTitle}>تمّ الاشتراك بنجاح! 🎉</Text>
           <Text style={styles.successSubtitle}>
             مرحباً بك في باقة{' '}
-            <Text style={{ color: plan.colorEnd, fontWeight: '700' }}>{plan.arabicName}</Text>
+            <Text style={{ color: planColorEnd, fontWeight: '700' }}>{plan.name}</Text>
           </Text>
           <View style={styles.receiptCard}>
-            <ReceiptRow label="الباقة"        value={`${plan.arabicName} (${plan.name})`} />
+            <ReceiptRow label="الباقة"        value={plan.name} />
             <ReceiptRow label="دورة الفوترة"  value={billingCycle === 'yearly' ? 'سنوي' : 'شهري'} />
             <ReceiptRow label="المبلغ المدفوع" value={`${amount} ريال`} highlight />
             <ReceiptRow label="طريقة الدفع"   value={PAYMENT_METHODS.find((m) => m.id === selectedMethod)?.arabic ?? ''} />
@@ -160,7 +183,7 @@ export default function PaymentScreen() {
             onPress={() => { router.dismissAll(); router.replace('/(tabs)/profile'); }}
             style={({ pressed }) => [styles.successBtn, pressed && { opacity: 0.88 }]}
           >
-            <LinearGradient colors={[plan.color, plan.colorEnd]} style={styles.successBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+            <LinearGradient colors={[planColor, planColorEnd]} style={styles.successBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
               <Text style={styles.successBtnText}>ابدأ الاستخدام</Text>
               <AppIcon name="arrow-forward" size={20} color="#fff" />
             </LinearGradient>
@@ -176,7 +199,7 @@ export default function PaymentScreen() {
       <View style={styles.screen}>
         <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
         <View style={styles.processingWrap}>
-          <ActivityIndicator size="large" color={plan.colorEnd} />
+          <ActivityIndicator size="large" color={planColorEnd} />
           <Text style={styles.processingTitle}>جارٍ معالجة الدفع...</Text>
           <Text style={styles.processingSubtitle}>عبر الشبكة الدولية الآمنة</Text>
           <View style={styles.processingLogo}>
@@ -211,10 +234,10 @@ export default function PaymentScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Order summary */}
-        <LinearGradient colors={[plan.color, plan.colorEnd]} style={styles.orderCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <LinearGradient colors={[planColor, planColorEnd]} style={styles.orderCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
           <View style={styles.orderTop}>
             <View>
-              <Text style={styles.orderPlan}>باقة {plan.arabicName}</Text>
+              <Text style={styles.orderPlan}>باقة {plan.name}</Text>
               <Text style={styles.orderCycle}>{billingCycle === 'yearly' ? 'اشتراك سنوي' : 'اشتراك شهري'}</Text>
             </View>
             <View style={styles.orderPrice}>
@@ -226,7 +249,7 @@ export default function PaymentScreen() {
             <View style={styles.orderSavingTag}>
               <AppIcon name="tag" size={14} color="#fff" />
               <Text style={styles.orderSavingText}>
-                وفّرت {plan.price * 12 - plan.yearlyPrice} ريال مقارنةً بالشهري
+                وفّرت {plan.monthlyPrice * 12 - plan.yearlyPrice} ريال مقارنةً بالشهري
               </Text>
             </View>
           ) : null}
@@ -254,7 +277,7 @@ export default function PaymentScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.methodLabel}>{method.arabic}</Text>
-                      <Text style={styles.methodSub}>{method.label}</Text>
+                      <Text style={styles.methodSub}>{method.english}</Text>
                     </View>
                     {isChosen ? (
                       <AppIcon name="check-circle" size={22} color={method.color} />
@@ -357,7 +380,7 @@ export default function PaymentScreen() {
           ]}
         >
           <LinearGradient
-            colors={selectedMethod ? [plan.color, plan.colorEnd] : [colors.bgSurface, colors.bgSurface]}
+            colors={selectedMethod ? [planColor, planColorEnd] : [colors.bgSurface, colors.bgSurface]}
             style={styles.ctaBtnGrad}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}

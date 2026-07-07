@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import type { PlanId } from '../../lib/plans';
+import type { PlanAudience } from '@prisma/client';
+import { PlanResolverService } from '../../plans/plan-resolver.service';
 import {
   daysUntilRenewDate,
-  getEffectivePlanId,
+  getEffectivePlanSlug,
   getSubscriptionStatus,
   hasPaidAccess,
   isPaidPlan,
+  shouldBlockSubscriptionPayment,
   type SubscriptionStatus,
 } from '../../lib/subscription-lifecycle';
 import { LoggerService } from '../../common/services/logger.service';
@@ -13,20 +15,35 @@ import { AppNotificationsService } from '../../queue/services/app-notifications.
 import { EmailQueueService } from '../../queue/services/email-queue.service';
 import { SubscriptionLifecycleRepository } from '../repositories/subscription-lifecycle.repository';
 import { SubscriptionCacheService } from './subscription-cache.service';
+import { PlanPermissionService } from '../../plans/plan-permission.service';
 
 export type SubscriptionView = {
   id: string;
   planId: string;
+  planAudience: PlanAudience;
   billingCycle: string;
   renewDate: Date;
   listingsUsed: number;
   liveMinutesUsed: number;
+  featuredAdsUsed: number;
+  pinnedAdsUsed: number;
+  dailyAdsUsed: number;
   autoRenew: boolean;
   createdAt: Date;
   updatedAt: Date;
   status: SubscriptionStatus;
-  effectivePlanId: PlanId;
-  previousPlanId?: PlanId;
+  effectivePlanId: string;
+  effectivePlanSlug: string;
+  previousPlanId?: string;
+  usageCounters?: {
+    listingsUsed: number;
+    liveMinutesUsed: number;
+    featuredAdsUsed: number;
+    pinnedAdsUsed: number;
+    dailyAdsUsed: number;
+  };
+  permissions?: Record<string, unknown>;
+  plan?: unknown;
 };
 
 @Injectable()
@@ -37,6 +54,8 @@ export class SubscriptionLifecycleService {
     private readonly notifications: AppNotificationsService,
     private readonly emailQueue: EmailQueueService,
     private readonly logger: LoggerService,
+    private readonly permissions: PlanPermissionService,
+    private readonly planResolver: PlanResolverService,
   ) {}
 
   enrichSubscription(
@@ -44,22 +63,27 @@ export class SubscriptionLifecycleService {
       Awaited<ReturnType<SubscriptionLifecycleRepository['findByUserId']>>
     >,
     now: Date = new Date(),
-    previousPlanId?: PlanId,
+    previousPlanId?: string,
   ): SubscriptionView {
     const status = getSubscriptionStatus(row, now);
-    const effectivePlanId = getEffectivePlanId(row, now);
+    const effectivePlanSlug = getEffectivePlanSlug(row, now);
     return {
       id: row.id,
       planId: row.planId,
+      planAudience: row.planAudience,
       billingCycle: row.billingCycle,
       renewDate: row.renewDate,
       listingsUsed: row.listingsUsed,
       liveMinutesUsed: row.liveMinutesUsed,
+      featuredAdsUsed: row.featuredAdsUsed,
+      pinnedAdsUsed: row.pinnedAdsUsed,
+      dailyAdsUsed: row.dailyAdsUsed,
       autoRenew: row.autoRenew,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       status,
-      effectivePlanId,
+      effectivePlanId: effectivePlanSlug,
+      effectivePlanSlug,
       ...(previousPlanId ? { previousPlanId } : {}),
     };
   }
@@ -67,7 +91,8 @@ export class SubscriptionLifecycleService {
   async activateFromPayment(params: {
     subscriptionId: string;
     userId: string;
-    targetPlanId: PlanId;
+    targetPlanId: string;
+    planAudience: PlanAudience;
     billingCycle: string;
     renewDate: Date;
     amount: number;
@@ -78,6 +103,7 @@ export class SubscriptionLifecycleService {
       subscriptionId: params.subscriptionId,
       userId: params.userId,
       targetPlanId: params.targetPlanId,
+      planAudience: params.planAudience,
       billingCycle: params.billingCycle,
       newRenewDate: params.renewDate,
       resetCounters: true,
@@ -108,7 +134,49 @@ export class SubscriptionLifecycleService {
       }
     }
 
-    return this.enrichSubscription(row);
+    return this.buildEnrichedView(row);
+  }
+
+  private async buildEnrichedView(
+    row: NonNullable<
+      Awaited<ReturnType<SubscriptionLifecycleRepository['findByUserId']>>
+    >,
+  ) {
+    const status = getSubscriptionStatus(row);
+    const effectivePlanSlug = getEffectivePlanSlug(row);
+    const ctx = await this.permissions.resolveEffective(
+      effectivePlanSlug,
+      row.planAudience,
+      hasPaidAccess(row),
+    );
+
+    return {
+      id: row.id,
+      planId: row.planId,
+      planAudience: row.planAudience,
+      billingCycle: row.billingCycle,
+      renewDate: row.renewDate,
+      status,
+      effectivePlanId: effectivePlanSlug,
+      effectivePlanSlug,
+      autoRenew: row.autoRenew,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      listingsUsed: row.listingsUsed,
+      liveMinutesUsed: row.liveMinutesUsed,
+      featuredAdsUsed: row.featuredAdsUsed,
+      pinnedAdsUsed: row.pinnedAdsUsed,
+      dailyAdsUsed: row.dailyAdsUsed,
+      usageCounters: {
+        listingsUsed: row.listingsUsed,
+        liveMinutesUsed: row.liveMinutesUsed,
+        featuredAdsUsed: row.featuredAdsUsed,
+        pinnedAdsUsed: row.pinnedAdsUsed,
+        dailyAdsUsed: row.dailyAdsUsed,
+      },
+      permissions: ctx.permissions,
+      plan: this.planResolver.toApiResponse(ctx.plan),
+    };
   }
 
   async expireIfNeeded(
@@ -121,18 +189,24 @@ export class SubscriptionLifecycleService {
     const status = getSubscriptionStatus(row);
     if (status !== 'expired') return false;
 
-    await this.downgradeUser(row.userId, row.planId as PlanId, 'expiration');
+    await this.downgradeUser(
+      row.userId,
+      row.planId,
+      row.planAudience,
+      'expiration',
+    );
     return true;
   }
 
   async downgradeUser(
     userId: string,
-    previousPlanId: PlanId,
+    previousPlanId: string,
+    audience: PlanAudience,
     reason: 'expiration' | 'refund' | 'manual',
   ): Promise<void> {
     if (!isPaidPlan(previousPlanId)) return;
 
-    await this.repo.downgradeToFreeTx(userId, previousPlanId);
+    await this.repo.downgradeToFreeTx(userId, previousPlanId, audience);
     await this.cache.invalidate(userId);
 
     const titleAr =
@@ -150,9 +224,18 @@ export class SubscriptionLifecycleService {
       data: { reason, previousPlanId },
     });
 
-    this.logger.info(
-      { userId, previousPlanId, reason },
-      'Subscription downgraded',
+    this.logger.info({ userId, previousPlanId, reason }, 'Subscription downgraded');
+  }
+
+  shouldBlockPayment(
+    sub: { planId: string; renewDate: Date; autoRenew: boolean },
+    targetPlanId: string,
+    audience: PlanAudience,
+  ): boolean {
+    return shouldBlockSubscriptionPayment(
+      sub,
+      targetPlanId,
+      (slug) => this.planResolver.planTier(slug, audience),
     );
   }
 
@@ -256,7 +339,8 @@ export class SubscriptionLifecycleService {
       if (status === 'expired') {
         await this.downgradeUser(
           row.userId,
-          row.planId as PlanId,
+          row.planId,
+          row.planAudience,
           'expiration',
         );
         count++;

@@ -11,7 +11,9 @@ import {
   Text,
   View,
 } from 'react-native';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import {
   formatCoords,
   getLocationPinPosition,
@@ -20,6 +22,8 @@ import {
 import { isNativeMapsEnabled } from '@/lib/maps';
 import { Country } from '@/services/types';
 import { NativeLocationMap } from '@/components/feature/NativeLocationMap';
+import { OsmMapView } from '@/components/feature/OsmMapView';
+import { formatLocationLabel } from '@/lib/formatAddress';
 
 interface LocationMapPreviewProps {
   country: Country;
@@ -42,7 +46,12 @@ function SchematicMap({
   lng,
   pinSeed,
   height,
-}: LocationMapPreviewProps) {
+  styles,
+  colors,
+}: LocationMapPreviewProps & {
+  styles: ReturnType<typeof createStyles>;
+  colors: ThemeColors;
+}) {
   const pos = useMemo(
     () => getLocationPinPosition(country, lat, lng, pinSeed),
     [country, lat, lng, pinSeed],
@@ -78,7 +87,9 @@ function SchematicMap({
       {hasValidCoords(lat, lng) ? (
         <View style={styles.coordsChip}>
           <AppIcon name="navigate" size={12} color={colors.electricBright} />
-          <Text style={styles.coordsChipText}>{formatCoords(lat!, lng!)}</Text>
+          <Text style={styles.coordsChipText} numberOfLines={2}>
+            {cityLabel?.trim() || formatCoords(lat!, lng!)}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -96,15 +107,22 @@ export function LocationMapPreview({
   locating = false,
   pinSeed,
 }: LocationMapPreviewProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const useNative =
     Platform.OS !== 'web' &&
     isNativeMapsEnabled() &&
     hasValidCoords(lat, lng);
 
+  const useOsm = hasValidCoords(lat, lng) && !useNative;
+  const locationCaption = formatLocationLabel(cityLabel, undefined, lat, lng);
+
   return (
     <View style={styles.wrap}>
       {useNative ? (
         <NativeLocationMap lat={lat!} lng={lng!} cityLabel={cityLabel} height={height} />
+      ) : useOsm ? (
+        <OsmMapView lat={lat!} lng={lng!} height={height} />
       ) : (
         <SchematicMap
           country={country}
@@ -113,8 +131,17 @@ export function LocationMapPreview({
           lng={lng}
           pinSeed={pinSeed}
           height={height}
+          styles={styles}
+          colors={colors}
         />
       )}
+
+      {useOsm && locationCaption ? (
+        <View style={styles.addressBanner}>
+          <AppIcon name="location" size={14} color={colors.electricBright} />
+          <Text style={styles.addressBannerText} numberOfLines={2}>{locationCaption}</Text>
+        </View>
+      ) : null}
 
       {showLocateButton && onLocate ? (
         <Pressable
@@ -143,7 +170,8 @@ export function LocationMapPreview({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   wrap: {
     borderRadius: radius.xl,
     overflow: 'hidden',
@@ -289,4 +317,27 @@ const styles = StyleSheet.create({
     ...typography.micro,
     color: colors.textMuted,
   },
+  addressBanner: {
+    position: 'absolute',
+    bottom: spacing.sm,
+    left: spacing.sm,
+    right: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(6,9,26,0.88)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  addressBannerText: {
+    ...typography.caption,
+    color: '#fff',
+    flex: 1,
+    textAlign: 'right',
+    fontWeight: '600',
+  },
 });
+}

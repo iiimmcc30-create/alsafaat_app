@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, OrderStatus } from '@prisma/client';
 import { z } from 'zod';
 import { ButchersRepository } from './repositories/butchers.repository';
 import { RedisService } from '../redis/redis.service';
 import { throwApi, ApiException } from '../common/exceptions/api.exception';
+import { notDeleted } from '../common/utils/soft-delete.util';
 import { countrySchema } from '../shared/lib/countries';
 import { logger } from '../shared/lib/logger';
 import {
@@ -12,6 +13,9 @@ import {
   storyExpiresAt,
 } from '../shared/lib/stories';
 import type { JwtPayload } from '../common/types/jwt-payload.interface';
+import { OrderLifecycleService } from './services/order-lifecycle.service';
+import { OrderStateMachineService } from './services/order-state-machine.service';
+import { resolveProductAvailableQuantity } from './lib/product-inventory.util';
 
 const PAGE_SIZE = 20;
 
@@ -71,6 +75,8 @@ const createProductSchema = z
     availableCuts: z.array(z.string()).min(1),
     weightMin: z.number().positive().optional().nullable(),
     weightMax: z.number().positive().optional().nullable(),
+    availableQuantity: z.number().min(0).optional().nullable(),
+    inStock: z.boolean().optional(),
     freshness: z.string().default('fresh'),
     descriptionAr: z.string().min(5).max(1000).trim(),
     descriptionEn: z.string().min(5).max(1000).trim(),
@@ -100,6 +106,7 @@ const updateProductSchema = z
     availableCuts: z.array(z.string()).optional(),
     weightMin: z.number().positive().optional().nullable(),
     weightMax: z.number().positive().optional().nullable(),
+    availableQuantity: z.number().min(0).optional().nullable(),
     inStock: z.boolean().optional(),
     freshness: z.string().optional(),
     descriptionAr: z.string().min(5).max(1000).trim().optional(),
@@ -160,6 +167,7 @@ const updateOrderSchema = z
       'delivered',
       'cancelled',
     ]),
+    cancellationReason: z.string().max(500).optional().nullable(),
   })
   .strict();
 
@@ -197,6 +205,8 @@ export class ButchersService {
   constructor(
     private readonly repo: ButchersRepository,
     private readonly redis: RedisService,
+    private readonly orderLifecycle: OrderLifecycleService,
+    private readonly orderStateMachine: OrderStateMachineService,
   ) {}
 
   async listButchers(query: {
@@ -219,7 +229,7 @@ export class ButchersService {
       if (cached) return cached;
     }
 
-    const where: Prisma.ButcherWhereInput = {};
+    const where: Prisma.ButcherWhereInput = { ...notDeleted };
     if (country) where.country = country as Prisma.ButcherWhereInput['country'];
     if (verified) where.subscriptionActive = true;
     if (isOpen) where.isOpen = true;
@@ -449,8 +459,10 @@ export class ButchersService {
       );
     }
 
+    const availableQuantity = resolveProductAvailableQuantity(parsed.data);
     const product = await this.repo.createProduct({
       ...parsed.data,
+      availableQuantity,
       category: parsed.data
         .category as Prisma.ButcherProductCreateInput['category'],
       country: parsed.data
@@ -484,7 +496,24 @@ export class ButchersService {
       );
     }
 
-    const updated = await this.repo.updateProduct(id, parsed.data);
+    const updateData = { ...parsed.data } as Prisma.ButcherProductUpdateInput;
+    if (
+      parsed.data.availableQuantity != null ||
+      parsed.data.weightMin != null ||
+      parsed.data.weightMax != null
+    ) {
+      const existing = await this.repo.findProductWithButcher(id);
+      if (existing) {
+        updateData.availableQuantity = resolveProductAvailableQuantity({
+          availableQuantity:
+            parsed.data.availableQuantity ?? existing.availableQuantity,
+          weightMax: parsed.data.weightMax ?? existing.weightMax,
+          weightMin: parsed.data.weightMin ?? existing.weightMin,
+        });
+      }
+    }
+
+    const updated = await this.repo.updateProduct(id, updateData);
     await this.redis.cacheDel(`butcher:${product.butcher.id}`);
     await this.redis.cacheDel('butcher:me');
 
@@ -504,7 +533,7 @@ export class ButchersService {
       throwApi(403, 'forbidden', 'غير مسموح');
     }
 
-    await this.repo.deleteProduct(id);
+    await this.repo.softDeleteProduct(id);
     await this.redis.cacheDel(`butcher:${product.butcher.id}`);
     await this.redis.cacheDel('butcher:me');
 
@@ -586,7 +615,7 @@ export class ButchersService {
     const offer = await this.repo.findOwnedOffer(id, user.userId);
     if (!offer) throwApi(404, 'not_found', 'العرض غير موجود');
 
-    await this.repo.deleteOffer(id);
+    await this.repo.softDeleteOffer(id);
     await this.redis.cacheDel(`butcher:${offer.butcherId}`);
     await this.redis.cacheDel('butcher:me');
 
@@ -597,9 +626,21 @@ export class ButchersService {
   async getOrders(user: JwtPayload) {
     const butcher = await this.repo.findButcherIdByUser(user.userId);
     if (butcher) {
-      return this.repo.findOrdersForButcher(butcher.id);
+      const orders = await this.repo.findOrdersForButcher(butcher.id);
+      return orders.map((order) => ({
+        ...order,
+        allowedNextStatuses: this.orderStateMachine.getAllowedNext(
+          order.status as OrderStatus,
+        ),
+      }));
     }
-    return this.repo.findOrdersForCustomer(user.userId);
+    const orders = await this.repo.findOrdersForCustomer(user.userId);
+    return orders.map((order) => ({
+      ...order,
+      allowedNextStatuses: this.orderStateMachine.getAllowedNext(
+        order.status as OrderStatus,
+      ),
+    }));
   }
 
   async createOrder(user: JwtPayload, body: unknown) {
@@ -659,7 +700,7 @@ export class ButchersService {
 
     const roundedTotal = Math.round(totalPrice * 100) / 100;
 
-    const order = await this.repo.createOrder({
+    const order = await this.orderLifecycle.createOrder({
       butcherId,
       productId,
       cutType,
@@ -718,8 +759,14 @@ export class ButchersService {
       );
     }
 
-    const updated = await this.repo.updateOrder(id, {
-      status: statusInput.status as Prisma.ButcherOrderUpdateInput['status'],
+    const updated = await this.orderLifecycle.transitionOrder({
+      orderId: id,
+      actorId: user.userId,
+      nextStatus: statusInput.status as OrderStatus,
+      cancellationReason:
+        statusInput.status === 'cancelled'
+          ? statusInput.cancellationReason ?? 'Order cancelled by actor'
+          : null,
     });
 
     logger.info(
@@ -727,6 +774,28 @@ export class ButchersService {
       'Butcher order status updated',
     );
     return updated;
+  }
+
+  async getOrderById(id: string, user: JwtPayload) {
+    if (!id) throwApi(400, 'invalid_id', 'معرّف غير صالح');
+    const order = await this.repo.findOrderById(id);
+    if (!order) throwApi(404, 'not_found', 'الطلب غير موجود');
+
+    const isCustomer = order.customerId === user.userId;
+    const isButcher = order.butcher.userId === user.userId;
+    const isAdmin = user.role === 'ADMIN' || user.role === 'MODERATOR';
+    if (!isCustomer && !isButcher && !isAdmin) {
+      throwApi(403, 'forbidden', 'غير مسموح');
+    }
+
+    const audits = isAdmin ? await this.repo.findOrderAudits(id) : undefined;
+    return {
+      ...order,
+      allowedNextStatuses: this.orderStateMachine.getAllowedNext(
+        order.status as OrderStatus,
+      ),
+      ...(audits ? { audits } : {}),
+    };
   }
 
   async getActiveStories() {
@@ -801,7 +870,7 @@ export class ButchersService {
       throwApi(403, 'forbidden', 'غير مسموح');
     }
 
-    await this.repo.deleteStory(id);
+    await this.repo.softDeleteStory(id);
     await this.redis.cacheDel('butchers:stories:active');
 
     logger.info({ storyId: id, userId: user.userId }, 'Butcher story deleted');

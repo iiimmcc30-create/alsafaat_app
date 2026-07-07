@@ -18,6 +18,7 @@ import {
 } from '../dto/socket-events.dto';
 import { SocketRepository } from '../repositories/socket.repository';
 import { SocketEmitService } from './socket-emit.service';
+import { OrderLifecycleService } from '../../butchers/services/order-lifecycle.service';
 
 class UuidParamDto {
   @IsUUID()
@@ -36,6 +37,7 @@ export class SocketGatewayService {
     private readonly repo: SocketRepository,
     private readonly notifications: AppNotificationsService,
     private readonly emitService: SocketEmitService,
+    private readonly orderLifecycle: OrderLifecycleService,
     private readonly logger: LoggerService,
   ) {}
 
@@ -348,28 +350,18 @@ export class SocketGatewayService {
     if (order.butcher.userId !== user.userId) {
       return { code: 'unauthorized', message: 'Not your order' };
     }
-    if (order.status === 'delivered' || order.status === 'cancelled') {
-      return { code: 'invalid_state', message: 'Order already finalized' };
-    }
-
-    await this.repo.updateOrderStatus(data.orderId, data.status);
-
-    this.emitService.emitToUser(order.customerId, 'order:updated', {
-      orderId: data.orderId,
-      status: data.status,
-    });
-
-    void this.notifications.notifyUser({
-      userId: order.customerId,
-      type: 'order_update',
-      titleAr: 'تحديث طلبك',
-      bodyAr: `حالة طلبك: ${data.status}`,
-      data: {
+    try {
+      await this.orderLifecycle.transitionOrder({
         orderId: data.orderId,
-        status: data.status,
-        butcherId: order.butcher.id,
-      },
-    });
+        actorId: user.userId,
+        nextStatus: data.status,
+        cancellationReason:
+          data.status === 'cancelled' ? 'Order cancelled by butcher' : null,
+      });
+    } catch (err) {
+      this.logger.warn({ err, data }, 'order transition rejected via socket');
+      return { code: 'invalid_state', message: 'Invalid order transition' };
+    }
 
     return null;
   }

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { fetchSections, createSection, deleteSection } from '@/services/admin.service';
+import { getApiErrorMessage } from '@/services/api.client';
 
 export default function ContentPage() {
   const [sections, setSections] = useState<Record<string, unknown>[]>([]);
@@ -42,8 +43,14 @@ export default function ContentPage() {
               <p className="text-xs text-slate-500">{String(s.slug)}</p>
             </div>
             <Button variant="danger" size="sm" onClick={async () => {
-              if (confirm('حذف؟')) { await deleteSection(String(s.id)); load(); }
-            }}>حذف</Button>
+              if (!confirm('أرشفة القسم؟')) return;
+              try {
+                await deleteSection(String(s.id));
+                load();
+              } catch (err) {
+                alert(getApiErrorMessage(err, 'فشل أرشفة القسم'));
+              }
+            }}>أرشفة</Button>
           </div>
         ))}
       </div>

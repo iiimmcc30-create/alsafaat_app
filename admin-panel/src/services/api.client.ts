@@ -53,3 +53,22 @@ export function unwrap<T>(res: { data: ApiEnvelope<T> }): T {
   }
   return body.data;
 }
+
+export function getApiErrorMessage(error: unknown, fallback = 'خطأ في الخادم'): string {
+  if (axios.isAxiosError<ApiEnvelope<unknown>>(error)) {
+    if (!error.response) {
+      return 'تعذّر الاتصال بالخادم';
+    }
+    if (error.response.status >= 500 && !error.response.data?.messageAr) {
+      return 'الخادم غير متاح  ';
+    }
+    return (
+      error.response.data?.messageAr ??
+      error.response.data?.error ??
+      error.message ??
+      fallback
+    );
+  }
+  if (error instanceof Error) return error.message;
+  return fallback;
+}

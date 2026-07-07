@@ -520,8 +520,8 @@ export default function ButcherProfileScreen() {
               setReviews(b.reviews.map((r: any) => ({
                 id: r.id,
                 butcherId: r.butcherId,
-                authorName: r.authorName || 'عميل سروح',
-                authorNameAr: r.authorNameAr || 'عميل سروح',
+                authorName: r.authorName || 'عميل سرح',
+                authorNameAr: r.authorNameAr || 'عميل سرح',
                 authorAvatar: r.authorAvatar || undefined,
                 rating: r.rating ?? 5,
                 comment: r.comment || '',

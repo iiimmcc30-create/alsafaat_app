@@ -174,13 +174,6 @@ export class SocketRepository {
     });
   }
 
-  updateOrderStatus(orderId: string, status: string) {
-    return this.prisma.butcherOrder.update({
-      where: { id: orderId },
-      data: { status: status as never },
-    });
-  }
-
   markNotificationsRead(ids: string[], userId: string) {
     return this.prisma.notification.updateMany({
       where: { id: { in: ids }, userId },

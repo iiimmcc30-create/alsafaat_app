@@ -242,14 +242,9 @@ async function main() {
 
 /** Best-effort USB reverse (Metro / dev). Does not exit the process on failure. */
 async function trySetupUsbReverse() {
-  if (process.env.SAFAT_USB_REVERSE_DONE === '1') {
-    return {
-      apiUrl: `http://127.0.0.1:${API_PORT}`,
-      socketUrl: `http://127.0.0.1:${SOCKET_PORT}`,
-    };
-  }
   try {
     const state = await getDeviceState();
+    // Always re-apply — Expo may only reverse :8081; reconnecting USB clears rules.
     return state.kind === 'ready' ? await setupUsbReverse(state) : null;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
