@@ -65,7 +65,7 @@ export default function ListingDetailScreen() {
   if (!listing) {
     return (
       <SafeAreaView style={styles.screen}>
-        <Text style={styles.notFound}>Listing not found</Text>
+        <Text style={styles.notFound}>لم يتم العثور على الإعلان</Text>
       </SafeAreaView>
     );
   }
@@ -141,7 +141,7 @@ export default function ListingDetailScreen() {
           {listing.featured ? (
             <View style={styles.featured}>
               <AppIcon name="star" size={12} color="#1A1300" />
-              <Text style={styles.featuredText}>Featured Listing</Text>
+              <Text style={styles.featuredText}>إعلان مميز</Text>
             </View>
           ) : null}
         </View>
@@ -287,7 +287,7 @@ export default function ListingDetailScreen() {
             }}
             style={{ flex: 1 }}
           >
-            <PrimaryButton title="Make Offer · قدّم عرضاً" />
+            <PrimaryButton title="قدّم عرضاً" />
           </Pressable>
         </SafeAreaView>
       ) : null}

@@ -258,7 +258,7 @@ export default function PaymentScreen() {
         {step === 'method' ? (
           <>
             <Text style={styles.sectionTitle}>اختر طريقة الدفع</Text>
-            <Text style={styles.sectionSub}>Choose Payment Method</Text>
+            <Text style={styles.sectionSub}>اختر الطريقة المناسبة</Text>
             <View style={styles.methodsList}>
               {PAYMENT_METHODS.map((method) => {
                 const isChosen = selectedMethod === method.id;
@@ -294,7 +294,7 @@ export default function PaymentScreen() {
         {step === 'card_details' ? (
           <>
             <Text style={styles.sectionTitle}>بيانات البطاقة</Text>
-            <Text style={styles.sectionSub}>Card Details</Text>
+            <Text style={styles.sectionSub}>أدخل بيانات البطاقة</Text>
             <View style={styles.cardForm}>
               <View style={styles.fieldWrap}>
                 <Text style={styles.fieldLabel}>اسم حامل البطاقة</Text>
@@ -334,7 +334,7 @@ export default function PaymentScreen() {
                   />
                 </View>
                 <View style={[styles.fieldWrap, { flex: 1 }]}>
-                  <Text style={styles.fieldLabel}>CVV</Text>
+                  <Text style={styles.fieldLabel}>رمز الأمان</Text>
                   <TextInput
                     value={cvv}
                     onChangeText={(t) => setCvv(t.replace(/\D/g, '').slice(0, 4))}

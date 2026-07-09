@@ -579,7 +579,7 @@ export default function FeesScreen() {
           <>
             <View style={styles.rulesHeader}>
               <Text style={styles.rulesBig}>جدول العمولات</Text>
-              <Text style={styles.rulesSubtitle}>Commission Schedule</Text>
+              <Text style={styles.rulesSubtitle}>جدول العمولات</Text>
             </View>
 
             <View style={styles.rulesTable}>

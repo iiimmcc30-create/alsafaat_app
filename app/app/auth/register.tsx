@@ -519,7 +519,7 @@ export default function RegisterScreen() {
                 ) : (
                   <>
                     <Image source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/480px-Google_%22G%22_logo.svg.png' }} style={styles.googleLogo} />
-                    <Text style={styles.googleText}>Sign in with Google</Text>
+                    <Text style={styles.googleText}>تسجيل الدخول بـ Google</Text>
                   </>
                 )}
               </Pressable>

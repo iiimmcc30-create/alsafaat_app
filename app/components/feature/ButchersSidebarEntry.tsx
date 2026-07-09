@@ -54,7 +54,7 @@ export function ButchersSidebarEntry() {
       items.push(...OWNER_ITEMS);
       if (provisionedButcherId) {
         items.push({
-          icon: 'storefront',
+          icon: 'storefront-outline',
           arabic: 'صفحة ملحمتي',
           route: `/butchers/${provisionedButcherId}`,
           ownerOnly: true,
@@ -99,11 +99,7 @@ export function ButchersSidebarEntry() {
           ]}
         >
           <View style={styles.leading}>
-            <AppIcon
-              name={item.icon}
-              size={22}
-              color={item.ownerOnly ? colors.glow : colors.amber}
-            />
+            <AppIcon name={item.icon} size={22} color={colors.textPrimary} />
             <Text style={styles.label}>{item.arabic}</Text>
           </View>
           <AppIcon name={rtlForwardIcon} size={18} color={colors.textMuted} />

@@ -186,7 +186,7 @@ export default function EditProfileScreen() {
                 <TextInput
                   value={displayName}
                   onChangeText={setDisplayName}
-                  placeholder="Your display name"
+                  placeholder="الاسم المعروض"
                   placeholderTextColor={colors.textMuted}
                   style={styles.input}
                   autoCorrect={false}
@@ -217,7 +217,7 @@ export default function EditProfileScreen() {
                 <TextInput
                   value={username}
                   onChangeText={(t) => setUsername(t.replace(/\s/g, '').toLowerCase())}
-                  placeholder="username"
+                  placeholder="اسم_المستخدم"
                   placeholderTextColor={colors.textMuted}
                   style={[styles.input, { flex: 1 }]}
                   autoCapitalize="none"

@@ -79,6 +79,11 @@ function RootNavigator() {
         <Stack.Screen name="info/privacy" />
         <Stack.Screen name="info/terms" />
         <Stack.Screen name="info/contact" />
+        <Stack.Screen name="info/refund" />
+        <Stack.Screen name="settings/index" />
+        <Stack.Screen name="settings/account" />
+        <Stack.Screen name="settings/info" />
+        <Stack.Screen name="settings/support" />
         <Stack.Screen name="auth/phone" options={{ animation: 'fade' }} />
         <Stack.Screen name="auth/otp" options={{ animation: 'slide_from_left' }} />
         <Stack.Screen name="auth/register" options={{ animation: 'slide_from_left' }} />

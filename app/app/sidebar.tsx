@@ -35,8 +35,7 @@ function SidebarMenuRow({
   onPress: () => void;
   showDivider?: boolean;
 }) {
-  const iconColor = item.danger ? colors.rose : (item.accent ?? colors.glow);
-    return (
+  return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
@@ -46,7 +45,7 @@ function SidebarMenuRow({
       ]}
     >
       <View style={rowStyles.leading}>
-        <AppIcon name={item.icon} size={22} color={iconColor} />
+        <AppIcon name={item.icon} size={22} color={colors.textPrimary} />
         <View style={rowStyles.textWrap}>
           <Text style={[rowStyles.label, { color: item.danger ? colors.rose : colors.textPrimary }]}>
             {item.label}
@@ -127,32 +126,6 @@ export default function SidebarScreen() {
     setPreference(next);
   };
 
-  const accountItems: MenuItem[] = [
-    { key: 'settings', icon: 'cog-outline', label: 'الإعدادات والخصوصية', route: '/info/privacy' },
-    { key: 'verify', icon: 'shield-account-outline', label: 'التحقق من الحساب', route: '/profile/edit' },
-    { key: 'notifications', icon: 'bell-outline', label: 'مركز الإشعارات', route: '/notifications' },
-    { key: 'subscription', icon: 'crown-outline', label: 'الاشتراك والرسوم', route: '/subscription' },
-  ];
-
-  const helpItems: MenuItem[] = [
-    { key: 'about', icon: 'information-outline', label: 'من نحن', route: '/info/about' },
-    { key: 'terms', icon: 'file-document-outline', label: 'الشروط والأحكام', route: '/info/terms' },
-    { key: 'privacy', icon: 'lock-outline', label: 'سياسة الخصوصية', route: '/info/privacy' },
-    { key: 'contact', icon: 'email-outline', label: 'تواصل معنا', route: '/info/contact' },
-  ];
-
-  const renderItem = (item: MenuItem, showDivider = true) => (
-    <SidebarMenuRow
-      key={item.key}
-      item={item}
-      colors={colors}
-      showDivider={showDivider}
-      onPress={() => {
-        if (item.onPress) item.onPress();
-        else if (item.route) handleNav(item.route);
-      }}
-    />
-  );
 
   return (
     <View style={[styles.backdrop, rtlRow]}>
@@ -185,22 +158,48 @@ export default function SidebarScreen() {
           {/* Butchers section */}
           <ButchersSidebarEntry />
 
-          {/* Account */}
-          {accountItems.map((item, idx) => renderItem(item, idx < accountItems.length - 1))}
+          {/* Quick links */}
+          <SidebarMenuRow
+            item={{ key: 'notifications', icon: 'bell-outline', label: 'مركز الإشعارات' }}
+            colors={colors}
+            showDivider
+            onPress={() => handleNav('/notifications')}
+          />
+          <SidebarMenuRow
+            item={{ key: 'subscription', icon: 'crown-outline', label: 'الاشتراك والرسوم' }}
+            colors={colors}
+            showDivider={false}
+            onPress={() => handleNav('/subscription')}
+          />
+
           <View style={styles.divider} />
 
-          {/* Help */}
-          {helpItems.map((item, idx) => renderItem(item, idx < helpItems.length - 1))}
+          {/* الإعدادات والخصوصية */}
+          <SidebarMenuRow
+            item={{
+              key: 'settings',
+              icon: 'cog-outline',
+              label: 'الإعدادات والخصوصية',
+              subtitle: 'الحساب، المعلومات، الدعم',
+            }}
+            colors={colors}
+            showDivider={false}
+            onPress={() => handleNav('/settings')}
+          />
+
           <View style={styles.divider} />
 
           {/* Theme toggle */}
-          {renderItem({
-            key: 'theme',
-            icon: preference === 'dark' ? 'weather-night' : preference === 'light' ? 'white-balance-sunny' : 'theme-light-dark',
-            label: themeLabel,
-            subtitle: themeSubtitle,
-            onPress: cycleTheme,
-          })}
+          <SidebarMenuRow
+            item={{
+              key: 'theme',
+              icon: preference === 'dark' ? 'weather-night' : preference === 'light' ? 'white-balance-sunny' : 'theme-light-dark',
+              label: themeLabel,
+              subtitle: themeSubtitle,
+            }}
+            colors={colors}
+            onPress={cycleTheme}
+          />
 
           {/* Logout */}
           <SidebarMenuRow
@@ -282,6 +281,7 @@ function createSidebarStyles(colors: ThemeColors, scheme: 'light' | 'dark') {
       height: StyleSheet.hairlineWidth,
       backgroundColor: colors.borderHairline,
       marginHorizontal: spacing.xl,
+      marginVertical: spacing.xs,
     },
     versionText: {
       ...typography.micro,

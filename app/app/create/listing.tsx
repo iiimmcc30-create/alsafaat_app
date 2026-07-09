@@ -332,7 +332,7 @@ export default function CreateListingScreen() {
                   <TextInput
                     value={titleEn}
                     onChangeText={setTitleEn}
-                    placeholder="e.g. Premium Najdi Camel..."
+                    placeholder="مثال: ناقة نجدية مميزة..."
                     placeholderTextColor={colors.textMuted}
                     style={styles.input}
                     maxLength={80}

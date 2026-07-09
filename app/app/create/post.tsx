@@ -194,7 +194,7 @@ export default function CreatePostScreen() {
               <TextInput
                 value={content}
                 onChangeText={setContent}
-                placeholder="Add English translation (optional)"
+                placeholder="ترجمة إنجليزية (اختياري)"
                 placeholderTextColor={colors.textSubtle}
                 style={[styles.textInput, styles.textInputEn]}
                 multiline

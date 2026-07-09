@@ -340,7 +340,7 @@ export default function ButchersScreen() {
           <View style={s.headerRow}>
             <View>
               <Text style={s.headerTitle}>الملاحم 🥩</Text>
-              <Text style={s.headerSub}>Butchers Marketplace</Text>
+              <Text style={s.headerSub}>سوق الملاحم</Text>
             </View>
             <View style={s.headerActions}>
               <Pressable
