@@ -10,12 +10,14 @@ import { colors, gradients, radius, spacing, typography } from '@/constants/them
 
 export default function OrderSuccessScreen() {
   const router = useRouter();
-  const { orderId, orderNumber, butcherId } = useLocalSearchParams<{
+  const { orderId, orderNumber, butcherId, paymentStatus } = useLocalSearchParams<{
     orderId?: string;
     orderNumber?: string;
     butcherId?: string;
+    paymentStatus?: string;
   }>();
   const displayOrderId = orderNumber || (orderId ? `#${orderId.slice(0, 8).toUpperCase()}` : '—');
+  const isPaid = paymentStatus === 'paid';
 
   return (
     <SafeAreaView style={s.screen}>
@@ -25,12 +27,14 @@ export default function OrderSuccessScreen() {
         {/* Animated circle */}
         <View style={s.circle}>
           <LinearGradient colors={[colors.success + '44', colors.success + '11']} style={StyleSheet.absoluteFill} />
-          <Text style={s.icon}>✅</Text>
+          <Text style={s.icon}>{isPaid ? '✅' : '💳'}</Text>
         </View>
 
-        <Text style={s.title}>تم إرسال طلبك!</Text>
+        <Text style={s.title}>{isPaid ? 'تم الدفع وإرسال الطلب!' : 'الطلب بانتظار الدفع'}</Text>
         <Text style={s.sub}>
-          وصل طلبك للجزار وسيتواصل معك قريباً عبر المحادثة لتأكيد التفاصيل والسعر النهائي
+          {isPaid
+            ? 'وصل طلبك المدفوع للملحمة وسيتواصل معك الجزار قريباً لتأكيد التفاصيل'
+            : 'أكمل الدفع عبر بوابة المنصة حتى يصل الطلب للملحمة'}
         </Text>
 
         {/* Order summary */}
@@ -42,26 +46,30 @@ export default function OrderSuccessScreen() {
             <Text style={s.summaryValue}>{displayOrderId}</Text>
           </View>
           <View style={s.summaryRow}>
-            <AppIcon name="time-outline" size={16} color={colors.glow} />
-            <Text style={s.summaryLabel}>الحالة</Text>
-            <View style={s.pendingBadge}>
-              <Text style={s.pendingText}>قيد المراجعة</Text>
+            <AppIcon name="card-outline" size={16} color={colors.glow} />
+            <Text style={s.summaryLabel}>الدفع</Text>
+            <View style={[s.pendingBadge, isPaid && s.paidBadge]}>
+              <Text style={[s.pendingText, isPaid && s.paidText]}>
+                {isPaid ? 'مدفوع' : 'بانتظار الدفع'}
+              </Text>
             </View>
           </View>
           <View style={s.summaryRow}>
-            <AppIcon name="chatbubble-outline" size={16} color={colors.glow} />
-            <Text style={s.summaryLabel}>التواصل</Text>
-            <Text style={s.summaryValue}>عبر محادثة الجزار</Text>
+            <AppIcon name="time-outline" size={16} color={colors.glow} />
+            <Text style={s.summaryLabel}>الحالة</Text>
+            <View style={s.pendingBadge}>
+              <Text style={s.pendingText}>{isPaid ? 'قيد المراجعة' : 'غير مؤكد'}</Text>
+            </View>
           </View>
         </View>
 
         {/* Steps */}
         <View style={s.stepsWrap}>
           {[
-            { step: '١', label: 'تم إرسال طلبك',       done: true  },
-            { step: '٢', label: 'مراجعة وتأكيد الجزار', done: false },
-            { step: '٣', label: 'تحضير الطلب',          done: false },
-            { step: '٤', label: 'الاستلام أو التوصيل',   done: false },
+            { step: '١', label: 'إنشاء الطلب', done: true },
+            { step: '٢', label: 'الدفع عبر بوابة المنصة', done: isPaid },
+            { step: '٣', label: 'مراجعة وتأكيد الجزار', done: false },
+            { step: '٤', label: 'الاستلام أو التوصيل', done: false },
           ].map((item, i) => (
             <View key={i} style={s.stepRow}>
               <View style={[s.stepCircle, item.done && s.stepCircleDone]}>
@@ -147,6 +155,11 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.amber + '66',
   },
   pendingText: { ...typography.micro, color: colors.amber, fontWeight: '700' },
+  paidBadge: {
+    backgroundColor: colors.success + '33',
+    borderColor: colors.success + '66',
+  },
+  paidText: { color: colors.success },
   stepsWrap: {
     width: '100%',
     backgroundColor: colors.bgSurface,

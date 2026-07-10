@@ -3,6 +3,7 @@ import {
   Controller,
   Headers,
   HttpCode,
+  Param,
   Post,
   Req,
   Res,
@@ -33,6 +34,16 @@ export class PaymentsController {
     @Body() dto: InitiatePaymentDto,
   ) {
     return successResponse(await this.payments.initiate(user, dto));
+  }
+
+  @RateLimit('payment')
+  @Post(':id/dev-complete')
+  @HttpCode(200)
+  async devComplete(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    return successResponse(await this.payments.simulateDevPayment(user, id));
   }
 
   @RawBody()

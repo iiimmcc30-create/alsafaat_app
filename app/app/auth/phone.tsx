@@ -16,7 +16,6 @@ import {
   View,
   ActivityIndicator,
   ScrollView,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
@@ -25,7 +24,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { AppLogo } from '@/components/ui/AppLogo';
 import { marginStart, marginEnd, rtlDirection, rtlRow } from '@/lib/rtl';
 import { useAuth } from '@/contexts/AuthContext';
-import { useGoogleSignIn } from '@/hooks/useGoogleSignIn';
 import { BRAND_LOGIN_SUBTITLE_AR, BRAND_LOGIN_WELCOME_AR, BRAND_TERMS_SHORT_AR } from '@/constants/brandCopy';
 
 const COUNTRY_CODES = [
@@ -37,28 +35,18 @@ export default function PhoneScreen() {
   const { colors, gradients } = useTheme();
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const router = useRouter();
-  const { signInWithPassword, sendOtp, signInWithGoogle } = useAuth();
-  const { signIn: googleSignIn, isConfigured: googleConfigured } = useGoogleSignIn();
+  const { signInWithPassword, sendOtp } = useAuth();
 
-  // ── Tabs ───────────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'phone' | 'email'>('phone');
-
-  // Common login state
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
 
-  // Password / Phone Tab States
   const [phone, setPhone]           = useState('');
   const [countryIdx, setCountryIdx] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
   const [password, setPassword]     = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Email Tab States
-  const [email, setEmail] = useState('');
-
-  // OTP Login States (Quick Bypass option)
   const [useOtpFlow, setUseOtpFlow] = useState(false);
   const [otpChannel, setOtpChannel] = useState<'sms' | 'whatsapp'>('sms');
 
@@ -84,15 +72,7 @@ export default function PhoneScreen() {
   // ── تسجيل الدخول بكلمة المرور ──────────────────────────────────────────────
   const handlePasswordLogin = async () => {
     setError('');
-    let loginIdentifier = '';
-
-    if (activeTab === 'phone') {
-      if (!isPhoneValid) { setError('أدخل رقم جوال صحيح'); shake(); return; }
-      loginIdentifier = fullPhone;
-    } else {
-      if (!email.includes('@')) { setError('أدخل بريد إلكتروني صحيح'); shake(); return; }
-      loginIdentifier = email.trim().toLowerCase();
-    }
+    if (!isPhoneValid) { setError('أدخل رقم جوال صحيح'); shake(); return; }
 
     if (password.length < 6) {
       setError('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
@@ -101,7 +81,7 @@ export default function PhoneScreen() {
     }
 
     setLoading(true);
-    const result = await signInWithPassword(loginIdentifier, password);
+    const result = await signInWithPassword(fullPhone, password);
     setLoading(false);
 
     if (!result.success) {
@@ -134,57 +114,6 @@ export default function PhoneScreen() {
     });
   };
 
-  // ── Google Sign In ─────────────────────────────────────────────────────────
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const handleGoogle = async () => {
-    setError('');
-    if (!googleConfigured) {
-      setError('تسجيل Google غير متاح حالياً');
-      return;
-    }
-
-    setGoogleLoading(true);
-    try {
-      const googleResult = await googleSignIn();
-      if (!googleResult.ok) {
-        setGoogleLoading(false);
-        // Deep link opens /expo-auth-session — that screen finishes sign-in.
-        if (googleResult.cancelled) return;
-        if (googleResult.error) {
-          setError(googleResult.error);
-        }
-        return;
-      }
-
-      const authResult = await signInWithGoogle(googleResult.idToken);
-      setGoogleLoading(false);
-
-      if (!authResult.success) {
-        setError(authResult.error ?? 'تعذّر الدخول عبر Google');
-        return;
-      }
-
-      if (authResult.isNew) {
-        router.push({
-          pathname: '/auth/register',
-          params: {
-            googleId:    authResult.googleData?.googleId,
-            email:       authResult.googleData?.email,
-            displayName: authResult.googleData?.displayName,
-            avatar:      authResult.googleData?.avatar,
-            via_google:  '1',
-          },
-        });
-        return;
-      }
-
-      router.replace('/(tabs)');
-    } catch {
-      setGoogleLoading(false);
-      setError('تعذّر الاتصال بـ Google');
-    }
-  };
-
   return (
     <View style={styles.root}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -203,32 +132,7 @@ export default function PhoneScreen() {
 
             {/* Main Card */}
             <View style={styles.card}>
-              
-              {/* Segmented Tabs */}
-              <View style={styles.tabsContainer}>
-                <Pressable
-                  style={[styles.tabBtn, activeTab === 'email' && styles.tabBtnActive]}
-                  onPress={() => { setActiveTab('email'); setError(''); setUseOtpFlow(false); }}
-                >
-                  <Text style={[styles.tabText, activeTab === 'email' && styles.tabTextActive]}>
-                    البريد الإلكتروني
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  style={[styles.tabBtn, activeTab === 'phone' && styles.tabBtnActive]}
-                  onPress={() => { setActiveTab('phone'); setError(''); }}
-                >
-                  <Text style={[styles.tabText, activeTab === 'phone' && styles.tabTextActive]}>
-                    رقم الجوال
-                  </Text>
-                </Pressable>
-              </View>
-
-              {/* Form Input fields */}
-              {activeTab === 'phone' ? (
-                // 📱 Phone Tab Content
-                <View style={styles.formGroup}>
+              <View style={styles.formGroup}>
                   
                   {/* Phone Input with Country selector */}
                   <View style={styles.fieldHeader}>
@@ -283,7 +187,7 @@ export default function PhoneScreen() {
                           style={[styles.channelBtn, otpChannel === 'sms' && styles.channelBtnActive]}
                           onPress={() => setOtpChannel('sms')}
                         >
-                          <Text style={[styles.channelLabel, otpChannel === 'sms' && styles.channelLabelActive]}>SMS</Text>
+                          <Text style={[styles.channelLabel, otpChannel === 'sms' && styles.channelLabelActive]}>رسالة نصية</Text>
                         </Pressable>
                         <Pressable
                           style={[styles.channelBtn, otpChannel === 'whatsapp' && styles.channelBtnActive]}
@@ -322,57 +226,11 @@ export default function PhoneScreen() {
 
                   <Pressable onPress={() => { setUseOtpFlow(!useOtpFlow); setError(''); }} style={styles.switchFlowBtn}>
                     <Text style={styles.switchFlowText}>
-                      {useOtpFlow ? 'تسجيل الدخول بكلمة المرور 🔑' : 'الدخول السريع عبر رمز الجوال (OTP) 📱'}
+                      {useOtpFlow ? 'تسجيل الدخول بكلمة المرور' : 'الدخول السريع عبر رمز الجوال'}
                     </Text>
                   </Pressable>
 
                 </View>
-              ) : (
-                // 📧 Email Tab Content
-                <View style={styles.formGroup}>
-                  
-                  {/* Email Input */}
-                  <View style={styles.fieldHeader}>
-                    <Text style={styles.fieldLabel}>البريد الإلكتروني *</Text>
-                  </View>
-                  <View style={styles.inputWrap}>
-                    <TextInput
-                      style={styles.textInput}
-                      value={email}
-                      onChangeText={t => { setEmail(t); setError(''); }}
-                      placeholder="example@gmail.com"
-                      placeholderTextColor={colors.textSubtle}
-                      keyboardType="email-address"
-                      textAlign="right"
-                      autoCapitalize="none"
-                    />
-                    <AppIcon name="mail-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
-                  </View>
-
-                  {/* Password Input */}
-                  <View style={styles.fieldHeader}>
-                    <Pressable onPress={() => router.push('/auth/forgot-password')}>
-                      <Text style={styles.forgotLink}>نسيت كلمة المرور؟</Text>
-                    </Pressable>
-                    <Text style={styles.fieldLabel}>كلمة المرور *</Text>
-                  </View>
-                  <View style={styles.inputWrap}>
-                    <Pressable onPress={() => setShowPassword(!showPassword)} hitSlop={10}>
-                      <AppIcon name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.textMuted} />
-                    </Pressable>
-                    <TextInput
-                      style={styles.textInput}
-                      value={password}
-                      onChangeText={setPassword}
-                      placeholder="........"
-                      placeholderTextColor={colors.textSubtle}
-                      secureTextEntry={!showPassword}
-                      textAlign="right"
-                    />
-                    <AppIcon name="lock-closed-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
-                  </View>
-                </View>
-              )}
 
               {/* Error Box */}
               {error ? (
@@ -396,7 +254,7 @@ export default function PhoneScreen() {
               {/* Submit CTA Button */}
               <Pressable
                 style={styles.submitBtn}
-                onPress={useOtpFlow && activeTab === 'phone' ? handleSendOtp : handlePasswordLogin}
+                onPress={useOtpFlow ? handleSendOtp : handlePasswordLogin}
                 disabled={loading}
               >
                 <LinearGradient
@@ -408,33 +266,10 @@ export default function PhoneScreen() {
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <Text style={styles.submitText}>
-                      {useOtpFlow && activeTab === 'phone' ? 'إرسال رمز التحقق ←' : 'تسجيل الدخول ←'}
+                      {useOtpFlow ? 'إرسال رمز التحقق ←' : 'تسجيل الدخول ←'}
                     </Text>
                   )}
                 </LinearGradient>
-              </Pressable>
-
-              {/* Divider: أو تابع بـ */}
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>أو تابع بـ</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              {/* Google Button */}
-              <Pressable
-                style={({ pressed }) => [styles.googleBtn, pressed && { opacity: 0.9 }]}
-                onPress={handleGoogle}
-                disabled={googleLoading}
-              >
-                {googleLoading ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <>
-                    <Image source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/480px-Google_%22G%22_logo.svg.png' }} style={styles.googleLogo} />
-                    <Text style={styles.googleText}>تسجيل الدخول بـ Google</Text>
-                  </>
-                )}
               </Pressable>
 
             </View>
@@ -475,17 +310,6 @@ function createStyles(colors: ThemeColors) {
     backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.borderHairline,
     gap: spacing.md,
   },
-
-  tabsContainer: {
-    ...rtlRow,
-    backgroundColor: colors.bgPrimary,
-    borderRadius: 25, padding: 4, height: 48, width: '100%',
-    marginBottom: spacing.xs,
-  },
-  tabBtn: { flex: 1, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  tabBtnActive: { backgroundColor: colors.electric },
-  tabText: { fontSize: 14, color: colors.textMuted, fontWeight: '600' },
-  tabTextActive: { color: colors.textPrimary },
 
   formGroup: { gap: spacing.md, width: '100%' },
   fieldHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
@@ -567,20 +391,6 @@ function createStyles(colors: ThemeColors) {
   submitBtn: { width: '100%', borderRadius: 25, overflow: 'hidden', marginTop: 5 },
   submitGrad: { height: 50, alignItems: 'center', justifyContent: 'center' },
   submitText: { fontSize: 16, fontWeight: 'bold', color: colors.textPrimary },
-
-  divider: { ...rtlRow, alignItems: 'center', marginVertical: 15, width: '100%' },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.borderHairline },
-  dividerText: { marginHorizontal: 12, fontSize: 12, color: '#6b7280' },
-
-  googleBtn: {
-    ...rtlRow,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#ffffff', height: 48, borderRadius: 24, gap: 10, width: '100%',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1, shadowRadius: 2, elevation: 2,
-  },
-  googleLogo: { width: 18, height: 18 },
-  googleText: { fontSize: 14, fontWeight: '600', color: '#374151' },
 
   footer: { alignItems: 'center', marginTop: 25, gap: 15, width: '100%' },
   footerLinkText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },

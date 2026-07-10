@@ -17,7 +17,6 @@ import {
   View,
   ActivityIndicator,
   Animated,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
@@ -25,7 +24,6 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
 import { AppLogo } from '@/components/ui/AppLogo';
 import { useAuth } from '@/contexts/AuthContext';
-import { useGoogleSignIn } from '@/hooks/useGoogleSignIn';
 import {
   BRAND_JOIN_TITLE_AR,
   BRAND_MARKET_TERMS_AR,
@@ -44,18 +42,12 @@ export default function RegisterScreen() {
   const params = useLocalSearchParams<{
     phone?: string;
     token?: string;
-    googleId?: string;
-    email?: string;
-    displayName?: string;
-    avatar?: string;
-    via_google?: string;
   }>();
 
-  const { sendOtp, verifyOtp, register, signInWithGoogle } = useAuth();
-  const { signIn: googleSignIn, isConfigured: googleConfigured } = useGoogleSignIn();
+  const { sendOtp, verifyOtp, register } = useAuth();
 
   // ── States ─────────────────────────────────────────────────────────────────
-  const [displayName, setDisplayName] = useState(params.displayName || '');
+  const [displayName, setDisplayName] = useState('');
   const [username, setUsername]       = useState('');
   const [countryIdx, setCountryIdx]   = useState(0);
   const [showPicker, setShowPicker]   = useState(false);
@@ -71,7 +63,7 @@ export default function RegisterScreen() {
 
   // Phone states
   const [phone, setPhone]                 = useState(params.phone?.replace(/^\+\d{3}/, '') || '');
-  const [emailInput, setEmailInput]       = useState(params.email || '');
+  const [emailInput, setEmailInput]       = useState('');
 
   // OTP Verification states (within registration)
   const [otpSent, setOtpSent]         = useState(false);
@@ -80,10 +72,6 @@ export default function RegisterScreen() {
   const [otpError, setOtpError]       = useState('');
   const [phoneToken, setPhoneToken]   = useState(params.token || '');
   const [phoneVerified, setPhoneVerified] = useState(!!params.phone && !!params.token);
-
-  const [googleId, setGoogleId]       = useState(params.googleId || '');
-  const [avatar, setAvatar]           = useState(params.avatar || '');
-  const [viaGoogle, setViaGoogle]     = useState(params.via_google === '1');
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const currentCountry = COUNTRY_CODES[countryIdx];
@@ -119,7 +107,8 @@ export default function RegisterScreen() {
     && username.trim().length >= 3
     && !usernameError
     && isPhoneValid
-    && (viaGoogle || (password.length >= 6 && password === confirmPassword))
+    && password.length >= 6
+    && password === confirmPassword
     && agreed
     && !loading;
 
@@ -177,11 +166,8 @@ export default function RegisterScreen() {
         displayName:  displayName.trim(),
         username:     username.trim().toLowerCase(),
         country:      currentCountry.dbCode,
-        // Google details if applicable
-        googleId:    googleId || undefined,
         email:       emailInput.trim().toLowerCase() || undefined,
-        avatar:      avatar || undefined,
-        password:    viaGoogle ? undefined : password,
+        password,
       });
 
       setOtpLoading(false);
@@ -200,52 +186,6 @@ export default function RegisterScreen() {
     } catch {
       setOtpLoading(false);
       setOtpError('خطأ في الشبكة أثناء إنشاء الحساب.');
-    }
-  };
-
-  // ── Google Sign In (Registration Flow) ──────────────────────────────────
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const handleGoogle = async () => {
-    setOtpError('');
-    if (!googleConfigured) {
-      setOtpError('Google Sign In غير مفعّل في ملفات البيئة');
-      return;
-    }
-
-    setGoogleLoading(true);
-    try {
-      const googleResult = await googleSignIn();
-      if (!googleResult.ok) {
-        setGoogleLoading(false);
-        if (googleResult.cancelled) return;
-        if (googleResult.error) {
-          setOtpError(googleResult.error);
-        }
-        return;
-      }
-
-      const authResult = await signInWithGoogle(googleResult.idToken);
-      setGoogleLoading(false);
-
-      if (!authResult.success) {
-        setOtpError(authResult.error ?? 'فشل الدخول بـ Google');
-        return;
-      }
-
-      if (authResult.isNew) {
-        setDisplayName(authResult.googleData?.displayName || '');
-        setEmailInput(authResult.googleData?.email || '');
-        // نقوم بتحديث الحالات لجوجل
-        setGoogleId(authResult.googleData?.googleId || '');
-        setAvatar(authResult.googleData?.avatar || '');
-        setViaGoogle(true);
-        return;
-      }
-
-      router.replace('/(tabs)');
-    } catch {
-      setGoogleLoading(false);
-      setOtpError('فشل الاتصال بـ Google');
     }
   };
 
@@ -383,9 +323,8 @@ export default function RegisterScreen() {
                 </View>
               </View>
 
-              {/* كلمة المرور (فقط للتسجيل العادي) */}
-              {!viaGoogle && (
-                <>
+              {/* كلمة المرور */}
+              <>
                   {/* كلمة المرور */}
                   <View style={styles.fieldGroup}>
                     <Text style={styles.fieldLabel}>كلمة المرور *</Text>
@@ -426,7 +365,6 @@ export default function RegisterScreen() {
                     </View>
                   </View>
                 </>
-              )}
 
               {/* Checkbox: الموافقة على الشروط والأحكام */}
               <Pressable
@@ -500,29 +438,6 @@ export default function RegisterScreen() {
                   </LinearGradient>
                 </Pressable>
               )}
-
-              {/* Divider: أو تابع بـ */}
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>أو تابع بـ</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              {/* Google Button */}
-              <Pressable
-                style={({ pressed }) => [styles.googleBtn, pressed && { opacity: 0.9 }]}
-                onPress={handleGoogle}
-                disabled={googleLoading}
-              >
-                {googleLoading ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <>
-                    <Image source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/480px-Google_%22G%22_logo.svg.png' }} style={styles.googleLogo} />
-                    <Text style={styles.googleText}>تسجيل الدخول بـ Google</Text>
-                  </>
-                )}
-              </Pressable>
 
             </View>
 
@@ -652,19 +567,6 @@ function createStyles(colors: ThemeColors) {
     width: '100%',
   },
   errorText: { fontSize: 12, color: colors.danger, textAlign: 'right', flex: 1 },
-
-  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 15, width: '100%' },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.borderHairline },
-  dividerText: { marginHorizontal: 12, fontSize: 12, color: '#6b7280' },
-
-  googleBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.textPrimary, height: 48, borderRadius: 24, gap: 10, width: '100%',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1, shadowRadius: 2, elevation: 2,
-  },
-  googleLogo: { width: 18, height: 18 },
-  googleText: { fontSize: 14, fontWeight: '600', color: '#374151' },
 
   footer: { alignItems: 'center', marginTop: 25, gap: 15, width: '100%' },
   footerLinkText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },

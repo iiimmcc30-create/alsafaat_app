@@ -52,6 +52,7 @@ describe('OrderLifecycleService', () => {
               id: 'order-1',
               orderNumber: 'ORD-2026-000001',
               status: 'pending',
+              paymentStatus: 'paid',
               productId: 'p1',
               customerId: 'c1',
               reservedQuantity: 2,
@@ -81,6 +82,42 @@ describe('OrderLifecycleService', () => {
     expect(sockets.emitToUser).not.toHaveBeenCalled();
   });
 
+  it('rejects confirm when order is unpaid', async () => {
+    prisma.$transaction.mockImplementation(
+      async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn({
+          $queryRaw: jest.fn().mockResolvedValue([
+            {
+              id: 'order-1',
+              orderNumber: 'ORD-2026-000001',
+              status: 'pending',
+              paymentStatus: 'unpaid',
+              productId: 'p1',
+              customerId: 'c1',
+              reservedQuantity: 2,
+              butcherId: 'b1',
+              butcherUserId: 'butcher-1',
+            },
+          ]),
+          butcherOrder: {
+            findUnique: jest.fn(),
+            update: jest.fn(),
+          },
+          orderTimeline: { create: jest.fn() },
+          orderStatusAudit: { create: jest.fn() },
+          $executeRaw: jest.fn(),
+        }),
+    );
+
+    await expect(
+      service.transitionOrder({
+        orderId: 'order-1',
+        actorId: 'butcher-1',
+        nextStatus: 'confirmed',
+      }),
+    ).rejects.toMatchObject({ error: 'payment_required', status: 402 });
+  });
+
   it('creates timeline, audit, and notifies on valid transition', async () => {
     const updatedOrder = {
       id: 'order-1',
@@ -103,6 +140,7 @@ describe('OrderLifecycleService', () => {
               id: 'order-1',
               orderNumber: 'ORD-2026-000001',
               status: 'pending',
+              paymentStatus: 'paid',
               productId: 'p1',
               customerId: 'c1',
               reservedQuantity: 2,
@@ -141,6 +179,7 @@ describe('OrderLifecycleService', () => {
               id: 'order-1',
               orderNumber: 'ORD-2026-000001',
               status: 'pending',
+              paymentStatus: 'paid',
               productId: 'p1',
               customerId: 'c1',
               reservedQuantity: 2,
@@ -186,6 +225,7 @@ describe('OrderLifecycleService', () => {
               id: 'order-1',
               orderNumber: 'ORD-2026-000001',
               status: 'pending',
+              paymentStatus: 'paid',
               productId: 'p1',
               customerId: 'c1',
               reservedQuantity: 3,
@@ -249,7 +289,8 @@ describe('OrderLifecycleService', () => {
     await service.createOrder({
       butcherId: 'b1',
       customerId: 'c1',
-      productId: 'p1',
+      paymentStatus: 'paid',
+              productId: 'p1',
       cutType: 'whole',
       weightKg: 2,
       deliveryType: 'pickup',

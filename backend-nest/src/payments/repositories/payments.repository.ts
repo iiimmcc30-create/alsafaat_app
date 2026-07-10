@@ -31,6 +31,25 @@ export class PaymentsRepository {
     });
   }
 
+  findUnpaidButcherOrder(referenceId: string, userId: string) {
+    return this.prisma.butcherOrder.findFirst({
+      where: {
+        id: referenceId,
+        customerId: userId,
+        paymentStatus: 'unpaid',
+        status: { not: 'cancelled' },
+      },
+      select: {
+        id: true,
+        totalPrice: true,
+        currency: true,
+        orderNumber: true,
+        butcherId: true,
+        butcher: { select: { userId: true, nameAr: true } },
+      },
+    });
+  }
+
   findUserContact(userId: string) {
     return this.prisma.user.findUnique({
       where: { id: userId },
@@ -174,6 +193,14 @@ export class PaymentsRepository {
   }): Promise<{
     processed: boolean;
     subscription?: { targetPlanId: string; newRenewDate: Date };
+    butcherOrder?: {
+      id: string;
+      orderNumber: string;
+      butcherId: string;
+      customerId: string;
+      butcherUserId: string;
+      nameAr: string;
+    };
   }> {
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.payment.updateMany({
@@ -314,7 +341,56 @@ export class PaymentsRepository {
         }
       }
 
-      return { processed: true, subscription: subscriptionResult };
+      let butcherOrder:
+        | {
+            id: string;
+            orderNumber: string;
+            butcherId: string;
+            customerId: string;
+            butcherUserId: string;
+            nameAr: string;
+          }
+        | undefined;
+
+      if (params.type === 'butcher_order' && params.referenceId) {
+        const order = await tx.butcherOrder.findUnique({
+          where: { id: params.referenceId },
+          select: {
+            id: true,
+            orderNumber: true,
+            butcherId: true,
+            customerId: true,
+            paymentStatus: true,
+            butcher: { select: { userId: true, nameAr: true } },
+          },
+        });
+        if (!order) {
+          throw new Error('Butcher order not found for payment fulfillment');
+        }
+        if (order.paymentStatus !== 'paid') {
+          await tx.butcherOrder.update({
+            where: { id: params.referenceId },
+            data: {
+              paymentStatus: 'paid',
+              paidAt: new Date(),
+            },
+          });
+        }
+        butcherOrder = {
+          id: order.id,
+          orderNumber: order.orderNumber,
+          butcherId: order.butcherId,
+          customerId: order.customerId,
+          butcherUserId: order.butcher.userId,
+          nameAr: order.butcher.nameAr,
+        };
+      }
+
+      return {
+        processed: true,
+        subscription: subscriptionResult,
+        butcherOrder,
+      };
     });
   }
 
@@ -332,6 +408,19 @@ export class PaymentsRepository {
     return this.prisma.payment.update({
       where: { id: paymentId },
       data: { status: 'failed' },
+    });
+  }
+
+  markButcherOrderPaymentFailed(orderId: string) {
+    return this.prisma.butcherOrder.updateMany({
+      where: { id: orderId, paymentStatus: 'unpaid' },
+      data: { paymentStatus: 'failed' },
+    });
+  }
+
+  findPaymentOwnedByUser(paymentId: string, userId: string) {
+    return this.prisma.payment.findFirst({
+      where: { id: paymentId, userId },
     });
   }
 }

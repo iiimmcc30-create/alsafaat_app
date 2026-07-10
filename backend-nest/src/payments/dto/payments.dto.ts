@@ -18,7 +18,12 @@ const PAYMENT_METHODS = [
   'apple_pay',
   'stc_pay',
 ] as const;
-const PAYMENT_TYPES = ['subscription', 'fee', 'listing_fee'] as const;
+const PAYMENT_TYPES = [
+  'subscription',
+  'fee',
+  'listing_fee',
+  'butcher_order',
+] as const;
 const BILLING_CYCLES = ['monthly', 'yearly'] as const;
 
 export class InitiatePaymentDto {

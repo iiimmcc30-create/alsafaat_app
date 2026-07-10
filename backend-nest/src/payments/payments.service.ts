@@ -117,6 +117,25 @@ export class PaymentsService {
       return;
     }
 
+    if (type === 'butcher_order') {
+      const order = await this.repo.findUnpaidButcherOrder(referenceId, userId);
+      if (!order) {
+        throwApi(
+          404,
+          'order_not_found',
+          'الطلب غير موجود أو تم سداده مسبقاً',
+        );
+      }
+      if (Math.abs(order.totalPrice - amount) > 1) {
+        throwApi(
+          400,
+          'amount_mismatch',
+          `المبلغ غير مطابق. المبلغ الصحيح: ${order.totalPrice} ${order.currency}`,
+        );
+      }
+      return;
+    }
+
     throwApi(400, 'invalid_type', 'نوع الدفع غير صالح');
   }
 
@@ -193,11 +212,16 @@ export class PaymentsService {
         { paymentId: existingPending.id },
         'Returning existing pending payment',
       );
+      const isDev =
+        !process.env.NI_API_KEY ||
+        process.env.NI_API_KEY.startsWith('test_') ||
+        process.env.NODE_ENV !== 'production';
       return {
         paymentId: existingPending.id,
         orderId: existingPending.orderId,
         checkoutUrl: existingPending.checkoutUrl,
         status: 'pending',
+        devMode: isDev,
       };
     }
 
@@ -287,6 +311,7 @@ export class PaymentsService {
         orderId: orderReference,
         checkoutUrl,
         status: 'pending',
+        devMode: isDev,
       };
     } catch (err: unknown) {
       await this.repo.markPaymentFailed(payment.id).catch(() => {});
@@ -495,6 +520,34 @@ export class PaymentsService {
             payment.amount,
             payment.currency,
           );
+        } else if (fulfillment.butcherOrder) {
+          const bo = fulfillment.butcherOrder;
+          await Promise.all([
+            this.notifications.notifyUser({
+              userId: bo.customerId,
+              type: 'order_update',
+              titleAr: `طلب ${bo.orderNumber}`,
+              bodyAr: 'تم الدفع بنجاح ووصل طلبك للملحمة',
+              data: {
+                orderId: bo.id,
+                orderNumber: bo.orderNumber,
+                paymentStatus: 'paid',
+                butcherId: bo.butcherId,
+              },
+            }),
+            this.notifications.notifyUser({
+              userId: bo.butcherUserId,
+              type: 'system',
+              titleAr: 'طلب مدفوع جديد',
+              bodyAr: `وصلك طلب مدفوع رقم ${bo.orderNumber}`,
+              data: {
+                orderId: bo.id,
+                orderNumber: bo.orderNumber,
+                paymentStatus: 'paid',
+                butcherId: bo.butcherId,
+              },
+            }),
+          ]);
         } else {
           await this.notifications.notifyUser({
             userId,
@@ -512,6 +565,10 @@ export class PaymentsService {
       }
     } else if (isFailure) {
       await this.repo.markPaymentFailedById(payment.id);
+
+      if (type === 'butcher_order' && referenceId) {
+        await this.repo.markButcherOrderPaymentFailed(referenceId).catch(() => {});
+      }
 
       if (type === 'subscription' && targetPlanId) {
         await this.subscriptionLifecycle.notifyRenewalFailed(
@@ -533,5 +590,78 @@ export class PaymentsService {
         'NI Payment failed',
       );
     }
+  }
+
+  /** Local/sandbox only: mark a pending payment as paid without NI webhook. */
+  async simulateDevPayment(user: JwtPayload, paymentId: string) {
+    const isDev =
+      !process.env.NI_API_KEY ||
+      process.env.NI_API_KEY.startsWith('test_') ||
+      process.env.NODE_ENV !== 'production';
+    if (!isDev) {
+      throwApi(403, 'forbidden', 'غير متاح في بيئة الإنتاج');
+    }
+
+    const payment = await this.repo.findPaymentOwnedByUser(
+      paymentId,
+      user.userId,
+    );
+    if (!payment) throwApi(404, 'not_found', 'الدفعة غير موجودة');
+    if (payment.status === 'paid') {
+      return { paymentId: payment.id, status: 'paid' as const };
+    }
+    if (payment.status !== 'pending') {
+      throwApi(400, 'invalid_status', 'لا يمكن إتمام هذه الدفعة');
+    }
+
+    const storedMeta = (payment.metadata ?? {}) as Record<string, unknown>;
+    const type =
+      payment.referenceType ?? (storedMeta.type as string | undefined);
+    const referenceId =
+      payment.referenceId ?? (storedMeta.referenceId as string | undefined);
+    const niTransactionId = `DEV-${payment.orderId}`;
+
+    const fulfillment = await this.repo.processSuccessfulPayment({
+      paymentId: payment.id,
+      niTransactionId,
+      type,
+      referenceId,
+      userId: user.userId,
+      targetPlanId: storedMeta.targetPlanId as string | undefined,
+      billingCycle: (storedMeta.billingCycle as string | undefined) ?? 'monthly',
+      storedMeta,
+    });
+
+    if (fulfillment.processed && fulfillment.butcherOrder) {
+      const bo = fulfillment.butcherOrder;
+      await Promise.all([
+        this.notifications.notifyUser({
+          userId: bo.customerId,
+          type: 'order_update',
+          titleAr: `طلب ${bo.orderNumber}`,
+          bodyAr: 'تم الدفع بنجاح ووصل طلبك للملحمة',
+          data: {
+            orderId: bo.id,
+            orderNumber: bo.orderNumber,
+            paymentStatus: 'paid',
+            butcherId: bo.butcherId,
+          },
+        }),
+        this.notifications.notifyUser({
+          userId: bo.butcherUserId,
+          type: 'system',
+          titleAr: 'طلب مدفوع جديد',
+          bodyAr: `وصلك طلب مدفوع رقم ${bo.orderNumber}`,
+          data: {
+            orderId: bo.id,
+            orderNumber: bo.orderNumber,
+            paymentStatus: 'paid',
+            butcherId: bo.butcherId,
+          },
+        }),
+      ]);
+    }
+
+    return { paymentId: payment.id, status: 'paid' as const };
   }
 }

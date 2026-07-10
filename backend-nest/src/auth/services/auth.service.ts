@@ -338,6 +338,7 @@ export class AuthService {
     const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
 
     if (
+      process.env.DEV_OTP === 'true' ||
       !accountSid ||
       !authToken ||
       !serviceSid ||
@@ -377,7 +378,9 @@ export class AuthService {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
     const isDevMode =
-      !accountSid || accountSid === 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+      process.env.DEV_OTP === 'true' ||
+      !accountSid ||
+      accountSid === 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
 
     if (isDevMode) {
       if (dto.code !== '123456') {

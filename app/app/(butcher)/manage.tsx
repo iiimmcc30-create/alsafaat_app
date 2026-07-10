@@ -1106,6 +1106,16 @@ export default function ButcherManageScreen() {
                   <Text style={ord.orderNumber}>
                     رقم الطلب: {order.orderNumber || `#${order.id.slice(0, 8).toUpperCase()}`}
                   </Text>
+                  {order.paymentStatus !== 'paid' && (
+                    <View style={{ marginBottom: 8, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.amber + '33', borderWidth: 1, borderColor: colors.amber + '66' }}>
+                      <Text style={{ color: colors.amber, fontSize: 11, fontWeight: '700' }}>بانتظار الدفع</Text>
+                    </View>
+                  )}
+                  {order.paymentStatus === 'paid' && (
+                    <View style={{ marginBottom: 8, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.success + '33', borderWidth: 1, borderColor: colors.success + '66' }}>
+                      <Text style={{ color: colors.success, fontSize: 11, fontWeight: '700' }}>مدفوع</Text>
+                    </View>
+                  )}
 
                   <View style={ord.detailRow}>
                     <View style={ord.detail}>
@@ -1162,6 +1172,7 @@ export default function ButcherManageScreen() {
 
                     {allowedNext
                       .filter((next) => next !== 'cancelled')
+                      .filter((next) => !(next === 'confirmed' && order.paymentStatus !== 'paid'))
                       .map((next) => (
                       <Pressable
                         key={`${order.id}-${next}`}

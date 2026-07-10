@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { OrderStatus, Prisma } from '@prisma/client';
+import { OrderPaymentStatus, OrderStatus, Prisma } from '@prisma/client';
 import { AppNotificationsService } from '../../queue/services/app-notifications.service';
 import { SocketEmitService } from '../../gateway/services/socket-emit.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -23,6 +23,7 @@ type LockedOrderRow = {
   id: string;
   orderNumber: string;
   status: OrderStatus;
+  paymentStatus: OrderPaymentStatus;
   productId: string;
   customerId: string;
   reservedQuantity: number;
@@ -164,6 +165,7 @@ export class OrderLifecycleService {
         o.id,
         o."orderNumber" AS "orderNumber",
         o.status,
+        o."paymentStatus" AS "paymentStatus",
         o."productId" AS "productId",
         o."customerId" AS "customerId",
         o."reservedQuantity" AS "reservedQuantity",
@@ -199,6 +201,7 @@ export class OrderLifecycleService {
           orderNumber,
           reservedQuantity: reserveQty,
           status: 'pending',
+          paymentStatus: 'unpaid',
         },
         include: {
           butcher: { select: { id: true, userId: true, nameAr: true } },
@@ -210,7 +213,7 @@ export class OrderLifecycleService {
         data: {
           orderId: order.id,
           status: 'pending',
-          note: 'Order Created',
+          note: 'Order Created — awaiting payment',
           createdBy: input.customerId,
         },
       });
@@ -226,49 +229,25 @@ export class OrderLifecycleService {
         orderId: created.order.id,
         orderNumber: created.order.orderNumber,
         status: created.order.status,
+        paymentStatus: created.order.paymentStatus,
         butcherId: created.order.butcher.id,
         customerId: created.order.customerId,
       },
     );
 
-    const staffIds = await this.staffUserIds();
-    await Promise.all([
-      this.notifications.notifyUser({
-        userId: created.order.customerId,
-        type: 'order_update',
-        titleAr: `طلب ${created.order.orderNumber}`,
-        bodyAr: 'تم استلام طلبك',
-        data: {
-          orderId: created.order.id,
-          orderNumber: created.order.orderNumber,
-          status: created.order.status,
-          butcherId: created.order.butcher.id,
-        },
-      }),
-      this.notifications.notifyUser({
-        userId: created.order.butcher.userId,
-        type: 'system',
-        titleAr: 'طلب جديد',
-        bodyAr: `وصلك طلب جديد رقم ${created.order.orderNumber}`,
-        data: {
-          orderId: created.order.id,
-          orderNumber: created.order.orderNumber,
-          status: created.order.status,
-          butcherId: created.order.butcher.id,
-        },
-      }),
-      this.notifications.notifyUsers(staffIds, {
-        type: 'system',
-        titleAr: 'طلب جديد',
-        bodyAr: `طلب جديد رقم ${created.order.orderNumber}`,
-        data: {
-          orderId: created.order.id,
-          orderNumber: created.order.orderNumber,
-          status: created.order.status,
-          butcherId: created.order.butcher.id,
-        },
-      }),
-    ]);
+    await this.notifications.notifyUser({
+      userId: created.order.customerId,
+      type: 'order_update',
+      titleAr: `طلب ${created.order.orderNumber}`,
+      bodyAr: 'أكمل الدفع عبر بوابة المنصة لتأكيد الطلب',
+      data: {
+        orderId: created.order.id,
+        orderNumber: created.order.orderNumber,
+        status: created.order.status,
+        paymentStatus: created.order.paymentStatus,
+        butcherId: created.order.butcher.id,
+      },
+    });
 
     return created.order;
   }
@@ -293,6 +272,17 @@ export class OrderLifecycleService {
       }
 
       this.stateMachine.assertTransition(locked.status, params.nextStatus);
+
+      if (
+        params.nextStatus === 'confirmed' &&
+        locked.paymentStatus !== 'paid'
+      ) {
+        throwApi(
+          402,
+          'payment_required',
+          'لا يمكن تأكيد الطلب قبل إتمام الدفع عبر بوابة المنصة',
+        );
+      }
 
       if (params.nextStatus === 'cancelled' && locked.reservedQuantity > 0) {
         await tx.$executeRaw`

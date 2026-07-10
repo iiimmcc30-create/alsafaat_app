@@ -1,5 +1,5 @@
 // Powered by OnSpace.AI
-// SAFAT — Butcher Order Screen (صفحة الطلب)
+// SAFAT — Butcher Order Screen (صفحة الطلب + الدفع عبر بوابة المنصة)
 import { AppIcon } from '@/components/ui/FlaticonIcon';
 
 import { Image } from '@/components/ui/AppImage';
@@ -15,6 +15,7 @@ import {
   View,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
@@ -29,8 +30,7 @@ import {
   gccCurrencies,
   MeatCategory,
 } from '@/services/butcherData';
-
-const CUT_OPTIONS: CutType[] = ['whole', 'half', 'quarter', 'ribs', 'leg', 'shoulder', 'liver', 'mixed', 'custom'];
+import { PAYMENT_METHODS, NIPaymentMethod } from '@/services/network_international';
 
 export default function ButcherOrderScreen() {
   const { productId, butcherId } = useLocalSearchParams<{ productId?: string; butcherId: string }>();
@@ -48,6 +48,7 @@ export default function ButcherOrderScreen() {
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('pickup');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
+  const [selectedMethod, setSelectedMethod] = useState<NIPaymentMethod>('mada');
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
@@ -130,8 +131,36 @@ export default function ButcherOrderScreen() {
     return selectedProduct.priceFixed ?? 0;
   })();
 
+  const goSuccess = (orderId: string, orderNumber: string, paymentStatus: string) => {
+    setSubmitted(true);
+    setTimeout(() => {
+      router.replace({
+        pathname: '/butchers/order-success',
+        params: {
+          orderId: orderId ?? '',
+          orderNumber: orderNumber ?? '',
+          butcherId: butcherId ?? '',
+          paymentStatus: paymentStatus ?? 'unpaid',
+        },
+      });
+    }, 800);
+  };
+
   const handleSubmit = async () => {
     if (!selectedProduct) return;
+    if (!accessToken) {
+      Alert.alert('تسجيل الدخول', 'يجب تسجيل الدخول لإتمام الطلب والدفع');
+      return;
+    }
+    if (deliveryType === 'delivery' && !address.trim()) {
+      Alert.alert('العنوان مطلوب', 'أدخل عنوان التوصيل قبل إتمام الدفع');
+      return;
+    }
+    if (computedTotal <= 0) {
+      Alert.alert('خطأ', 'مبلغ الطلب غير صالح');
+      return;
+    }
+
     setLoadingSubmit(true);
     try {
       const payload = {
@@ -156,23 +185,72 @@ export default function ButcherOrderScreen() {
 
       const json = await res.json().catch(() => ({}));
 
-      if (res.ok && json.success) {
-        const orderId = json.data?.id;
-        const orderNumber = json.data?.orderNumber;
-        setSubmitted(true);
-        setTimeout(() => {
-          router.replace({
-            pathname: '/butchers/order-success',
-            params: {
-              orderId: orderId ?? '',
-              orderNumber: orderNumber ?? '',
-              butcherId: butcherId ?? '',
-            },
-          });
-        }, 1500);
-      } else {
-        const errorMsg = json.messageAr || json.message || 'حدث خطأ أثناء إرسال الطلب';
+      if (!res.ok || !json.success) {
+        const errorMsg = json.messageAr || json.message || 'حدث خطأ أثناء إنشاء الطلب';
         Alert.alert('خطأ', errorMsg);
+        return;
+      }
+
+      const orderId = json.data?.id as string;
+      const orderNumber = json.data?.orderNumber as string;
+      const amount = Number(json.data?.totalPrice ?? computedTotal);
+
+      const payRes = await fetch(`${API_BASE}/api/payments/initiate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          amount,
+          currency: currency.code || 'SAR',
+          method: selectedMethod,
+          type: 'butcher_order',
+          referenceId: orderId,
+          description: `Butcher order ${orderNumber}`,
+          descriptionAr: `دفع طلب ملحمة رقم ${orderNumber}`,
+        }),
+      });
+
+      const payJson = await payRes.json().catch(() => ({}));
+
+      if (!payRes.ok || !payJson.success || !payJson.data) {
+        const errMsg = payJson.messageAr || payJson.message || 'فشل إنشاء معاملة الدفع';
+        Alert.alert(
+          'الطلب بانتظار الدفع',
+          `${errMsg}\nيمكنك إكمال الدفع لاحقاً من صفحة الطلب.`,
+          [{ text: 'متابعة', onPress: () => goSuccess(orderId, orderNumber, 'unpaid') }],
+        );
+        return;
+      }
+
+      const { checkoutUrl, paymentId, devMode } = payJson.data as {
+        checkoutUrl?: string;
+        paymentId?: string;
+        devMode?: boolean;
+      };
+
+      if (devMode && paymentId) {
+        const simRes = await fetch(`${API_BASE}/api/payments/${paymentId}/dev-complete`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const simJson = await simRes.json().catch(() => ({}));
+        if (simRes.ok && simJson.success) {
+          goSuccess(orderId, orderNumber, 'paid');
+          return;
+        }
+      }
+
+      if (checkoutUrl) {
+        await Linking.openURL(checkoutUrl).catch(() => {});
+        Alert.alert(
+          'أكمل الدفع',
+          'تم فتح بوابة الدفع. بعد إتمام الدفع سيصل طلبك للملحمة تلقائياً.',
+          [{ text: 'حسناً', onPress: () => goSuccess(orderId, orderNumber, 'unpaid') }],
+        );
+      } else {
+        goSuccess(orderId, orderNumber, 'unpaid');
       }
     } catch (err) {
       console.error(err);
@@ -187,9 +265,8 @@ export default function ButcherOrderScreen() {
       <SafeAreaView style={s.screen}>
         <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
         <View style={s.successWrap}>
-          <Text style={s.successIcon}>✅</Text>
-          <Text style={s.successTitle}>تم إرسال طلبك!</Text>
-          <Text style={s.successSub}>سيتواصل معك الجزار قريباً لتأكيد الطلب</Text>
+          <ActivityIndicator size="large" color={colors.electricBright} />
+          <Text style={s.successTitle}>جاري التحويل...</Text>
         </View>
       </SafeAreaView>
     );
@@ -199,7 +276,6 @@ export default function ButcherOrderScreen() {
     <SafeAreaView style={s.screen} edges={['top']}>
       <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
 
-      {/* Header */}
       <View style={s.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn}>
           <AppIcon name={rtlBackIcon} size={22} color={colors.textPrimary} />
@@ -212,8 +288,6 @@ export default function ButcherOrderScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
-
-        {/* Butcher mini-card */}
         <View style={s.butcherCard}>
           <Image source={{ uri: butcher.logo }} style={s.butcherLogo} contentFit="cover" />
           <View style={{ flex: 1 }}>
@@ -228,7 +302,6 @@ export default function ButcherOrderScreen() {
           )}
         </View>
 
-        {/* Product Selection */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>اختر المنتج</Text>
           {products.map((p: any) => (
@@ -261,7 +334,6 @@ export default function ButcherOrderScreen() {
           ))}
         </View>
 
-        {/* Cut Type */}
         {availableCuts.length > 0 && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>طريقة التقطيع</Text>
@@ -281,7 +353,6 @@ export default function ButcherOrderScreen() {
           </View>
         )}
 
-        {/* Weight (if priced per kg) */}
         {selectedProduct?.pricePerKg && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>الوزن (كغ)</Text>
@@ -306,46 +377,29 @@ export default function ButcherOrderScreen() {
                 <AppIcon name="add" size={20} color={colors.textPrimary} />
               </Pressable>
             </View>
-            {selectedProduct.weightRange && (
-              <Text style={s.weightHint}>
-                النطاق المتاح: {selectedProduct.weightRange.min}–{selectedProduct.weightRange.max} كغ
-              </Text>
-            )}
           </View>
         )}
 
-        {/* Delivery Type */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>طريقة الاستلام</Text>
           <View style={s.deliveryRow}>
-            <Pressable
-              onPress={() => setDeliveryType('pickup')}
-              style={[s.deliveryOption, deliveryType === 'pickup' && s.deliveryOptionActive]}
-            >
-              <AppIcon
-                name="store-outline"
-                size={22}
-                color={deliveryType === 'pickup' ? colors.electric : colors.textMuted}
-              />
-              <Text style={[s.deliveryLabel, deliveryType === 'pickup' && s.deliveryLabelActive]}>
-                استلام من الملحمة
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setDeliveryType('delivery')}
-              style={[s.deliveryOption, deliveryType === 'delivery' && s.deliveryOptionActive]}
-            >
-              <AppIcon
-                name="truck-delivery-outline"
-                size={22}
-                color={deliveryType === 'delivery' ? colors.electric : colors.textMuted}
-              />
-              <Text style={[s.deliveryLabel, deliveryType === 'delivery' && s.deliveryLabelActive]}>
-                توصيل للمنزل
-              </Text>
-            </Pressable>
+            {(['pickup', 'delivery'] as DeliveryType[]).map((type) => (
+              <Pressable
+                key={type}
+                onPress={() => setDeliveryType(type)}
+                style={[s.deliveryOption, deliveryType === type && s.deliveryOptionActive]}
+              >
+                <AppIcon
+                  name={type === 'pickup' ? 'store-outline' : 'truck-delivery-outline'}
+                  size={18}
+                  color={deliveryType === type ? colors.electricBright : colors.textMuted}
+                />
+                <Text style={[s.deliveryLabel, deliveryType === type && s.deliveryLabelActive]}>
+                  {type === 'pickup' ? 'استلام من الملحمة' : 'توصيل'}
+                </Text>
+              </Pressable>
+            ))}
           </View>
-
           {deliveryType === 'delivery' && (
             <TextInput
               style={s.addressInput}
@@ -360,7 +414,6 @@ export default function ButcherOrderScreen() {
           )}
         </View>
 
-        {/* Notes */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>ملاحظات إضافية (اختياري)</Text>
           <TextInput
@@ -375,7 +428,24 @@ export default function ButcherOrderScreen() {
           />
         </View>
 
-        {/* Order Summary */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>طريقة الدفع</Text>
+          <Text style={s.payHint}>الدفع إلزامي عبر بوابة المنصة قبل إرسال الطلب للملحمة</Text>
+          {PAYMENT_METHODS.map((method) => (
+            <Pressable
+              key={method.id}
+              onPress={() => setSelectedMethod(method.id)}
+              style={[s.payOption, selectedMethod === method.id && s.payOptionActive]}
+            >
+              <View style={[s.payDot, selectedMethod === method.id && s.payDotActive]} />
+              <Text style={s.payOptionText}>{method.arabic}</Text>
+              {selectedMethod === method.id && (
+                <AppIcon name="checkmark-circle" size={18} color={colors.electricBright} />
+              )}
+            </Pressable>
+          ))}
+        </View>
+
         <View style={s.summaryCard}>
           <LinearGradient
             colors={[colors.electric + '22', colors.bgElevated]}
@@ -402,20 +472,19 @@ export default function ButcherOrderScreen() {
           </View>
           <View style={s.summaryDivider} />
           <View style={s.summaryRow}>
-            <Text style={s.summaryTotalLabel}>الإجمالي التقريبي</Text>
+            <Text style={s.summaryTotalLabel}>المبلغ المستحق</Text>
             <Text style={s.summaryTotalValue}>
               {computedTotal.toLocaleString(undefined, { maximumFractionDigits: 1 })} {currency.symbol}
             </Text>
           </View>
           <Text style={s.summaryNote}>
-            * السعر النهائي يُحدد بعد تأكيد الجزار بناءً على الوزن الفعلي
+            * يتم الدفع عبر بوابة المنصة، ثم يصل الطلب للملحمة بعد نجاح العملية
           </Text>
         </View>
 
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Submit */}
       <SafeAreaView edges={['bottom']} style={s.submitWrap}>
         <LinearGradient
           colors={['transparent', colors.bgDeep]}
@@ -437,8 +506,8 @@ export default function ButcherOrderScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <>
-                <AppIcon name="paper-plane-outline" size={20} color="#fff" />
-                <Text style={s.submitBtnText}>إرسال الطلب للجزار</Text>
+                <AppIcon name="card-outline" size={20} color="#fff" />
+                <Text style={s.submitBtnText}>إتمام الدفع وإرسال الطلب</Text>
               </>
             )}
           </LinearGradient>
@@ -499,6 +568,7 @@ const s = StyleSheet.create({
 
   section: { marginBottom: spacing.xl },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md, textAlign: 'right' },
+  payHint: { ...typography.caption, color: colors.textMuted, marginBottom: spacing.md, textAlign: 'right' },
 
   productOption: {
     flexDirection: 'row',
@@ -564,7 +634,6 @@ const s = StyleSheet.create({
     color: colors.textPrimary,
     paddingVertical: 10,
   },
-  weightHint: { ...typography.caption, color: colors.textMuted, marginTop: 6, textAlign: 'right' },
 
   deliveryRow: { flexDirection: 'row', gap: spacing.md },
   deliveryOption: {
@@ -603,6 +672,35 @@ const s = StyleSheet.create({
     textAlign: 'right',
     minHeight: 80,
   },
+
+  payOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.bgSurface,
+    borderRadius: radius.xl,
+    borderWidth: 1.5,
+    borderColor: colors.borderSoft,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
+    marginBottom: spacing.sm,
+  },
+  payOptionActive: {
+    borderColor: colors.electric,
+    backgroundColor: colors.electric + '11',
+  },
+  payDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: colors.borderMid,
+  },
+  payDotActive: {
+    borderColor: colors.electricBright,
+    backgroundColor: colors.electricBright,
+  },
+  payOptionText: { ...typography.bodyStrong, color: colors.textPrimary, flex: 1 },
 
   summaryCard: {
     borderRadius: radius.xxl,
@@ -644,9 +742,6 @@ const s = StyleSheet.create({
   },
   submitBtnText: { ...typography.bodyStrong, color: '#fff', fontSize: 16 },
 
-  // Success
   successWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
-  successIcon: { fontSize: 72 },
   successTitle: { ...typography.h1, color: colors.textPrimary },
-  successSub: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
 });

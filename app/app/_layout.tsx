@@ -22,7 +22,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 WebBrowser.maybeCompleteAuthSession();
 
 export const unstable_settings = {
-  initialRouteName: '(tabs)',
+  initialRouteName: 'index',
 };
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -36,9 +36,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (segments[0] === 'expo-auth-session') return;
 
     const inAuthGroup = segments[0] === 'auth';
+    const inPublicInfo = segments[0] === 'info';
 
     if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)' as any);
+      return;
+    }
+
+    if (!isAuthenticated && !inAuthGroup && !inPublicInfo) {
+      router.replace('/auth/phone' as any);
     }
   }, [isAuthenticated, isLoading, segments, router]);
 

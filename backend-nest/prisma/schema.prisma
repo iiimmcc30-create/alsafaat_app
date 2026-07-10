@@ -623,6 +623,8 @@ model ButcherOrder {
   deliveryType    String         @default("pickup")
   deliveryAddress String?
   status          OrderStatus    @default(pending)
+  paymentStatus   OrderPaymentStatus @default(unpaid)
+  paidAt          DateTime?
   totalPrice      Float
   currency        String         @default("SAR")
   notes           String?
@@ -642,6 +644,7 @@ model ButcherOrder {
   @@index([status])
   @@index([butcherId, status])
   @@index([orderNumber])
+  @@index([paymentStatus])
 }
 
 model OrderTimeline {
@@ -849,6 +852,14 @@ enum PaymentReferenceType {
   subscription
   fee
   listing_fee
+  butcher_order
+}
+
+enum OrderPaymentStatus {
+  unpaid
+  paid
+  failed
+  refunded
 }
 
 enum PaymentMethod {

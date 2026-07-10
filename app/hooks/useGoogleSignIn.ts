@@ -12,10 +12,45 @@ import {
 
 WebBrowser.maybeCompleteAuthSession();
 
-const webClientId =
-  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ??
-  process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ??
-  '';
+/** Stub so expo-auth-session does not throw when env is missing. */
+const UNCONFIGURED_CLIENT_ID = 'unconfigured.apps.googleusercontent.com';
+
+function readClientId(...keys: string[]): string {
+  for (const key of keys) {
+    const value = process.env[key]?.trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function isPlaceholderClientId(id: string): boolean {
+  if (!id) return true;
+  const lower = id.toLowerCase();
+  return (
+    lower.includes('your_') ||
+    lower.includes('your-') ||
+    lower === UNCONFIGURED_CLIENT_ID ||
+    !lower.includes('.apps.googleusercontent.com')
+  );
+}
+
+const rawWebClientId = readClientId(
+  'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID',
+  'EXPO_PUBLIC_GOOGLE_CLIENT_ID',
+);
+const rawIosClientId = readClientId('EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID');
+const rawAndroidClientId = readClientId('EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID');
+
+const isConfigured = !isPlaceholderClientId(rawWebClientId);
+
+// Always pass a defined webClientId — Expo throws if it is undefined on web.
+const webClientId = isConfigured ? rawWebClientId : UNCONFIGURED_CLIENT_ID;
+const iosClientId = !isPlaceholderClientId(rawIosClientId)
+  ? rawIosClientId
+  : webClientId;
+const androidClientId = !isPlaceholderClientId(rawAndroidClientId)
+  ? rawAndroidClientId
+  : webClientId;
 
 function getProxyStartUrl(authUrl: string, returnUrl: string): string {
   return `${EXPO_PROXY_REDIRECT}/start?${new URLSearchParams({ authUrl, returnUrl }).toString()}`;
@@ -29,14 +64,14 @@ export function useGoogleSignIn() {
   const useCodeFlow = Platform.OS !== 'web';
 
   const [request, , promptAsync] = Google.useAuthRequest({
-    clientId: webClientId || undefined,
-    webClientId: webClientId || undefined,
+    clientId: webClientId,
+    webClientId,
+    iosClientId,
+    androidClientId,
     redirectUri: EXPO_PROXY_REDIRECT,
     responseType: useCodeFlow ? ResponseType.Code : ResponseType.IdToken,
     scopes: ['openid', 'profile', 'email'],
   });
-
-  const isConfigured = Boolean(webClientId && !webClientId.includes('your_google'));
 
   const signIn = async (): Promise<GoogleSignInResult> => {
     if (!isConfigured) {
