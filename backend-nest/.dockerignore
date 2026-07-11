@@ -15,4 +15,5 @@ docs
 test
 **/*.spec.ts
 **/*.test.ts
-scripts
+scripts/*
+!scripts/docker-entrypoint.sh
