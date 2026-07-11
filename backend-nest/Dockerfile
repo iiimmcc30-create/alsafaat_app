@@ -5,9 +5,9 @@ RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json ./
+COPY prisma ./prisma
 RUN npm ci
 
-COPY prisma ./prisma
 RUN npx prisma generate
 
 COPY . .
@@ -22,8 +22,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
 COPY prisma ./prisma
+RUN npm ci --omit=dev
 RUN npx prisma generate
 COPY --from=builder /app/dist ./dist
 
