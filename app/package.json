@@ -15,6 +15,7 @@
     "android:install-all": "node scripts/install-android-all.js",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "export:web": "expo export --platform web",
     "lint": "expo lint",
     "sync:icons": "python scripts/generate-circular-branding.py",
     "build:flaticon": "node scripts/build-flaticon-icons.js",
