@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
-import * as RssParser from 'rss-parser';
 import { LoggerService } from '../../common/services/logger.service';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Parser = require('rss-parser') as new (options?: Record<string, unknown>) => {
+  parseURL: (url: string) => Promise<{ items?: RssItem[] }>;
+};
 
 export type FetchedNewsItem = {
   title: string;
@@ -23,11 +27,7 @@ type RssItem = {
 
 @Injectable()
 export class NewsFetcherService {
-  private readonly parser = new (RssParser as unknown as {
-    new (options?: Record<string, unknown>): {
-      parseURL: (url: string) => Promise<{ items?: RssItem[] }>;
-    };
-  })({
+  private readonly parser = new Parser({
     timeout: 15000,
     headers: {
       'User-Agent': 'SarhKnowledgeCenter/1.0 (+https://sarh.app)',
