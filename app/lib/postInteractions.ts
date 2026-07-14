@@ -1,15 +1,20 @@
 // lib/postInteractions.ts — shared post action handlers for feed screens
 
-import { Alert, Share } from 'react-native';
+import { Share } from 'react-native';
 import { Router } from 'expo-router';
 import { Post, User } from '@/services/types';
 import { promptReport } from '@/services/reports';
+import {
+  alertMessage,
+  confirmDestructive,
+  presentActionSheet,
+} from '@/lib/actionSheet';
 
 export type DeletePostResult = { ok: boolean; error?: string };
 
 export function requireAuth(isAuthenticated: boolean, action: string): boolean {
   if (isAuthenticated) return true;
-  Alert.alert('تسجيل الدخول', `يجب تسجيل الدخول لـ${action}`);
+  void alertMessage('تسجيل الدخول', `يجب تسجيل الدخول لـ${action}`);
   return false;
 }
 
@@ -24,60 +29,54 @@ export async function sharePost(post: Post) {
   }
 }
 
-export function showPostMenu(
+export async function showPostMenu(
   post: Post,
   me: User,
   router: Router,
   deletePost: (id: string) => Promise<boolean | DeletePostResult>,
   isAuthenticated = true,
 ) {
-  const isOwner = !!me.id && post.author.id === me.id;
+  const isOwner = !!me.id && post.author?.id === me.id;
+
   if (!isOwner) {
-    Alert.alert('المنشور', undefined, [
-      {
-        text: 'إبلاغ',
-        style: 'destructive',
-        onPress: () => promptReport('post', post.id, isAuthenticated),
-      },
-      { text: 'إغلاق', style: 'cancel' },
-    ]);
+    const key = await presentActionSheet({
+      title: 'المنشور',
+      items: [
+        { key: 'report', label: 'إبلاغ', destructive: true },
+        { key: 'cancel', label: 'إغلاق', cancel: true },
+      ],
+    });
+    if (key === 'report') {
+      await promptReport('post', post.id, isAuthenticated);
+    }
     return;
   }
-  Alert.alert('إدارة المنشور', undefined, [
-    {
-      text: 'تعديل',
-      onPress: () =>
-        router.push({ pathname: '/create/post', params: { editId: post.id } }),
-    },
-    {
-      text: 'حذف',
-      style: 'destructive',
-      onPress: () => {
-        Alert.alert(
-          'حذف المنشور',
-          'هل أنت متأكد؟ لا يمكن التراجع عن هذا الإجراء.',
-          [
-            { text: 'إلغاء', style: 'cancel' },
-            {
-              text: 'حذف',
-              style: 'destructive',
-              onPress: async () => {
-                const result = await deletePost(post.id);
-                const ok =
-                  typeof result === 'boolean' ? result : result.ok;
-                const error =
-                  typeof result === 'boolean'
-                    ? undefined
-                    : result.error;
-                if (!ok) {
-                  Alert.alert('خطأ', error || 'فشل حذف المنشور');
-                }
-              },
-            },
-          ],
-        );
-      },
-    },
-    { text: 'إلغاء', style: 'cancel' },
-  ]);
+
+  const key = await presentActionSheet({
+    title: 'إدارة المنشور',
+    items: [
+      { key: 'edit', label: 'تعديل' },
+      { key: 'delete', label: 'حذف', destructive: true },
+      { key: 'cancel', label: 'إلغاء', cancel: true },
+    ],
+  });
+
+  if (key === 'edit') {
+    router.push({ pathname: '/create/post', params: { editId: post.id } });
+    return;
+  }
+
+  if (key === 'delete') {
+    const confirmed = await confirmDestructive(
+      'حذف المنشور',
+      'هل أنت متأكد؟ لا يمكن التراجع عن هذا الإجراء.',
+    );
+    if (!confirmed) return;
+    const result = await deletePost(post.id);
+    const ok = typeof result === 'boolean' ? result : result.ok;
+    const error = typeof result === 'boolean' ? undefined : result.error;
+    if (!ok) {
+      await alertMessage('خطأ', error || 'فشل حذف المنشور');
+    }
+  }
 }

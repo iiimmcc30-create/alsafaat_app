@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
 import { NotificationManager } from '@/components/NotificationManager';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { ActionSheetHost } from '@/components/ui/ActionSheetHost';
 import { useFlaticonFonts } from '@/hooks/useFlaticonFonts';
 import { setupRtl, rtlDirection } from '@/lib/rtl';
 
@@ -123,6 +124,7 @@ function RootLayoutBody() {
             <NotificationManager />
             <SubscriptionProvider>
               <RootNavigator />
+              <ActionSheetHost />
             </SubscriptionProvider>
           </AuthGuard>
         </AppProvider>

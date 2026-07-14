@@ -40,6 +40,7 @@ import {
   replyToStory,
   setStoryReaction,
 } from '@/services/stories';
+import { alertMessage, confirmDestructive } from '@/lib/actionSheet';
 
 const CIRCLE = 68;
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -235,34 +236,31 @@ function StoryViewer({
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!accessToken || !story || busy) return;
-    Alert.alert('حذف القصة', 'هل تريد حذف هذه القصة؟', [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'حذف',
-        style: 'destructive',
-        onPress: async () => {
-          setBusy(true);
-          try {
-            const result = await deleteStory(accessToken, story.id);
-            if (result.ok) {
-              onRefresh();
-              onClose();
-            } else {
-              Alert.alert('خطأ', result.error || 'فشل حذف القصة');
-            }
-          } catch (err) {
-            Alert.alert(
-              'خطأ',
-              err instanceof Error ? err.message : 'فشل حذف القصة',
-            );
-          } finally {
-            setBusy(false);
-          }
-        },
-      },
-    ]);
+    const confirmed = await confirmDestructive(
+      'حذف القصة',
+      'هل تريد حذف هذه القصة؟',
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    try {
+      const result = await deleteStory(accessToken, story.id);
+      if (result.ok) {
+        onRefresh();
+        onClose();
+      } else {
+        await alertMessage('خطأ', result.error || 'فشل حذف القصة');
+      }
+    } catch (err) {
+      await alertMessage(
+        'خطأ',
+        err instanceof Error ? err.message : 'فشل حذف القصة',
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   const openViewers = async () => {

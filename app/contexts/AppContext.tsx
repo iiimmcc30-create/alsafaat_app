@@ -110,6 +110,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       seller: mapBackendUser(l.seller),
       featured: l.featured ?? false,
       postedAt: new Date(l.createdAt).toLocaleDateString('ar-SA'),
+      createdAt: l.createdAt,
     };
   }, [mapBackendUser]);
 

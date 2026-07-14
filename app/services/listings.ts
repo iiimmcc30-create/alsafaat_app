@@ -70,6 +70,7 @@ function mapListing(l: BackendListing): Listing {
     },
     featured: l.featured ?? false,
     postedAt: new Date(l.createdAt).toLocaleDateString('ar-SA'),
+    createdAt: l.createdAt,
   };
 }
 

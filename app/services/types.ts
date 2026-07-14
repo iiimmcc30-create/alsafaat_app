@@ -76,6 +76,8 @@ export interface Listing {
   seller: User;
   featured: boolean;
   postedAt: string;
+  /** ISO timestamp for relative time (Haraj-style: قبل ٢٤ دقيقة) */
+  createdAt?: string;
 }
 
 export interface Post {

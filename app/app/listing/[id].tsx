@@ -1,18 +1,12 @@
 // Powered by OnSpace.AI
-import { AppIcon } from '@/components/ui/FlaticonIcon';
-import { Image } from '@/components/ui/AppImage';
-import { LinearGradient } from '@/components/ui/AppLinearGradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
-import { useEffect, useState } from 'react';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
-import { rtlBackIcon } from '@/lib/rtl';
+import { formatRelativeTimeAr } from '@/lib/formatRelativeTime';
+import { rtlBackIcon, rtlDirection, rtlRow } from '@/lib/rtl';
 import { useApp } from '@/hooks/useApp';
-import { countries, type Listing } from '@/services/types';
+import { type Listing } from '@/services/types';
 import { openLiveCreateIfAllowed } from '@/lib/liveStreamAccess';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchUserProfile, toggleFollowUser } from '@/services/users';
@@ -21,6 +15,14 @@ import { BRAND_VERIFIED_AR, BRAND_VERIFIED_EN } from '@/constants/brandCopy';
 import { API_BASE } from '@/services/api';
 import { authFetch } from '@/services/authFetch';
 import { promptReport } from '@/services/reports';
+import { alertMessage, confirmDestructive } from '@/lib/actionSheet';
+import { AppIcon } from '@/components/ui/FlaticonIcon';
+import { Image } from '@/components/ui/AppImage';
+import { LinearGradient } from '@/components/ui/AppLinearGradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -83,6 +85,7 @@ export default function ListingDetailScreen() {
           },
           featured: raw.featured ?? false,
           postedAt: new Date(raw.createdAt).toLocaleDateString('ar-SA'),
+          createdAt: raw.createdAt,
         });
       } catch {
         // keep cache if any
@@ -143,8 +146,11 @@ export default function ListingDetailScreen() {
     );
   }
 
-  const country = countries[listing.country];
   const isOwner = !!me.id && listing.seller.id === me.id;
+  const timeLabel = listing.createdAt
+    ? formatRelativeTimeAr(listing.createdAt)
+    : listing.postedAt;
+  const images = (listing.images || []).filter((uri) => uri && uri.trim().length > 0);
 
   const handleStartLive = () => {
     Alert.alert(
@@ -167,78 +173,147 @@ export default function ListingDetailScreen() {
     router.push({ pathname: '/create/listing', params: { editId: listing.id } } as any);
   };
 
-  const handleDelete = () => {
-    Alert.alert('حذف الإعلان', 'هل أنت متأكد من حذف هذا الإعلان؟', [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'حذف',
-        style: 'destructive',
-        onPress: async () => {
-          const result = await removeListing(listing.id);
-          if (result.ok) {
-            router.back();
-          } else {
-            Alert.alert('خطأ', result.error || 'فشل حذف الإعلان. يرجى المحاولة لاحقاً.');
-          }
-        },
-      },
-    ]);
+  const handleDelete = async () => {
+    const confirmed = await confirmDestructive(
+      'حذف الإعلان',
+      'هل أنت متأكد من حذف هذا الإعلان؟',
+    );
+    if (!confirmed) return;
+    const result = await removeListing(listing.id);
+    if (result.ok) {
+      router.back();
+    } else {
+      await alertMessage(
+        'خطأ',
+        result.error || 'فشل حذف الإعلان. يرجى المحاولة لاحقاً.',
+      );
+    }
   };
 
   return (
-    <View style={styles.screen}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 160 }}>
-        <View style={styles.heroWrap}>
-          <Image source={{ uri: listing.images[0] }} style={styles.heroImg} contentFit="cover" transition={300} />
-          <LinearGradient
-            colors={['rgba(6,9,26,0.6)', 'transparent', 'rgba(6,9,26,0.85)']}
-            style={StyleSheet.absoluteFill}
-          />
+    <View style={[styles.screen, rtlDirection]}>
+      <SafeAreaView edges={['top']} style={styles.topBar}>
+        <Pressable onPress={() => router.back()} hitSlop={8} style={styles.iconBtn}>
+          <AppIcon name={rtlBackIcon} size={22} color={colors.textPrimary} />
+        </Pressable>
+        <View style={[styles.topActions, rtlRow]}>
+          {!isOwner ? (
+            <Pressable
+              hitSlop={8}
+              style={styles.iconBtn}
+              onPress={() => promptReport('listing', listing.id, isAuthenticated)}
+            >
+              <AppIcon name="flag-outline" size={20} color={colors.textPrimary} />
+            </Pressable>
+          ) : null}
+          <Pressable
+            hitSlop={8}
+            style={styles.iconBtn}
+            onPress={() => Alert.alert('تم الحفظ', 'تم حفظ الإعلان في المفضّلة ❤️')}
+          >
+            <AppIcon name="heart-outline" size={20} color={colors.textPrimary} />
+          </Pressable>
+          <Pressable
+            hitSlop={8}
+            style={styles.iconBtn}
+            onPress={() =>
+              Share.share({
+                message: `${listing.arabicTitle} — ${listing.price.toLocaleString()} ${listing.currency}\nhttps://alsfat.com/l/${listing.id}`,
+              })
+            }
+          >
+            <AppIcon name="share-outline" size={20} color={colors.textPrimary} />
+          </Pressable>
+        </View>
+      </SafeAreaView>
 
-          <SafeAreaView edges={['top']} style={styles.heroOverlay}>
-            <View style={styles.heroTop}>
-              <Pressable onPress={() => router.back()} hitSlop={8} style={styles.iconBtn}>
-                <AppIcon name={rtlBackIcon} size={22} color="#fff" />
-              </Pressable>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {!isOwner ? (
-                  <Pressable
-                    hitSlop={8}
-                    style={styles.iconBtn}
-                    onPress={() => promptReport('listing', listing.id, isAuthenticated)}
-                  >
-                    <AppIcon name="flag-outline" size={20} color="#fff" />
-                  </Pressable>
-                ) : null}
-                <Pressable hitSlop={8} style={styles.iconBtn} onPress={() => Alert.alert('تم الحفظ', 'تم حفظ الإعلان في المفضّلة ❤️')}>
-                  <AppIcon name="heart-outline" size={20} color="#fff" />
-                </Pressable>
-                <Pressable hitSlop={8} style={styles.iconBtn} onPress={() => Share.share({ message: `${listing.arabicTitle} — ${listing.price.toLocaleString()} ${listing.currency}\nhttps://alsfat.com/l/${listing.id}` })}>
-                  <AppIcon name="share-outline" size={20} color="#fff" />
-                </Pressable>
-              </View>
-            </View>
-          </SafeAreaView>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.card}>
+          <Text style={styles.title}>{listing.arabicTitle || listing.title}</Text>
 
           {listing.featured ? (
-            <View style={styles.featured}>
+            <View style={[styles.featured, rtlRow]}>
               <AppIcon name="star" size={12} color="#1A1300" />
               <Text style={styles.featuredText}>إعلان مميز</Text>
             </View>
           ) : null}
-        </View>
 
-        <View style={styles.body}>
-          <Text style={styles.title}>{listing.arabicTitle || listing.title}</Text>
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>{listing.price.toLocaleString()}</Text>
-            <Text style={styles.currency}>{listing.currency}</Text>
-          </View>
-          <View style={styles.countryPill}>
-            <Text style={styles.countryText}>
-              {country?.flag} {listing.arabicLocation || listing.location} · {listing.postedAt}
+          {/* Haraj detail meta: مدينة · الوقت · المعلن */}
+          <View style={[styles.metaRow, rtlRow]}>
+            <Text style={styles.metaText}>
+              {listing.arabicLocation || listing.location}
             </Text>
+            <Text style={styles.metaDot}>·</Text>
+            <Text style={styles.metaText}>{timeLabel || 'الآن'}</Text>
+            <Text style={styles.metaDot}>·</Text>
+            <Pressable onPress={() => openUserProfile(router, listing.seller.id)}>
+              <Text style={styles.metaUser}>
+                {listing.seller.arabicName || listing.seller.displayName || listing.seller.username}
+              </Text>
+            </Pressable>
+            {listing.seller.verified ? (
+              <AppIcon name="shield-checkmark" size={13} color={colors.electricBright} />
+            ) : null}
           </View>
+
+          {!isOwner ? (
+            <View style={[styles.sellerActions, rtlRow]}>
+              <Pressable
+                onPress={handleFollowSeller}
+                disabled={followLoading}
+                style={[styles.followPill, isFollowing && styles.followingPill]}
+              >
+                <Text style={[styles.followPillText, isFollowing && styles.followingPillText]}>
+                  {isFollowing ? 'متابَع' : 'متابعة'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => openUserProfile(router, listing.seller.id)}
+                style={[styles.sellerChip, rtlRow]}
+              >
+                <Image
+                  source={{ uri: listing.seller.avatar }}
+                  style={styles.sellerAvatar}
+                  contentFit="cover"
+                />
+                <Text style={styles.sellerChipName} numberOfLines={1}>
+                  {listing.seller.arabicName || listing.seller.displayName}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {(listing.arabicDescription || listing.description) ? (
+            <View style={styles.descBlock}>
+              {listing.arabicDescription ? (
+                <Text style={styles.descArabic}>{listing.arabicDescription}</Text>
+              ) : null}
+              {listing.description && listing.description !== listing.arabicDescription ? (
+                <Text style={styles.desc}>{listing.description}</Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {listing.price > 0 ? (
+            <View style={[styles.priceRow, rtlRow]}>
+              <Text style={styles.price}>{listing.price.toLocaleString('ar-SA')}</Text>
+              <Text style={styles.currency}>{listing.currency}</Text>
+            </View>
+          ) : null}
+
+          {images.length > 0 ? (
+            <View style={styles.gallery}>
+              {images.map((uri, index) => (
+                <Image
+                  key={`${uri}-${index}`}
+                  source={{ uri }}
+                  style={[styles.galleryImg, index === 0 && styles.galleryImgMain]}
+                  contentFit="cover"
+                  transition={300}
+                />
+              ))}
+            </View>
+          ) : null}
 
           {isOwner ? (
             <View style={styles.ownerActions}>
@@ -268,46 +343,6 @@ export default function ListingDetailScreen() {
               </View>
             </View>
           ) : null}
-
-          <Text style={styles.section}>Description · الوصف</Text>
-          <Text style={styles.desc}>{listing.description}</Text>
-          <Text style={styles.descArabic}>{listing.arabicDescription}</Text>
-
-          <Text style={styles.section}>البائع</Text>
-          <Pressable
-            style={styles.sellerCard}
-            onPress={() => openUserProfile(router, listing.seller.id)}
-          >
-            <Image source={{ uri: listing.seller.avatar }} style={styles.sellerAvatar} contentFit="cover" />
-            <View style={{ flex: 1 }}>
-              <View style={styles.sellerNameRow}>
-                <Text style={styles.sellerName}>{listing.seller.arabicName || listing.seller.displayName}</Text>
-                {listing.seller.verified ? (
-                  <AppIcon name="shield-checkmark" size={16} color={colors.electricBright} />
-                ) : null}
-              </View>
-              <View style={styles.sellerStats}>
-                <AppIcon name="star" size={12} color={colors.gold} />
-                <Text style={styles.sellerStat}>{listing.seller.rating}</Text>
-                <Text style={styles.dot}>·</Text>
-                <Text style={styles.sellerStat}>{listing.seller.followers.toLocaleString()} followers</Text>
-              </View>
-            </View>
-            {!isOwner ? (
-              <Pressable
-                onPress={(e) => {
-                  e.stopPropagation?.();
-                  handleFollowSeller();
-                }}
-                disabled={followLoading}
-                style={[styles.followPill, isFollowing && styles.followingPill]}
-              >
-                <Text style={[styles.followPillText, isFollowing && styles.followingPillText]}>
-                  {isFollowing ? 'متابَع' : 'متابعة'}
-                </Text>
-              </Pressable>
-            ) : null}
-          </Pressable>
 
           <View style={styles.trustCard}>
             <AppIcon name="shield-check" size={22} color={colors.success} />
@@ -355,111 +390,147 @@ function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.bgDeep },
     notFound: { ...typography.body, color: colors.textMuted, textAlign: 'center', marginTop: 80 },
-    heroWrap: { width: '100%', aspectRatio: 4 / 5, backgroundColor: colors.bgSurface },
-    heroImg: { width: '100%', height: '100%' },
-    heroOverlay: { position: 'absolute', top: 0, left: 0, right: 0 },
-    heroTop: {
-      flexDirection: 'row',
+    topBar: {
+      ...rtlRow,
+      alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderSoft,
+      backgroundColor: colors.bgDeep,
+    },
+    topActions: {
+      ...rtlRow,
+      alignItems: 'center',
+      gap: 8,
     },
     iconBtn: {
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: 'rgba(6,9,26,0.55)',
+      backgroundColor: colors.bgSurface,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
-      borderColor: 'rgba(125,211,252,0.3)',
+      borderColor: colors.borderSoft,
+    },
+    scrollContent: { paddingBottom: 160, paddingHorizontal: spacing.md, paddingTop: spacing.md },
+    card: {
+      backgroundColor: colors.bgSurface,
+      borderRadius: radius.xl,
+      borderWidth: 1,
+      borderColor: colors.borderSoft,
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    title: {
+      ...typography.h1,
+      color: colors.cyan,
+      fontWeight: '700',
+      textAlign: 'right',
+      writingDirection: 'rtl',
+      lineHeight: 34,
     },
     featured: {
-      position: 'absolute',
-      bottom: spacing.lg,
-      left: spacing.lg,
-      flexDirection: 'row',
+      ...rtlRow,
       alignItems: 'center',
+      alignSelf: 'flex-start',
       gap: 4,
       backgroundColor: colors.gold,
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: radius.pill,
     },
-    featuredText: { ...typography.micro, color: '#1A1300' },
-    body: { padding: spacing.lg, gap: spacing.md },
-    title: { ...typography.h1, color: colors.textPrimary },
-    priceRow: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      gap: 6,
-      marginTop: spacing.sm,
-    },
-    price: { ...typography.display, color: colors.gold },
-    currency: { ...typography.bodyStrong, color: colors.textMuted },
-    countryPill: {
-      flexDirection: 'row',
+    featuredText: { ...typography.micro, color: '#1A1300', fontWeight: '700' },
+    metaRow: {
+      ...rtlRow,
       alignItems: 'center',
+      flexWrap: 'wrap',
       gap: 6,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: radius.pill,
-      backgroundColor: colors.bgGlass,
-      borderWidth: 1,
-      borderColor: colors.borderSoft,
-      alignSelf: 'flex-start',
     },
-    countryText: { ...typography.caption, color: colors.textPrimary },
-    section: {
-      ...typography.h3,
-      color: colors.textPrimary,
-      marginTop: spacing.lg,
-      marginBottom: spacing.sm,
-    },
-    desc: { ...typography.body, color: colors.textSecondary, lineHeight: 22 },
-    descArabic: {
-      ...typography.body,
+    metaText: {
+      ...typography.caption,
       color: colors.textMuted,
-      textAlign: 'right',
-      lineHeight: 24,
+      writingDirection: 'rtl',
     },
-    sellerCard: {
-      flexDirection: 'row',
+    metaDot: {
+      ...typography.caption,
+      color: colors.textSubtle,
+    },
+    metaUser: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      fontWeight: '600',
+      writingDirection: 'rtl',
+    },
+    sellerActions: {
+      ...rtlRow,
       alignItems: 'center',
-      gap: spacing.md,
-      padding: spacing.md,
-      borderRadius: radius.xl,
-      backgroundColor: colors.bgSurface,
-      borderWidth: 1,
-      borderColor: colors.borderMid,
+      justifyContent: 'space-between',
+      gap: spacing.sm,
+    },
+    sellerChip: {
+      ...rtlRow,
+      alignItems: 'center',
+      gap: 8,
+      flex: 1,
+      minWidth: 0,
     },
     sellerAvatar: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      borderWidth: 2,
-      borderColor: colors.electric,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.bgElevated,
     },
-    sellerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    sellerName: { ...typography.bodyStrong, color: colors.textPrimary },
-    sellerStats: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-    sellerStat: { ...typography.caption, color: colors.textSecondary },
-    dot: { color: colors.textMuted },
+    sellerChipName: {
+      ...typography.bodyStrong,
+      color: colors.textPrimary,
+      flexShrink: 1,
+      textAlign: 'right',
+      writingDirection: 'rtl',
+    },
     followPill: {
       paddingHorizontal: spacing.md,
       paddingVertical: 8,
-      borderRadius: radius.pill,
-      backgroundColor: colors.electric,
+      borderRadius: radius.md,
+      backgroundColor: '#1877F2',
     },
     followingPill: {
-      backgroundColor: colors.bgElevated,
+      backgroundColor: 'transparent',
       borderWidth: 1,
       borderColor: colors.borderMid,
     },
     followPillText: { ...typography.caption, color: '#fff', fontWeight: '700' },
-    followingPillText: { color: colors.textPrimary },
+    followingPillText: { color: colors.textMuted },
+    descBlock: { gap: spacing.sm },
+    desc: { ...typography.body, color: colors.textSecondary, lineHeight: 22 },
+    descArabic: {
+      ...typography.body,
+      color: colors.textPrimary,
+      textAlign: 'right',
+      writingDirection: 'rtl',
+      lineHeight: 26,
+    },
+    priceRow: {
+      ...rtlRow,
+      alignItems: 'baseline',
+      gap: 6,
+    },
+    price: { ...typography.h2, color: colors.gold },
+    currency: { ...typography.bodyStrong, color: colors.textMuted },
+    gallery: { gap: spacing.sm, marginTop: spacing.xs },
+    galleryImg: {
+      width: '100%',
+      aspectRatio: 16 / 10,
+      borderRadius: radius.md,
+      backgroundColor: colors.bgElevated,
+    },
+    galleryImgMain: {
+      aspectRatio: 4 / 3,
+    },
     trustCard: {
-      flexDirection: 'row',
+      ...rtlRow,
       alignItems: 'center',
       gap: spacing.md,
       padding: spacing.md,
@@ -467,7 +538,7 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: 'rgba(16,185,129,0.1)',
       borderWidth: 1,
       borderColor: 'rgba(16,185,129,0.3)',
-      marginTop: spacing.md,
+      marginTop: spacing.sm,
     },
     trustTitle: { ...typography.bodyStrong, color: colors.textPrimary },
     trustDesc: { ...typography.caption, color: colors.textSecondary },
@@ -496,10 +567,10 @@ function createStyles(colors: ThemeColors) {
       justifyContent: 'center',
     },
     ownerActions: {
-      marginTop: spacing.lg,
+      marginTop: spacing.sm,
       padding: spacing.md,
       borderRadius: radius.xl,
-      backgroundColor: colors.bgSurface,
+      backgroundColor: colors.bgElevated,
       borderWidth: 1,
       borderColor: colors.borderMid,
       gap: spacing.md,
