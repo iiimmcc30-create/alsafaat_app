@@ -27,6 +27,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { storyPlaybackVideoUrl } from '@/constants/stories';
 import { resolveMediaUrl } from '@/services/media';
 import { StoryVideoPlayer } from '@/components/feature/StoryVideoPlayer';
+import { promptReport } from '@/services/reports';
 import {
   REACTION_META,
   StoryGroup,
@@ -243,11 +244,21 @@ function StoryViewer({
         style: 'destructive',
         onPress: async () => {
           setBusy(true);
-          const ok = await deleteStory(accessToken, story.id);
-          setBusy(false);
-          if (ok) {
-            onRefresh();
-            onClose();
+          try {
+            const result = await deleteStory(accessToken, story.id);
+            if (result.ok) {
+              onRefresh();
+              onClose();
+            } else {
+              Alert.alert('خطأ', result.error || 'فشل حذف القصة');
+            }
+          } catch (err) {
+            Alert.alert(
+              'خطأ',
+              err instanceof Error ? err.message : 'فشل حذف القصة',
+            );
+          } finally {
+            setBusy(false);
           }
         },
       },
@@ -345,7 +356,15 @@ function StoryViewer({
                 <AppIcon name="trash-outline" size={20} color="#fff" />
               </Pressable>
             </>
-          ) : null}
+          ) : (
+            <Pressable
+              onPress={() => promptReport('story', story.id, !!accessToken)}
+              hitSlop={10}
+              style={styles.iconBtn}
+            >
+              <AppIcon name="flag-outline" size={20} color="#fff" />
+            </Pressable>
+          )}
           <Pressable onPress={onClose} hitSlop={10} style={styles.iconBtn}>
             <AppIcon name="close" size={24} color="#fff" />
           </Pressable>

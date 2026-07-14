@@ -23,6 +23,7 @@ import { useApp } from '@/hooks/useApp';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCountryInfo } from '@/services/types';
 import { fetchUserProfile, toggleFollowUser, type PublicUserProfile } from '@/services/users';
+import { promptReport } from '@/services/reports';
 
 export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -227,6 +228,16 @@ export default function UserProfileScreen() {
               <AppIcon name="chatbubble-outline" size={18} color={colors.textPrimary} />
               <Text style={styles.chatBtnText}>محادثة</Text>
             </Pressable>
+
+            {!isOwnProfile ? (
+              <Pressable
+                onPress={() => promptReport('user', profile.id, !!accessToken)}
+                style={({ pressed }) => [styles.chatBtn, pressed && { opacity: 0.85 }]}
+              >
+                <AppIcon name="flag-outline" size={18} color={colors.rose} />
+                <Text style={[styles.chatBtnText, { color: colors.rose }]}>إبلاغ</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </ScrollView>

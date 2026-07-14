@@ -80,7 +80,7 @@ export default function PostsScreen() {
               onComment={() => requireAuth(isAuthenticated, 'التعليق') && setCommentsPostId(post.id)}
               onRepost={() => requireAuth(isAuthenticated, 'إعادة النشر') && toggleRepost(post.id)}
               onShare={() => sharePost(post)}
-              onMenu={() => showPostMenu(post, me, router, deletePost)}
+              onMenu={() => showPostMenu(post, me, router, deletePost, isAuthenticated)}
             />
           ))
         )}

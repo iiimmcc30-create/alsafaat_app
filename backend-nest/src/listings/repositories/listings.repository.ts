@@ -89,6 +89,13 @@ export class ListingsRepository {
     });
   }
 
+  softDelete(id: string) {
+    return this.prisma.listing.update({
+      where: { id },
+      data: { status: 'suspended', ...softDeleteFields() },
+    });
+  }
+
   createListingWithFee(params: {
     userId: string;
     featured: boolean;

@@ -134,7 +134,12 @@ export default function ProfileScreen() {
             {uploadingCover ? (
               <ActivityIndicator size="small" color={colors.textPrimary} />
             ) : (
-              <AppIcon name="camera-outline" size={16} color={colors.textPrimary} />
+              <>
+                <AppIcon name="camera-outline" size={16} color={colors.textPrimary} />
+                <Text style={styles.editCoverText}>
+                  {me.coverImage ? 'تغيير الغلاف' : 'صورة العرض'}
+                </Text>
+              </>
             )}
           </Pressable>
 
@@ -353,15 +358,22 @@ function createProfileStyles(colors: ThemeColors) {
     position: 'absolute',
     bottom: spacing.xxxl + 36,
     right: spacing.lg,
-    width: 34,
-    height: 34,
+    minHeight: 34,
+    paddingHorizontal: 10,
     borderRadius: 17,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
     borderWidth: 1,
     borderColor: colors.borderMid,
     zIndex: 2,
+  },
+  editCoverText: {
+    ...typography.micro,
+    color: colors.textPrimary,
+    fontWeight: '700',
   },
   avatarRow: {
     flexDirection: 'row',

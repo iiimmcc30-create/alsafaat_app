@@ -235,7 +235,7 @@ export class ListingsService {
       throwApi(403, 'forbidden', 'غير مسموح');
     }
 
-    await this.repo.markSold(id);
+    await this.repo.softDelete(id);
     await this.cache.del(`listing:${id}`);
     await this.cache.delPattern('listings:v2:*');
 

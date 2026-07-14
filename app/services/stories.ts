@@ -1,4 +1,6 @@
 import { API_BASE } from './api';
+import { authFetch } from './authFetch';
+import { parseApiError } from './apiError';
 
 export type StoryReactionType = 'like' | 'love' | 'fire' | 'wow' | 'sad';
 
@@ -103,12 +105,13 @@ export async function createStory(
 export async function deleteStory(
   accessToken: string,
   storyId: string,
-): Promise<boolean> {
-  const res = await fetch(`${API_BASE}/api/stories/${storyId}`, {
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await authFetch(`${API_BASE}/api/stories/${storyId}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  return res.ok;
+  if (res.ok) return { ok: true };
+  return { ok: false, error: await parseApiError(res) };
 }
 
 export async function recordStoryView(

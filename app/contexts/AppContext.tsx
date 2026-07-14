@@ -33,7 +33,7 @@ interface AppContextValue {
   posts: Post[];
   addPost: (post: Omit<Post, 'id' | 'author' | 'likes' | 'reposts' | 'comments' | 'postedAt' | 'liked' | 'reposted'>) => Promise<boolean>;
   updatePost: (postId: string, data: { content: string; arabicContent: string; image?: string | null }) => Promise<boolean>;
-  deletePost: (postId: string) => Promise<boolean>;
+  deletePost: (postId: string) => Promise<ActionResult>;
   listings: Listing[];
   addListing: (listingData: any) => Promise<ActionResult>;
   likedPosts: Set<string>;
@@ -41,7 +41,7 @@ interface AppContextValue {
   toggleLike: (postId: string) => Promise<void>;
   toggleRepost: (postId: string) => Promise<void>;
   addComment: (postId: string, content: string) => Promise<boolean>;
-  removeListing: (listingId: string) => Promise<boolean>;
+  removeListing: (listingId: string) => Promise<ActionResult>;
   refetchData: () => Promise<void>;
 }
 
@@ -131,19 +131,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const fetchListings = useCallback(async () => {
     try {
       const headers: HeadersInit = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-      const res = await (accessToken
-        ? authFetch(`${API_BASE}/api/listings`, { headers })
-        : fetch(`${API_BASE}/api/listings`, { headers }));
-      if (res.ok) {
+      const fetchList = async (url: string) => {
+        const res = await (accessToken
+          ? authFetch(url, { headers })
+          : fetch(url, { headers }));
+        if (!res.ok) return [] as Listing[];
         const json = await res.json();
-        if (json.success && json.data?.listings) {
-          setListingsState(json.data.listings.map(mapBackendListing));
+        if (json.success && Array.isArray(json.data?.listings)) {
+          return json.data.listings.map(mapBackendListing) as Listing[];
         }
+        return [] as Listing[];
+      };
+
+      const market = await fetchList(`${API_BASE}/api/listings`);
+      let mine: Listing[] = [];
+      if (accessToken && user?.id) {
+        mine = await fetchList(
+          `${API_BASE}/api/listings?sellerId=${encodeURIComponent(user.id)}`,
+        );
       }
+
+      const byId = new Map<string, Listing>();
+      for (const l of [...mine, ...market]) byId.set(l.id, l);
+      setListingsState(Array.from(byId.values()));
     } catch (err) {
       console.warn('[AppContext] Failed to fetch listings:', err);
     }
-  }, [accessToken, mapBackendListing]);
+  }, [accessToken, user?.id, mapBackendListing]);
+
+  // Keep ownership checks working even before profile fetch finishes
+  useEffect(() => {
+    if (!user) {
+      setMe(DEFAULT_USER);
+      return;
+    }
+    setMe((prev) => ({
+      ...prev,
+      id: user.id || prev.id,
+      username: user.username || prev.username,
+      displayName: user.displayName || prev.displayName,
+      arabicName: user.arabicName || user.displayName || prev.arabicName,
+      avatar: user.avatar ?? prev.avatar,
+      verified: user.verified ?? prev.verified,
+      country: (user.country as User['country']) || prev.country || 'SA',
+    }));
+  }, [user]);
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -296,20 +328,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const removeListing = async (listingId: string): Promise<boolean> => {
-    if (!isAuthenticated || !accessToken) return false;
+  const removeListing = async (listingId: string): Promise<ActionResult> => {
+    if (!isAuthenticated || !accessToken) {
+      return { ok: false, error: 'يجب تسجيل الدخول أولاً' };
+    }
     try {
       const res = await authFetch(`${API_BASE}/api/listings/${listingId}`, {
         method: 'DELETE',
       });
       if (res.ok) {
         setListingsState((prev) => prev.filter((l) => l.id !== listingId));
-        return true;
+        return { ok: true };
       }
+      return { ok: false, error: await parseApiError(res) };
     } catch (err) {
       console.warn('[AppContext] Delete listing failed:', err);
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'فشل حذف الإعلان',
+      };
     }
-    return false;
   };
 
   const toggleLike = async (postId: string) => {
@@ -443,8 +481,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return false;
   };
 
-  const deletePost = async (postId: string): Promise<boolean> => {
-    if (!isAuthenticated || !accessToken) return false;
+  const deletePost = async (postId: string): Promise<ActionResult> => {
+    if (!isAuthenticated || !accessToken) {
+      return { ok: false, error: 'يجب تسجيل الدخول أولاً' };
+    }
     try {
       const res = await authFetch(`${API_BASE}/api/posts/${postId}`, {
         method: 'DELETE',
@@ -461,12 +501,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
           next.delete(postId);
           return next;
         });
-        return true;
+        return { ok: true };
       }
+      return { ok: false, error: await parseApiError(res) };
     } catch (err) {
       console.warn('[AppContext] Delete post failed:', err);
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'فشل حذف المنشور',
+      };
     }
-    return false;
   };
 
   return (

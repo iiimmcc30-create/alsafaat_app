@@ -115,10 +115,28 @@ export function isOurUploadUrl(url: string): boolean {
   if (process.env.NODE_ENV !== 'production') return true;
   try {
     const parsed = new URL(url);
+    // Cloudinary hostnames vary slightly by account/region
+    if (
+      CLOUD_NAME &&
+      (parsed.hostname === 'res.cloudinary.com' ||
+        parsed.hostname.endsWith('.cloudinary.com')) &&
+      parsed.pathname.includes(`/${CLOUD_NAME}/`)
+    ) {
+      return true;
+    }
+
     const allowedOrigins = getAllowedUploadOrigins();
-    return allowedOrigins.some(
-      (origin) => parsed.origin === origin || url.startsWith(origin),
-    );
+    return allowedOrigins.some((origin) => {
+      try {
+        const allowed = new URL(origin);
+        return (
+          parsed.origin === allowed.origin ||
+          url.startsWith(origin.replace(/\/$/, ''))
+        );
+      } catch {
+        return url.startsWith(origin);
+      }
+    });
   } catch {
     return false;
   }
