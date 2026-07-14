@@ -19,11 +19,12 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchNotifications, type AppNotification } from '@/services/notifications';
-import { useMessageThreads } from '@/hooks/useMessageThreads';
+import { useMessageThreads, type MessageThreadType } from '@/hooks/useMessageThreads';
 import { handleNotificationNavigation } from '@/lib/notifications';
 import { UserProfileLink } from '@/components/feature/UserProfileLink';
 
 type Tab = 'messages' | 'activity';
+type InboxKind = MessageThreadType;
 
 interface MessagesPanelProps {
   /** embedded = inside profile scroll; standalone = full screen with own scroll */
@@ -42,7 +43,11 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
       ? spacing.lg
       : tabBarClearance + spacing.xl;
   const { accessToken, user } = useAuth();
-  const { threads, loading: threadsLoading, error: threadsError } = useMessageThreads(accessToken);
+  const [inboxKind, setInboxKind] = useState<InboxKind>('DIRECT');
+  const { threads, loading: threadsLoading, error: threadsError } = useMessageThreads(
+    accessToken,
+    inboxKind,
+  );
   const [activeTab, setActiveTab] = useState<Tab>('messages');
   const [search, setSearch] = useState('');
   const [notificationsList, setNotificationsList] = useState<AppNotification[]>([]);
@@ -83,12 +88,14 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
   const filteredChats = threads.filter((t) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
+    const butcherName = t.butcher?.nameAr ?? '';
     const p = t.participant;
-    if (!p) return false;
-    return (
-      p.displayName.toLowerCase().includes(q) ||
-      p.arabicName.includes(q)
-    );
+    const names = [
+      p?.displayName?.toLowerCase() ?? '',
+      p?.arabicName ?? '',
+      butcherName,
+    ];
+    return names.some((n) => n.includes(q) || n.toLowerCase().includes(q));
   });
 
   const ACTIVITY_ICONS: Record<string, string> = {
@@ -112,13 +119,20 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
   const openChat = (chat: typeof threads[0]) => {
     const p = chat.participant;
     if (!p) return;
+    const isButcher = chat.type === 'BUTCHER';
     router.push({
       pathname: '/butchers/chat',
       params: {
         threadId: chat.id,
         receiverId: p.id,
-        receiverName: p.arabicName,
-        receiverAvatar: p.avatar ?? '',
+        receiverName: isButcher
+          ? chat.butcher?.nameAr || p.arabicName
+          : p.arabicName,
+        receiverAvatar: isButcher
+          ? chat.butcher?.logo || p.avatar || ''
+          : p.avatar ?? '',
+        threadType: chat.type,
+        ...(chat.butcherId ? { butcherId: chat.butcherId } : {}),
       },
     } as any);
   };
@@ -127,12 +141,45 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
     <>
       {activeTab === 'messages' ? (
         <>
+          <View style={styles.inboxTabs}>
+            <Pressable
+              onPress={() => setInboxKind('DIRECT')}
+              style={[styles.inboxTab, inboxKind === 'DIRECT' && styles.inboxTabActive]}
+            >
+              <Text
+                style={[
+                  styles.inboxTabLabel,
+                  inboxKind === 'DIRECT' && styles.inboxTabLabelActive,
+                ]}
+              >
+                المستخدمون
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setInboxKind('BUTCHER')}
+              style={[styles.inboxTab, inboxKind === 'BUTCHER' && styles.inboxTabActive]}
+            >
+              <Text
+                style={[
+                  styles.inboxTabLabel,
+                  inboxKind === 'BUTCHER' && styles.inboxTabLabelActive,
+                ]}
+              >
+                الملاحم
+              </Text>
+            </Pressable>
+          </View>
+
           <View style={styles.searchRow}>
             <AppIcon name="search" size={16} color={colors.textMuted} />
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="ابحث في الرسائل..."
+              placeholder={
+                inboxKind === 'BUTCHER'
+                  ? 'ابحث في رسائل الملاحم...'
+                  : 'ابحث في الرسائل...'
+              }
               placeholderTextColor={colors.textMuted}
               style={styles.searchInput}
             />
@@ -152,25 +199,44 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
             filteredChats.map((chat) => {
               const p = chat.participant;
               if (!p) return null;
+              const isButcher = chat.type === 'BUTCHER';
+              const title = isButcher
+                ? chat.butcher?.nameAr || p.arabicName
+                : p.arabicName;
+              const avatarUri = isButcher
+                ? chat.butcher?.logo || p.avatar
+                : p.avatar;
               return (
                 <View key={chat.id} style={styles.chatRow}>
-                  <UserProfileLink userId={p.id}>
+                  {isButcher ? (
                     <View style={styles.avatarWrap}>
-                      <Image source={{ uri: p.avatar }} style={styles.avatar} contentFit="cover" />
-                      <View style={styles.onlineDot} />
+                      <Image source={{ uri: avatarUri }} style={styles.avatar} contentFit="cover" />
                     </View>
-                  </UserProfileLink>
+                  ) : (
+                    <UserProfileLink userId={p.id}>
+                      <View style={styles.avatarWrap}>
+                        <Image source={{ uri: avatarUri }} style={styles.avatar} contentFit="cover" />
+                        <View style={styles.onlineDot} />
+                      </View>
+                    </UserProfileLink>
+                  )}
                   <Pressable
                     style={({ pressed }) => [styles.chatContent, pressed && { opacity: 0.85 }]}
                     onPress={() => openChat(chat)}
                   >
                     <View style={styles.chatTop}>
-                      <UserProfileLink userId={p.id} style={styles.chatName}>
-                        <Text style={styles.displayName}>{p.arabicName}</Text>
-                        {p.verified && (
-                          <AppIcon name="checkmark-circle" size={13} color={colors.electricBright} />
-                        )}
-                      </UserProfileLink>
+                      {isButcher ? (
+                        <View style={styles.chatName}>
+                          <Text style={styles.displayName}>{title}</Text>
+                        </View>
+                      ) : (
+                        <UserProfileLink userId={p.id} style={styles.chatName}>
+                          <Text style={styles.displayName}>{title}</Text>
+                          {p.verified && (
+                            <AppIcon name="checkmark-circle" size={13} color={colors.electricBright} />
+                          )}
+                        </UserProfileLink>
+                      )}
                       <Text style={styles.chatTime}>
                         {new Date(chat.lastMessageAt).toLocaleDateString('ar-SA')}
                       </Text>
@@ -194,7 +260,11 @@ export function MessagesPanel({ variant = 'standalone', showHeader = true }: Mes
           {!threadsLoading && filteredChats.length === 0 && (
             <View style={styles.empty}>
               <Text style={styles.emptyIcon}>💬</Text>
-              <Text style={styles.emptyText}>لا توجد محادثات</Text>
+              <Text style={styles.emptyText}>
+                {inboxKind === 'BUTCHER'
+                  ? 'لا توجد محادثات مع ملاحم'
+                  : 'لا توجد محادثات'}
+              </Text>
             </View>
           )}
         </>
@@ -326,6 +396,27 @@ function createStyles(colors: ThemeColors) {
   tabLabel: { ...typography.body, color: colors.textMuted },
   tabLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
   tabDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.electricBright },
+  inboxTabs: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+  },
+  inboxTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: colors.bgSurface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  inboxTabActive: {
+    borderColor: colors.electricBright,
+    backgroundColor: colors.bgGlass,
+  },
+  inboxTabLabel: { ...typography.caption, color: colors.textMuted, fontWeight: '500' },
+  inboxTabLabelActive: { color: colors.textBrandStrong, fontWeight: '700' },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     marginHorizontal: spacing.lg, marginVertical: spacing.md,

@@ -1162,6 +1162,8 @@ export default function ButcherManageScreen() {
                             receiverId: customerId,
                             receiverName: customerName,
                             receiverAvatar: order.customer?.avatar || '',
+                            threadType: 'BUTCHER',
+                            ...(butcher?.id ? { butcherId: butcher.id } : {}),
                           },
                         });
                       }}

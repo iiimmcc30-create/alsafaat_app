@@ -12,7 +12,11 @@ import { RateLimit } from '../common/decorators/auth.decorators';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { successResponse } from '../common/utils/response.util';
 import type { JwtPayload } from '../common/types/jwt-payload.interface';
-import { SendMessageDto, ThreadMessagesQueryDto } from './dto/messages.dto';
+import {
+  ListThreadsQueryDto,
+  SendMessageDto,
+  ThreadMessagesQueryDto,
+} from './dto/messages.dto';
 import { MessagesService } from './messages.service';
 
 @Controller('messages')
@@ -22,8 +26,11 @@ export class MessagesController {
   @RateLimit('api')
   @Get()
   @HttpCode(HttpStatus.OK)
-  async getThreads(@CurrentUser() user: JwtPayload) {
-    return successResponse(await this.messages.getThreads(user));
+  async getThreads(
+    @CurrentUser() user: JwtPayload,
+    @Query() query: ListThreadsQueryDto,
+  ) {
+    return successResponse(await this.messages.getThreads(user, query));
   }
 
   @RateLimit('api')

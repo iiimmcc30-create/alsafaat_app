@@ -366,13 +366,21 @@ export function handleNotificationNavigation(
     case 'new_message':
       if (threadId) {
         const senderId = stringField(data, 'senderId') ?? stringField(data, 'actorId');
+        const threadType = stringField(data, 'threadType');
+        const msgButcherId = stringField(data, 'butcherId');
         ctx.router.push({
           pathname: '/butchers/chat',
           params: {
             threadId,
             ...(senderId ? { receiverId: senderId } : {}),
+            ...(threadType ? { threadType } : {}),
+            ...(msgButcherId ? { butcherId: msgButcherId } : {}),
           },
         } as never);
+        return true;
+      }
+      if (stringField(data, 'threadType') === 'BUTCHER') {
+        ctx.router.push('/(butcher)/messages' as never);
         return true;
       }
       ctx.router.push({

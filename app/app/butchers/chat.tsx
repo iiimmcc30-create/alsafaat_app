@@ -71,12 +71,14 @@ export default function ButcherChatScreen() {
     receiverId,
     receiverName,
     receiverAvatar,
+    threadType: threadTypeParam,
   } = useLocalSearchParams<{
     butcherId?: string;
     threadId?: string;
     receiverId?: string;
     receiverName?: string;
     receiverAvatar?: string;
+    threadType?: string;
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -89,32 +91,45 @@ export default function ButcherChatScreen() {
   const listRef = useRef<FlatList>(null);
 
   const isThreadMode = Boolean(threadIdParam && receiverId);
-  const isDirectMode = Boolean(receiverId && !butcherId && !threadIdParam);
+  /** User↔user DM (no shop context). */
+  const isDirectMode = Boolean(
+    receiverId && !butcherId && !threadIdParam && threadTypeParam !== 'BUTCHER',
+  );
+  /** Shop chat starting with known counterparty (customer or owner). */
+  const isButcherPeerMode = Boolean(receiverId && (butcherId || threadTypeParam === 'BUTCHER') && !threadIdParam);
 
   const [butcher, setButcher] = useState<ButcherProfile | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [threadId, setThreadId] = useState<string | null>(threadIdParam ?? null);
+  const [resolvedButcherId, setResolvedButcherId] = useState<string | null>(
+    butcherId ?? null,
+  );
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
-  const receiverUserId = isThreadMode || isDirectMode ? receiverId : butcher?.user?.id;
-  const headerName = isThreadMode || isDirectMode
-    ? (receiverName || 'محادثة')
-    : (butcher?.nameAr ?? 'الملحمة');
-  const headerAvatar = isThreadMode || isDirectMode
-    ? (receiverAvatar || undefined)
-    : (butcher?.logo ?? undefined);
+  const receiverUserId = receiverId || butcher?.user?.id;
+  const effectiveButcherId = butcherId || resolvedButcherId;
+  const activeChatType: 'DIRECT' | 'BUTCHER' =
+    threadTypeParam === 'BUTCHER' || Boolean(effectiveButcherId) ? 'BUTCHER' : 'DIRECT';
+  const headerName =
+    isThreadMode || isDirectMode || isButcherPeerMode
+      ? (receiverName || 'محادثة')
+      : (butcher?.nameAr ?? 'الملحمة');
+  const headerAvatar =
+    isThreadMode || isDirectMode || isButcherPeerMode
+      ? (receiverAvatar || undefined)
+      : (butcher?.logo ?? undefined);
 
   useEffect(() => {
-    if (!isThreadMode && !butcherId && !isDirectMode) {
+    if (!isThreadMode && !butcherId && !isDirectMode && !isButcherPeerMode) {
       Alert.alert('خطأ', 'لم يتم تحديد المحادثة المطلوبة.');
       router.back();
     }
-  }, [isThreadMode, butcherId, isDirectMode, router]);
+  }, [isThreadMode, butcherId, isDirectMode, isButcherPeerMode, router]);
 
   useEffect(() => {
-    if (isThreadMode || isDirectMode) return;
+    if (isThreadMode || isDirectMode || isButcherPeerMode) return;
     if (!butcherId) return;
     const fetchButcher = async () => {
       try {
@@ -147,6 +162,9 @@ export default function ButcherChatScreen() {
             if (msgJson.success && msgJson.data?.messages) {
               setMessages(msgJson.data.messages.map(mapApiMessage));
             }
+            if (msgJson.data?.butcherId) {
+              setResolvedButcherId(msgJson.data.butcherId);
+            }
           }
         } catch (err) {
           console.warn('[ButcherChatScreen] Failed to load thread messages:', err);
@@ -162,7 +180,7 @@ export default function ButcherChatScreen() {
       const loadDirectMessages = async () => {
         setLoadingMessages(true);
         try {
-          const threadsRes = await fetch(`${API_BASE}/api/messages`, {
+          const threadsRes = await fetch(`${API_BASE}/api/messages?type=DIRECT`, {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
           if (threadsRes.ok) {
@@ -195,22 +213,73 @@ export default function ButcherChatScreen() {
       return;
     }
 
+    if (isButcherPeerMode && receiverId) {
+      const loadButcherPeerMessages = async () => {
+        setLoadingMessages(true);
+        try {
+          const threadsRes = await fetch(`${API_BASE}/api/messages?type=BUTCHER`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (threadsRes.ok) {
+            const tJson = await threadsRes.json();
+            if (tJson.success && Array.isArray(tJson.data)) {
+              const existingThread = tJson.data.find(
+                (t: any) =>
+                  t.participant?.id === receiverId &&
+                  (!butcherId || t.butcherId === butcherId),
+              );
+              if (existingThread) {
+                setThreadId(existingThread.id);
+                if (existingThread.butcherId) {
+                  setResolvedButcherId(existingThread.butcherId);
+                }
+                const msgRes = await fetch(
+                  `${API_BASE}/api/messages/${existingThread.id}`,
+                  { headers: { Authorization: `Bearer ${accessToken}` } },
+                );
+                if (msgRes.ok) {
+                  const msgJson = await msgRes.json();
+                  if (msgJson.success && msgJson.data?.messages) {
+                    setMessages(msgJson.data.messages.map(mapApiMessage));
+                  }
+                  if (msgJson.data?.butcherId) {
+                    setResolvedButcherId(msgJson.data.butcherId);
+                  }
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[ButcherChatScreen] Failed to load butcher peer messages:', err);
+        } finally {
+          setLoadingMessages(false);
+        }
+      };
+      loadButcherPeerMessages();
+      return;
+    }
+
     if (!butcherId || !butcher?.user?.id) return;
     const loadMessages = async () => {
       setLoadingMessages(true);
       try {
-        // Find or get existing thread
-        const threadsRes = await fetch(`${API_BASE}/api/messages`, {
+        // Find or get existing butcher shop thread
+        const threadsRes = await fetch(`${API_BASE}/api/messages?type=BUTCHER`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         if (threadsRes.ok) {
           const tJson = await threadsRes.json();
           if (tJson.success && Array.isArray(tJson.data)) {
             const existingThread = tJson.data.find(
-              (t: any) => t.participant?.id === butcher.user?.id
+              (t: any) =>
+                t.butcherId === butcherId ||
+                t.participant?.id === butcher.user?.id
             );
             if (existingThread) {
               setThreadId(existingThread.id);
+              if (existingThread.butcherId) {
+                setResolvedButcherId(existingThread.butcherId);
+              }
               const msgRes = await fetch(`${API_BASE}/api/messages/${existingThread.id}`, {
                 headers: { Authorization: `Bearer ${accessToken}` },
               });
@@ -218,6 +287,9 @@ export default function ButcherChatScreen() {
                 const msgJson = await msgRes.json();
                 if (msgJson.success && msgJson.data?.messages) {
                   setMessages(msgJson.data.messages.map(mapApiMessage));
+                }
+                if (msgJson.data?.butcherId) {
+                  setResolvedButcherId(msgJson.data.butcherId);
                 }
               }
             }
@@ -230,7 +302,7 @@ export default function ButcherChatScreen() {
       }
     };
     loadMessages();
-  }, [butcherId, butcher?.user?.id, accessToken, isThreadMode, isDirectMode, receiverId, threadIdParam]);
+  }, [butcherId, butcher?.user?.id, accessToken, isThreadMode, isDirectMode, isButcherPeerMode, receiverId, threadIdParam]);
 
   const deliverMessage = async (
     text: string,
@@ -264,6 +336,10 @@ export default function ButcherChatScreen() {
         },
         body: JSON.stringify({
           receiverId: receiverUserId,
+          type: activeChatType,
+          ...(activeChatType === 'BUTCHER' && effectiveButcherId
+            ? { butcherId: effectiveButcherId }
+            : {}),
           ...(bodyText ? { text: bodyText } : {}),
           ...(media?.imageUrl ? { imageUrl: media.imageUrl } : {}),
           ...(media?.videoUrl ? { videoUrl: media.videoUrl } : {}),

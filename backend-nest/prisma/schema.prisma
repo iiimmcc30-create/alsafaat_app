@@ -444,17 +444,24 @@ model Message {
 }
 
 model MessageThread {
-  id            String    @id @default(uuid())
+  id            String            @id @default(uuid())
   participant1  String
   participant2  String
-  lastMessageAt DateTime  @default(now())
-  createdAt     DateTime  @default(now())
+  type          MessageThreadType @default(DIRECT)
+  butcherId     String?
+  /// Unique conversation scope: "direct" or "butcher:{butcherId}"
+  scopeKey      String            @default("direct")
+  lastMessageAt DateTime          @default(now())
+  createdAt     DateTime          @default(now())
   messages      Message[]
+  butcher       Butcher?          @relation(fields: [butcherId], references: [id], onDelete: SetNull)
 
-  @@unique([participant1, participant2])
+  @@unique([participant1, participant2, scopeKey])
   @@index([participant1])
   @@index([participant2])
   @@index([lastMessageAt])
+  @@index([type])
+  @@index([butcherId])
 }
 
 model Notification {
@@ -532,6 +539,7 @@ model Butcher {
   products            ButcherProduct[]
   reviews             ButcherReview[]
   stories             ButcherStory[]
+  messageThreads      MessageThread[]
 
   @@index([country])
   @@index([subscriptionActive])
@@ -805,6 +813,11 @@ enum Role {
 
 enum PlanAudience {
   USER
+  BUTCHER
+}
+
+enum MessageThreadType {
+  DIRECT
   BUTCHER
 }
 

@@ -122,7 +122,52 @@ export default function PaymentScreen() {
       const json = await res.json().catch(() => ({}));
 
       if (res.ok && json.success && json.data?.checkoutUrl) {
-        const { checkoutUrl } = json.data;
+        const { checkoutUrl, paymentId, devMode } = json.data as {
+          checkoutUrl: string;
+          paymentId?: string;
+          devMode?: boolean;
+        };
+
+        if (devMode && paymentId) {
+          Alert.alert(
+            'وضع التطوير',
+            'بوابة الدفع الحقيقية غير مفعّلة. يمكنك محاكاة نجاح الدفع للاختبار.',
+            [
+              {
+                text: 'محاكاة النجاح',
+                onPress: async () => {
+                  const simRes = await fetch(
+                    `${API_BASE}/api/payments/${paymentId}/dev-complete`,
+                    {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${accessToken}` },
+                    },
+                  );
+                  const simJson = await simRes.json().catch(() => ({}));
+                  if (simRes.ok && simJson.success) {
+                    setTransactionId(paymentId);
+                    setStep('success');
+                    await refetchSubscription();
+                  } else {
+                    setStep('method');
+                    Alert.alert('فشل', simJson.messageAr || 'تعذرت محاكاة الدفع');
+                  }
+                },
+              },
+              {
+                text: 'فتح الرابط',
+                onPress: async () => {
+                  const canOpen = await Linking.canOpenURL(checkoutUrl);
+                  if (canOpen) await Linking.openURL(checkoutUrl);
+                  else await WebBrowser.openBrowserAsync(checkoutUrl);
+                },
+              },
+              { text: 'إلغاء', style: 'cancel', onPress: () => setStep('method') },
+            ],
+          );
+          return;
+        }
+
         const canOpen = await Linking.canOpenURL(checkoutUrl);
         if (canOpen) {
           await Linking.openURL(checkoutUrl);

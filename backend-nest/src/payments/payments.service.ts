@@ -238,6 +238,11 @@ export class PaymentsService {
       if (isDev) {
         await new Promise((r) => setTimeout(r, 300));
         checkoutUrl = `https://sandbox.network.ae/demo/${orderReference}`;
+        await this.repo.updatePaymentCheckout(payment.id, {
+          transactionId: `DEV-${orderReference}`,
+          checkoutUrl,
+          metadata: { ...paymentMetadata, sandbox: true },
+        });
       } else {
         const niRes = await axios.post(
           `${process.env.NI_BASE_URL}/outlets/${process.env.NI_OUTLET_ID}/payment-links`,

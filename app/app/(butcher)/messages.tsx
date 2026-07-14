@@ -28,7 +28,10 @@ export default function ButcherMessagesScreen() {
   const insets = useSafeAreaInsets();
   const listBottomPadding = 58 + Math.max(insets.bottom, 8) + 6 + spacing.xl;
   const { accessToken } = useAuth();
-  const { threads, loading: threadsLoading, error: threadsError } = useMessageThreads(accessToken);
+  const { threads, loading: threadsLoading, error: threadsError } = useMessageThreads(
+    accessToken,
+    'BUTCHER',
+  );
   const [activeTab, setActiveTab] = useState<Tab>('messages');
   const [search, setSearch] = useState('');
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
@@ -177,6 +180,8 @@ export default function ButcherMessagesScreen() {
                     receiverId: p.id,
                     receiverName: p.arabicName,
                     receiverAvatar: p.avatar ?? '',
+                    threadType: 'BUTCHER',
+                    ...(chat.butcherId ? { butcherId: chat.butcherId } : {}),
                   },
                 } as any)}
               >

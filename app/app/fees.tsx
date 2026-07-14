@@ -177,7 +177,27 @@ export default function FeesScreen() {
       const json = await res.json().catch(() => ({}));
 
       if (res.ok && json.success && json.data) {
-        const { checkoutUrl } = json.data;
+        const { checkoutUrl, paymentId, devMode } = json.data as {
+          checkoutUrl?: string;
+          paymentId?: string;
+          devMode?: boolean;
+        };
+
+        if (devMode && paymentId) {
+          const simRes = await fetch(`${API_BASE}/api/payments/${paymentId}/dev-complete`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          const simJson = await simRes.json().catch(() => ({}));
+          if (simRes.ok && simJson.success) {
+            setSelectedFees(new Set());
+            setShowPayModal(false);
+            Alert.alert('تم السداد', 'تم سداد الرسوم بنجاح (وضع التطوير).', [
+              { text: 'حسناً', onPress: () => fetchFees() },
+            ]);
+            return;
+          }
+        }
 
         if (checkoutUrl) {
           await Linking.openURL(checkoutUrl);

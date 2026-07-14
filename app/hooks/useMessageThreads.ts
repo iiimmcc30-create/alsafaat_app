@@ -2,8 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { API_BASE } from '@/services/api';
 import { authFetch } from '@/services/authFetch';
 
+export type MessageThreadType = 'DIRECT' | 'BUTCHER';
+
 export interface MessageThreadItem {
   id: string;
+  type: MessageThreadType;
+  butcherId?: string | null;
+  butcher?: {
+    id: string;
+    nameAr: string;
+    nameEn?: string;
+    logo?: string | null;
+  } | null;
   participant: {
     id: string;
     displayName: string;
@@ -16,7 +26,10 @@ export interface MessageThreadItem {
   unread: number;
 }
 
-export function useMessageThreads(accessToken: string | null) {
+export function useMessageThreads(
+  accessToken: string | null,
+  type: MessageThreadType = 'DIRECT',
+) {
   const [threads, setThreads] = useState<MessageThreadItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +43,9 @@ export function useMessageThreads(accessToken: string | null) {
     setLoading(true);
     setError(null);
     try {
-      const res = await authFetch(`${API_BASE}/api/messages`);
+      const res = await authFetch(
+        `${API_BASE}/api/messages?type=${encodeURIComponent(type)}`,
+      );
       if (res.status === 401) {
         setError('unauthorized');
         setThreads([]);
@@ -42,11 +57,25 @@ export function useMessageThreads(accessToken: string | null) {
           setThreads(
             json.data.map((t: any) => ({
               id: t.id,
+              type: (t.type as MessageThreadType) || type,
+              butcherId: t.butcherId ?? null,
+              butcher: t.butcher
+                ? {
+                    id: t.butcher.id,
+                    nameAr: t.butcher.nameAr,
+                    nameEn: t.butcher.nameEn,
+                    logo: t.butcher.logo,
+                  }
+                : null,
               participant: t.participant
                 ? {
                     id: t.participant.id,
-                    displayName: t.participant.displayName || t.participant.username || '',
-                    arabicName: t.participant.arabicName || t.participant.displayName || '',
+                    displayName:
+                      t.participant.displayName || t.participant.username || '',
+                    arabicName:
+                      t.participant.arabicName ||
+                      t.participant.displayName ||
+                      '',
                     avatar: t.participant.avatar || undefined,
                     verified: t.participant.verified ?? false,
                   }
@@ -54,7 +83,7 @@ export function useMessageThreads(accessToken: string | null) {
               lastMessage: t.lastMessage,
               lastMessageAt: t.lastMessageAt,
               unread: t.unread ?? 0,
-            }))
+            })),
           );
           return;
         }
@@ -65,7 +94,7 @@ export function useMessageThreads(accessToken: string | null) {
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
+  }, [accessToken, type]);
 
   useEffect(() => {
     fetchThreads();
