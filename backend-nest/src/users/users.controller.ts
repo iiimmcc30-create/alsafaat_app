@@ -22,6 +22,7 @@ import type { JwtPayload } from '../common/types/jwt-payload.interface';
 import {
   ConnectionsQueryDto,
   ListUsersQueryDto,
+  RateUserDto,
   UpdateUserDto,
 } from './dto/users.dto';
 
@@ -69,6 +70,19 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   async follow(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return successResponse(await this.users.toggleFollow(id, user.userId));
+  }
+
+  @RateLimit('api')
+  @Post(':id/rate')
+  @HttpCode(HttpStatus.OK)
+  async rate(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: RateUserDto,
+  ) {
+    return successResponse(
+      await this.users.rateUser(id, user.userId, dto.rating),
+    );
   }
 
   @Public()

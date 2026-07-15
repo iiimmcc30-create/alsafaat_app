@@ -1,41 +1,76 @@
 // SAFAT — Public User Profile
+// Same layout as own profile: Cover → Avatar → Info (name, rating, bio, location)
+// → Stats → Actions → Sticky "المنشورات" header → merged timeline (posts + listings)
 import { AppIcon } from '@/components/ui/FlaticonIcon';
-
-import { Image } from '@/components/ui/AppImage';
+import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
-import { rtlBackIcon, rtlRow } from '@/lib/rtl';
+import { rtlBackIcon } from '@/lib/rtl';
 import { useApp } from '@/hooks/useApp';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCountryInfo } from '@/services/types';
-import { fetchUserProfile, toggleFollowUser, type PublicUserProfile } from '@/services/users';
+import { fetchUserProfile, rateUser, toggleFollowUser, type PublicUserProfile } from '@/services/users';
 import { promptReport } from '@/services/reports';
+import { ListingCard } from '@/components/feature/ListingCard';
+import { PostItem } from '@/components/feature/PostItem';
+import { PostCommentsModal } from '@/components/feature/PostCommentsModal';
+import { RatingModal } from '@/components/feature/RatingModal';
+import { requireAuth, sharePost, showPostMenu } from '@/lib/postInteractions';
+import { buildProfileTimeline } from '@/lib/profileTimeline';
+
+const COVER_HEIGHT = 130;
+const AVATAR_SIZE = 78;
 
 export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { me } = useApp();
-  const { accessToken } = useAuth();
-  const { gradients, colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const {
+    me,
+    listings,
+    posts,
+    likedPosts,
+    repostedPosts,
+    bookmarkedPosts,
+    toggleLike,
+    toggleRepost,
+    toggleBookmark,
+    deletePost,
+    addComment,
+  } = useApp();
+  const { accessToken, isAuthenticated } = useAuth();
+  const { gradients, colors: themeColors } = useTheme();
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
 
   const [profile, setProfile] = useState<PublicUserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
+  const [ratingModalVisible, setRatingModalVisible] = useState(false);
+
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const coverOpacity = scrollY.interpolate({
+    inputRange: [0, COVER_HEIGHT * 0.65],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
 
   const isOwnProfile = !id || id === me.id;
 
@@ -52,8 +87,21 @@ export default function UserProfileScreen() {
       router.replace('/(tabs)/profile');
       return;
     }
-    loadProfile();
+    void loadProfile();
   }, [isOwnProfile, loadProfile, router]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadProfile();
+    setRefreshing(false);
+  }, [loadProfile]);
+
+  const onScroll = useCallback(
+    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+      scrollY.setValue(e.nativeEvent.contentOffset.y);
+    },
+    [scrollY],
+  );
 
   const handleFollow = async () => {
     if (!profile || !accessToken) {
@@ -70,12 +118,31 @@ export default function UserProfileScreen() {
               isFollowing: result.following,
               followersCount: prev.followersCount + (result.following ? 1 : -1),
             }
-          : prev
+          : prev,
       );
     } else {
       Alert.alert('خطأ', 'تعذّرت المتابعة، حاول مجدداً');
     }
     setFollowLoading(false);
+  };
+
+  const handleRateSubmit = async (rating: number): Promise<boolean> => {
+    if (!profile) return false;
+    if (!accessToken) {
+      Alert.alert('تسجيل الدخول', 'يجب تسجيل الدخول للتقييم');
+      return false;
+    }
+    const result = await rateUser(profile.id, rating);
+    if (!result) {
+      Alert.alert('خطأ', 'تعذّر إرسال التقييم، حاول مجدداً');
+      return false;
+    }
+    setProfile((prev) =>
+      prev
+        ? { ...prev, rating: result.rating, reviewCount: result.reviewCount, myRating: result.myRating }
+        : prev,
+    );
+    return true;
   };
 
   const handleChat = () => {
@@ -96,14 +163,27 @@ export default function UserProfileScreen() {
             ? 'BUTCHER'
             : 'DIRECT',
       },
-    } as any);
+    } as never);
   };
+
+  const userPosts = useMemo(
+    () => (profile ? posts.filter((p) => p.author.id === profile.id) : []),
+    [posts, profile],
+  );
+  const userListings = useMemo(
+    () => (profile ? listings.filter((l) => l.seller.id === profile.id) : []),
+    [listings, profile],
+  );
+  const timeline = useMemo(
+    () => buildProfileTimeline(userPosts, userListings),
+    [userPosts, userListings],
+  );
 
   if (loading || !profile) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.root} edges={['top']}>
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.electricBright} />
+          <ActivityIndicator size="large" color={themeColors.electricBright} />
         </View>
       </SafeAreaView>
     );
@@ -111,257 +191,471 @@ export default function UserProfileScreen() {
 
   const country = getCountryInfo(profile.country);
   const hasRating = profile.rating != null && profile.reviewCount > 0;
-  const ratingLabel = hasRating ? `★ ${profile.rating!.toFixed(1)}` : '—';
+  const ratingLabel = hasRating ? profile.rating!.toFixed(1) : null;
 
-  const openConnections = (tab: 'followers' | 'following') => {
+  const openConnections = (t: 'followers' | 'following') => {
     router.push({
       pathname: '/profile/connections',
-      params: { userId: profile.id, tab, username: profile.username },
+      params: { userId: profile.id, tab: t, username: profile.username },
     } as never);
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <View style={styles.heroSection}>
-          <View style={styles.coverWrap}>
-            {profile.coverImage ? (
-              <Image
-                source={{ uri: profile.coverImage }}
-                style={styles.coverImage}
-                contentFit="cover"
-              />
-            ) : (
-              <LinearGradient
-                colors={gradients.royal}
-                style={styles.cover}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              />
-            )}
-            <LinearGradient
-              colors={['rgba(6,9,26,0.15)', 'rgba(6,9,26,0.55)']}
-              style={StyleSheet.absoluteFill}
-            />
-          </View>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-            <AppIcon name={rtlBackIcon} size={22} color={colors.textPrimary} />
-          </Pressable>
-
-          <View style={styles.avatarRow}>
-            <View style={styles.avatarWrap}>
-              <View style={styles.avatarRing}>
-                <Image source={{ uri: profile.avatar }} style={styles.avatar} contentFit="cover" />
-              </View>
-              {profile.verified && (
-                <View style={styles.verifiedBadge}>
-                  <AppIcon name="checkmark-circle" size={18} color={colors.electricBright} />
-                </View>
+    <SafeAreaView style={styles.root} edges={['top']}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[1]}
+        scrollEventThrottle={16}
+        onScroll={onScroll}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.electricBright}
+          />
+        }
+        contentContainerStyle={{
+          paddingBottom: Math.max(insets.bottom, 12) + 24,
+        }}
+      >
+        {/* ═══════════════ HEADER ═══════════════ */}
+        <View style={styles.headerBlock}>
+          <View style={styles.cover}>
+            <Animated.View style={[StyleSheet.absoluteFill, { opacity: coverOpacity }]}>
+              {profile.coverImage ? (
+                <Image
+                  source={{ uri: profile.coverImage }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                />
+              ) : (
+                <LinearGradient
+                  colors={gradients.royal}
+                  style={StyleSheet.absoluteFill}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                />
               )}
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.4)']}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
+
+            <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+              <AppIcon name={rtlBackIcon} size={20} color="#fff" />
+            </Pressable>
+          </View>
+
+          <View style={styles.avatarOverlap}>
+            <View style={styles.avatarOuter}>
+              <View style={styles.avatarRing}>
+                <Image
+                  source={uriSource(profile.avatar)}
+                  style={styles.avatarImg}
+                  contentFit="cover"
+                />
+              </View>
+              {profile.verified ? (
+                <View style={styles.verifiedDot}>
+                  <AppIcon name="checkmark-circle" size={16} color={themeColors.electricBright} />
+                </View>
+              ) : null}
             </View>
           </View>
-        </View>
 
-        <View style={styles.content}>
           <View style={styles.info}>
             <View style={styles.nameRow}>
-              <Text style={styles.displayName}>{profile.arabicName || profile.displayName}</Text>
-              {profile.verified && (
-                <AppIcon name="checkmark-circle" size={20} color={colors.electricBright} />
-              )}
+              <Text style={styles.displayName} numberOfLines={1}>
+                {profile.arabicName || profile.displayName}
+              </Text>
+              {profile.verified ? (
+                <AppIcon name="checkmark-circle" size={15} color={themeColors.electricBright} />
+              ) : null}
             </View>
-            <Text style={styles.handle}>@{profile.username}</Text>
-            {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
-            <View style={styles.locationRow}>
-              <Text style={styles.flag}>{country.flag}</Text>
-              <Text style={styles.locationText}>{country.ar}</Text>
+
+            <View style={styles.handleRatingRow}>
+              <Text style={styles.handle}>@{profile.username}</Text>
+              <Pressable
+                style={styles.ratingChip}
+                onPress={() => setRatingModalVisible(true)}
+                hitSlop={6}
+              >
+                <AppIcon name="star" size={12} color={themeColors.gold} />
+                <Text style={styles.ratingText}>
+                  {ratingLabel ?? '—'}
+                  {hasRating ? ` (${profile.reviewCount.toLocaleString('ar-SA')})` : ''}
+                </Text>
+                {profile.myRating ? (
+                  <AppIcon name="create-outline" size={11} color={themeColors.textMuted} />
+                ) : null}
+              </Pressable>
+            </View>
+
+            {!!profile.bio && (
+              <Text style={styles.bio} numberOfLines={3}>
+                {profile.bio}
+              </Text>
+            )}
+            <View style={styles.metaRow}>
+              <View style={styles.metaItem}>
+                <AppIcon name="map-marker-outline" size={12} color={themeColors.textMuted} />
+                <Text style={styles.metaText}>
+                  {country.flag} {country.ar}
+                </Text>
+              </View>
             </View>
           </View>
 
-          <View style={styles.statsCard}>
-            <Pressable style={styles.statCol} onPress={() => openConnections('followers')}>
+          <View style={styles.stats}>
+            <View style={styles.stat}>
+              <Text style={styles.statNum}>{timeline.length}</Text>
+              <Text style={styles.statLbl}>منشورات</Text>
+            </View>
+            <Pressable style={styles.stat} onPress={() => openConnections('followers')}>
               <Text style={styles.statNum}>{profile.followersCount.toLocaleString('ar-SA')}</Text>
-              <Text style={styles.statLabel}>متابعون</Text>
+              <Text style={styles.statLbl}>متابعون</Text>
             </Pressable>
-            <View style={styles.statDivider} />
-            <Pressable style={styles.statCol} onPress={() => openConnections('following')}>
+            <Pressable style={styles.stat} onPress={() => openConnections('following')}>
               <Text style={styles.statNum}>{profile.followingCount.toLocaleString('ar-SA')}</Text>
-              <Text style={styles.statLabel}>يتابع</Text>
+              <Text style={styles.statLbl}>متابَعون</Text>
             </Pressable>
-            <View style={styles.statDivider} />
-            <View style={styles.statCol}>
-              <Text style={styles.statNum}>{profile.listingsCount}</Text>
-              <Text style={styles.statLabel}>إعلانات</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statCol}>
-              <Text style={styles.statNum}>{ratingLabel}</Text>
-              <Text style={styles.statLabel}>تقييم</Text>
-            </View>
           </View>
 
-          <View style={styles.actionRow}>
+          {/* Actions — متابعة / مراسلة / إبلاغ */}
+          <View style={styles.actions}>
             <Pressable
               onPress={handleFollow}
               disabled={followLoading}
-              style={({ pressed }) => [
-                styles.followBtn,
-                profile.isFollowing && styles.followingBtn,
-                pressed && { opacity: 0.85 },
-              ]}
+              style={[styles.btnFollow, profile.isFollowing && styles.btnFollowing]}
             >
               {followLoading ? (
-                <ActivityIndicator size="small" color={profile.isFollowing ? colors.textPrimary : '#fff'} />
+                <ActivityIndicator
+                  size="small"
+                  color={profile.isFollowing ? themeColors.textPrimary : '#fff'}
+                />
               ) : (
-                <>
-                  <AppIcon
-                    name={profile.isFollowing ? 'checkmark' : 'person-add-outline'}
-                    size={18}
-                    color={profile.isFollowing ? colors.textPrimary : '#fff'}
-                  />
-                  <Text style={[styles.followBtnText, profile.isFollowing && styles.followingBtnText]}>
-                    {profile.isFollowing ? 'متابَع' : 'متابعة'}
-                  </Text>
-                </>
+                <Text
+                  style={[
+                    styles.btnFollowText,
+                    profile.isFollowing && styles.btnFollowingText,
+                  ]}
+                >
+                  {profile.isFollowing ? 'متابَع' : 'متابعة'}
+                </Text>
               )}
             </Pressable>
 
-            <Pressable
-              onPress={handleChat}
-              style={({ pressed }) => [styles.chatBtn, pressed && { opacity: 0.85 }]}
-            >
-              <AppIcon name="chatbubble-outline" size={18} color={colors.textPrimary} />
-              <Text style={styles.chatBtnText}>محادثة</Text>
+            <Pressable style={styles.btnSecondary} onPress={handleChat}>
+              <Text style={styles.btnSecondaryText}>مراسلة</Text>
             </Pressable>
 
-            {!isOwnProfile ? (
-              <Pressable
-                onPress={() => promptReport('user', profile.id, !!accessToken)}
-                style={({ pressed }) => [styles.chatBtn, pressed && { opacity: 0.85 }]}
-              >
-                <AppIcon name="flag-outline" size={18} color={colors.rose} />
-                <Text style={[styles.chatBtnText, { color: colors.rose }]}>إبلاغ</Text>
-              </Pressable>
-            ) : null}
+            <Pressable
+              style={styles.btnIcon}
+              onPress={() => promptReport('user', profile.id, !!accessToken)}
+            >
+              <AppIcon name="flag-outline" size={16} color={themeColors.rose} />
+            </Pressable>
           </View>
         </View>
+
+        {/* ═══════════════ STICKY SECTION HEADER ═══════════════ */}
+        <View style={styles.sectionBar}>
+          <Text style={styles.sectionTitle}>المنشورات</Text>
+        </View>
+
+        {/* ═══════════════ TIMELINE — posts + listings merged by date ═══════════════ */}
+        <View style={styles.body}>
+          {timeline.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>لا يوجد محتوى بعد</Text>
+            </View>
+          ) : (
+            timeline.map((entry) =>
+              entry.kind === 'post' ? (
+                <PostItem
+                  key={entry.id}
+                  post={{
+                    ...entry.data,
+                    liked: likedPosts.has(entry.data.id),
+                    reposted: repostedPosts.has(entry.data.id),
+                    bookmarked: bookmarkedPosts.has(entry.data.id),
+                  }}
+                  onLike={() =>
+                    requireAuth(isAuthenticated, 'الإعجاب') && toggleLike(entry.data.id)
+                  }
+                  onComment={() =>
+                    requireAuth(isAuthenticated, 'التعليق') && setCommentsPostId(entry.data.id)
+                  }
+                  onRepost={() =>
+                    requireAuth(isAuthenticated, 'إعادة النشر') && toggleRepost(entry.data.id)
+                  }
+                  onBookmark={() =>
+                    requireAuth(isAuthenticated, 'الحفظ') && toggleBookmark(entry.data.id)
+                  }
+                  onShare={() => sharePost(entry.data)}
+                  onMenu={() =>
+                    showPostMenu(entry.data, me, router, deletePost, isAuthenticated)
+                  }
+                />
+              ) : (
+                <ListingCard
+                  key={entry.id}
+                  listing={entry.data}
+                  variant="list"
+                  onPress={() =>
+                    router.push({ pathname: '/listing/[id]', params: { id: entry.data.id } })
+                  }
+                />
+              ),
+            )
+          )}
+        </View>
       </ScrollView>
+
+      <RatingModal
+        visible={ratingModalVisible}
+        onClose={() => setRatingModalVisible(false)}
+        targetName={profile.arabicName || profile.displayName}
+        currentRating={profile.rating}
+        currentCount={profile.reviewCount}
+        myRating={profile.myRating ?? null}
+        onSubmit={handleRateSubmit}
+      />
+
+      <PostCommentsModal
+        visible={!!commentsPostId}
+        postId={commentsPostId}
+        onClose={() => setCommentsPostId(null)}
+        onSubmitComment={(content) =>
+          commentsPostId ? addComment(commentsPostId, content) : Promise.resolve(false)
+        }
+      />
     </SafeAreaView>
   );
 }
 
 function createStyles(colors: ThemeColors) {
-  const card = {
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-  } as const;
-
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgDeep },
+    root: { flex: 1, backgroundColor: colors.bgDeep },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    scroll: { paddingBottom: spacing.xxxl },
-    heroSection: { position: 'relative', marginBottom: spacing.md },
-    coverWrap: { height: 140, width: '100%', overflow: 'hidden' },
-    cover: { height: 140, width: '100%' },
-    coverImage: { width: '100%', height: '100%' },
-    backBtn: {
-      position: 'absolute',
-      top: spacing.md,
-      right: spacing.lg,
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      backgroundColor: colors.bgGlassStrong,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: colors.borderSoft,
-      zIndex: 2,
-    },
-    avatarRow: {
-      ...rtlRow,
-      paddingHorizontal: spacing.lg,
-      marginTop: -40,
-      zIndex: 3,
-    },
-    avatarWrap: { position: 'relative' },
-    avatarRing: {
-      width: 96,
-      height: 96,
-      borderRadius: 48,
-      borderWidth: 3,
-      borderColor: colors.electricBright,
-      backgroundColor: colors.bgDeep,
+    headerBlock: { backgroundColor: colors.bgDeep },
+
+    cover: {
+      height: COVER_HEIGHT,
+      backgroundColor: colors.bgElevated,
       overflow: 'hidden',
     },
-    avatar: { width: '100%', height: '100%' },
-    verifiedBadge: {
+    backBtn: {
+      position: 'absolute',
+      top: 10,
+      right: 12,
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: 'rgba(255,255,255,0.2)',
+      zIndex: 2,
+    },
+
+    avatarOverlap: {
+      marginTop: -(AVATAR_SIZE / 2),
+      paddingHorizontal: spacing.lg,
+      zIndex: 2,
+    },
+    avatarOuter: {
+      alignSelf: 'flex-start',
+      position: 'relative',
+    },
+    avatarRing: {
+      width: AVATAR_SIZE,
+      height: AVATAR_SIZE,
+      borderRadius: AVATAR_SIZE / 2,
+      overflow: 'hidden',
+      borderWidth: 3,
+      borderColor: colors.bgDeep,
+      backgroundColor: colors.bgElevated,
+    },
+    avatarImg: { width: '100%', height: '100%' },
+    verifiedDot: {
       position: 'absolute',
       bottom: 0,
       right: 0,
-      width: 26,
-      height: 26,
-      borderRadius: 13,
       backgroundColor: colors.bgDeep,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 2,
-      borderColor: colors.bgDeep,
+      borderRadius: 10,
     },
-    content: { paddingHorizontal: spacing.lg },
-    info: { gap: 4, marginBottom: spacing.lg },
-    nameRow: { ...rtlRow, alignItems: 'center', gap: 6 },
-    displayName: { ...typography.h1, color: colors.textPrimary, fontSize: 24 },
-    englishName: { ...typography.body, color: colors.textBrand },
-    handle: { ...typography.caption, color: colors.textMuted },
-    bio: { ...typography.body, color: colors.textSecondary, marginTop: 4, lineHeight: 22 },
-    locationRow: { ...rtlRow, alignItems: 'center', gap: 6, marginTop: 4 },
-    flag: { fontSize: 14 },
-    locationText: { ...typography.caption, color: colors.textMuted },
-    statsCard: {
-      ...card,
+
+    info: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+    },
+    nameRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: spacing.lg,
-      paddingHorizontal: spacing.md,
-      marginBottom: spacing.lg,
+      gap: 5,
     },
-    statCol: { flex: 1, alignItems: 'center', gap: 4 },
-    statNum: { ...typography.h3, color: colors.textPrimary, fontWeight: '800' },
-    statLabel: { ...typography.micro, color: colors.textMuted },
-    statDivider: { width: 1, height: 36, backgroundColor: colors.borderSoft },
-    actionRow: { ...rtlRow, gap: spacing.sm },
-    followBtn: {
-      flex: 1,
-      ...rtlRow,
+    displayName: {
+      ...typography.h2,
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    handleRatingRow: {
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-      gap: spacing.sm,
-      paddingVertical: spacing.md,
+      gap: 8,
+      marginTop: 2,
+    },
+    handle: {
+      ...typography.caption,
+      color: colors.textMuted,
+    },
+    ratingChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: radius.pill,
+      backgroundColor: colors.bgSurface,
+    },
+    ratingText: {
+      ...typography.caption,
+      color: colors.gold,
+      fontWeight: '700',
+      fontSize: 12,
+    },
+    bio: {
+      ...typography.body,
+      color: colors.textSecondary,
+      lineHeight: 20,
+      marginTop: 6,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginTop: 6,
+    },
+    metaItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    metaText: {
+      ...typography.caption,
+      color: colors.textMuted,
+      fontSize: 12,
+    },
+
+    stats: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 18,
+      paddingHorizontal: spacing.lg,
+      paddingTop: 12,
+    },
+    stat: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 4,
+    },
+    statNum: {
+      ...typography.bodyStrong,
+      color: colors.textPrimary,
+      fontWeight: '800',
+      fontSize: 14,
+    },
+    statLbl: {
+      ...typography.caption,
+      color: colors.textMuted,
+      fontSize: 13,
+    },
+
+    actions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: spacing.lg,
+      paddingTop: 12,
+      paddingBottom: 10,
+    },
+    btnFollow: {
+      flex: 1,
+      height: 34,
       borderRadius: radius.pill,
       backgroundColor: colors.electric,
-    },
-    followingBtn: {
-      backgroundColor: colors.bgElevated,
-      borderWidth: 1,
-      borderColor: colors.borderMid,
-    },
-    followBtnText: { ...typography.bodyStrong, color: '#fff' },
-    followingBtnText: { color: colors.textPrimary },
-    chatBtn: {
-      flex: 1,
-      ...rtlRow,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: spacing.sm,
-      paddingVertical: spacing.md,
-      borderRadius: radius.pill,
-      backgroundColor: colors.bgElevated,
-      borderWidth: 1,
+    },
+    btnFollowing: {
+      backgroundColor: colors.bgSurface,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.borderMid,
     },
-    chatBtnText: { ...typography.bodyStrong, color: colors.textPrimary },
+    btnFollowText: {
+      ...typography.caption,
+      color: '#fff',
+      fontWeight: '700',
+    },
+    btnFollowingText: {
+      color: colors.textPrimary,
+    },
+    btnSecondary: {
+      flex: 1,
+      height: 34,
+      borderRadius: radius.pill,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderMid,
+      backgroundColor: colors.bgSurface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    btnSecondaryText: {
+      ...typography.caption,
+      color: colors.textPrimary,
+      fontWeight: '700',
+    },
+    btnIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderMid,
+      backgroundColor: colors.bgSurface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    sectionBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.bgDeep,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.borderSoft,
+      paddingHorizontal: spacing.lg,
+      height: 44,
+    },
+    sectionTitle: {
+      ...typography.bodyStrong,
+      color: colors.textPrimary,
+      fontWeight: '800',
+      fontSize: 15,
+    },
+
+    body: { backgroundColor: colors.bgDeep },
+
+    empty: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 48,
+    },
+    emptyTitle: {
+      ...typography.body,
+      color: colors.textMuted,
+    },
   });
 }

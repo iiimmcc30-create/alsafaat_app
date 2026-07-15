@@ -1,10 +1,13 @@
 import {
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   IsUrl,
   Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
@@ -77,4 +80,11 @@ export class UpdateUserDto {
   @IsString()
   @MaxLength(500)
   fcmToken?: string | null;
+}
+
+export class RateUserDto {
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating: number;
 }

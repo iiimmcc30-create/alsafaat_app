@@ -88,12 +88,21 @@ export interface Post {
   content: string;
   arabicContent: string;
   image?: string;
+  /** Multiple images (carousel) — falls back to [image] when only a single image exists */
+  images?: string[];
+  /** Post video, if present — rendered full-width in place of the image gallery */
+  video?: string;
   likes: number;
   reposts: number;
   comments: number;
+  /** View count, when tracked by the backend */
+  views?: number;
   postedAt: string;
+  /** ISO timestamp — used to merge posts + listings into one timeline on profile pages */
+  createdAt?: string;
   liked?: boolean;
   reposted?: boolean;
+  bookmarked?: boolean;
 }
 
 export interface PostComment {

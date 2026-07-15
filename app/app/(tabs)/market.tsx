@@ -78,10 +78,7 @@ export default function MarketScreen() {
 
   const keyExtractor = useCallback((item: Listing) => item.id, []);
 
-  const ItemSeparator = useCallback(
-    () => <View style={styles.separator} />,
-    [styles.separator],
-  );
+  const ItemSeparator = useCallback(() => null, []);
 
   const ListEmpty = (
     <View style={styles.empty}>

@@ -28,7 +28,7 @@ import { CategoryChips, CategoryKey } from '@/components/feature/CategoryChips';
 import { ListingCard } from '@/components/feature/ListingCard';
 import { requireAuth } from '@/lib/postInteractions';
 import { fetchLiveStreamEligibility } from '@/lib/liveStreamAccess';
-import { CreatePostFab } from '@/components/feature/CreatePostFab';
+
 import { NotificationBellButton } from '@/components/notifications/NotificationBellButton';
 import { BRAND_DISPLAY_NAME } from '@/constants/brandCopy';
 import type { Listing } from '@/services/types';
@@ -103,10 +103,7 @@ export default function HomeScreen() {
 
   const keyExtractor = useCallback((item: Listing) => item.id, []);
 
-  const ItemSeparator = useCallback(
-    () => <View style={styles.separator} />,
-    [styles.separator],
-  );
+  const ItemSeparator = useCallback(() => null, []);
 
   const ListHeader = (
     <View>
@@ -202,7 +199,6 @@ export default function HomeScreen() {
         />
       </SafeAreaView>
 
-      <CreatePostFab />
     </View>
   );
 }

@@ -28,10 +28,12 @@ const profileSelect = {
   verified: true,
   country: true,
   role: true,
+  rating: true,
+  reviewCount: true,
   createdAt: true,
   lastSeenAt: true,
   butcherProfile: {
-    select: { id: true, rating: true, reviewCount: true },
+    select: { id: true },
   },
   _count: {
     select: { followers: true, following: true, listings: true, posts: true },
@@ -120,9 +122,8 @@ export class UsersRepository {
         bio: true,
         verified: true,
         country: true,
-        butcherProfile: {
-          select: { rating: true, reviewCount: true },
-        },
+        rating: true,
+        reviewCount: true,
         _count: {
           select: { followers: true, following: true },
         },
@@ -197,6 +198,37 @@ export class UsersRepository {
         followingId: { in: followingIds },
       },
       select: { followingId: true },
+    });
+  }
+
+  findUserRating(targetId: string, reviewerId: string) {
+    return this.prisma.userReview.findUnique({
+      where: { targetId_reviewerId: { targetId, reviewerId } },
+      select: { rating: true },
+    });
+  }
+
+  upsertUserRating(targetId: string, reviewerId: string, rating: number) {
+    return this.prisma.userReview.upsert({
+      where: { targetId_reviewerId: { targetId, reviewerId } },
+      update: { rating },
+      create: { targetId, reviewerId, rating },
+    });
+  }
+
+  aggregateUserRating(targetId: string) {
+    return this.prisma.userReview.aggregate({
+      where: { targetId },
+      _avg: { rating: true },
+      _count: { rating: true },
+    });
+  }
+
+  updateUserRatingCache(targetId: string, rating: number, reviewCount: number) {
+    return this.prisma.user.update({
+      where: { id: targetId },
+      data: { rating, reviewCount },
+      select: { id: true },
     });
   }
 }

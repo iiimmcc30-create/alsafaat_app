@@ -1,11 +1,15 @@
+// SAFAT — Floating Action Button for creating posts.
+// mode="fixed"     → X/Threads-style: anchored bottom-right, press-scale animation.
+// mode="draggable" → draggable anywhere on screen, position persisted (default).
 import { AppIcon } from '@/components/ui/FlaticonIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Dimensions,
   PanResponder,
+  Pressable,
   StyleSheet,
   View,
 } from 'react-native';
@@ -22,6 +26,8 @@ const TAB_BAR_CLEARANCE = 88;
 interface CreatePostFabProps {
   onPress?: () => void;
   bottomOffset?: number;
+  /** "fixed" = X/Threads-style anchored, no drag. "draggable" = movable (default). */
+  mode?: 'fixed' | 'draggable';
 }
 
 interface Offset {
@@ -45,10 +51,11 @@ function clampOffset(x: number, y: number, bottomOffset: number, insets: { top: 
   };
 }
 
-export function CreatePostFab({ onPress, bottomOffset = TAB_BAR_CLEARANCE }: CreatePostFabProps) {
+export function CreatePostFab({ onPress, bottomOffset = TAB_BAR_CLEARANCE, mode = 'draggable' }: CreatePostFabProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, scheme } = useTheme();
+  const scale = useRef(new Animated.Value(1)).current;
   const fabColors = useMemo(
     () => ({
       backgroundColor: scheme === 'light' ? colors.electric : colors.electricBright,
@@ -93,6 +100,43 @@ export function CreatePostFab({ onPress, bottomOffset = TAB_BAR_CLEARANCE }: Cre
     }
   };
 
+  const handleFixedPress = useCallback(() => {
+    Animated.sequence([
+      Animated.spring(scale, { toValue: 0.88, useNativeDriver: true, speed: 40, bounciness: 0 }),
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 24, bounciness: 6 }),
+    ]).start();
+    if (onPress) {
+      onPress();
+    } else {
+      router.push('/create/post');
+    }
+  }, [scale, onPress, router]);
+
+  // ── Fixed mode (X/Threads style) ─────────────────────────────────────
+  if (mode === 'fixed') {
+    return (
+      <Animated.View
+        style={[
+          styles.fab,
+          fabColors,
+          inlineEnd(spacing.lg),
+          { bottom: insets.bottom + bottomOffset, transform: [{ scale }] },
+        ]}
+      >
+        <Pressable
+          style={styles.iconSlot}
+          onPress={handleFixedPress}
+          accessibilityRole="button"
+          accessibilityLabel="إنشاء منشور"
+          android_ripple={{ color: 'rgba(255,255,255,0.25)', borderless: true, radius: FAB_SIZE / 2 }}
+        >
+          <AppIcon name="create" size={24} color="#fff" style={styles.icon} />
+        </Pressable>
+      </Animated.View>
+    );
+  }
+
+  // ── Draggable mode (default) ──────────────────────────────────────────
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,

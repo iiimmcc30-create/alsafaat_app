@@ -8,56 +8,60 @@ datasource db {
 }
 
 model User {
-  id               String         @id @default(uuid())
-  username         String         @unique
-  email            String?        @unique
-  phone            String?        @unique
-  googleId         String?        @unique
-  passwordHash     String
-  passwordVersion  Int            @default(0)
-  emailVerified    Boolean        @default(false)
-  displayName      String
-  arabicName       String
-  avatar           String?
-  coverImage       String?
-  bio              String?
-  verified         Boolean        @default(false)
-  isAI             Boolean        @default(false)
-  country          Country        @default(SA)
-  role             Role           @default(USER)
-  isActive         Boolean        @default(true)
-  lastSeenAt       DateTime?
-  fcmToken         String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  deletedAt        DateTime?
-  activities       Activity[]     @relation("ActivityActor")
-  activityTargets  Activity[]     @relation("ActivityTarget")
-  butcherProfile   Butcher?
-  butcherOrders    ButcherOrder[]
-  following        Follow[]       @relation("Followers")
-  followers        Follow[]       @relation("Following")
-  listings         Listing[]
-  fees             ListingFee[]
-  liveStreams      LiveStream[]
-  receivedMessages Message[]      @relation("ReceivedMessages")
-  sentMessages     Message[]      @relation("SentMessages")
-  notifications    Notification[]
-  payments         Payment[]
-  posts            Post[]
-  postComments     PostComment[]
-  postLikes        PostLike[]
-  postReposts      PostRepost[]
-  stories          Story[]
-  storyViews       StoryView[]
-  storyReactions   StoryReaction[]
-  subscription     Subscription?
-  sessions         UserSession[]
-  butcherReviews   ButcherReview[]
-  butcherApplications              ButcherApplication[]
-  butcherApplicationTimelineEvents ButcherApplicationTimelineEvent[]
-  verifiedButcherApplicationDocuments ButcherApplicationDocument[] @relation("DocumentVerifiedBy")
-  supportTickets                   SupportTicket[]
+  id                                  String                            @id @default(uuid())
+  username                            String                            @unique
+  email                               String?                           @unique
+  phone                               String?                           @unique
+  googleId                            String?                           @unique
+  passwordHash                        String
+  passwordVersion                     Int                               @default(0)
+  emailVerified                       Boolean                           @default(false)
+  displayName                         String
+  arabicName                          String
+  avatar                              String?
+  coverImage                          String?
+  bio                                 String?
+  verified                            Boolean                           @default(false)
+  isAI                                Boolean                           @default(false)
+  country                             Country                           @default(SA)
+  role                                Role                              @default(USER)
+  isActive                            Boolean                           @default(true)
+  lastSeenAt                          DateTime?
+  fcmToken                            String?
+  rating                              Float                             @default(0)
+  reviewCount                         Int                               @default(0)
+  createdAt                           DateTime                          @default(now())
+  updatedAt                           DateTime                          @updatedAt
+  deletedAt                           DateTime?
+  activities                          Activity[]                        @relation("ActivityActor")
+  activityTargets                     Activity[]                        @relation("ActivityTarget")
+  reviewsReceived                     UserReview[]                      @relation("UserReviewsReceived")
+  reviewsGiven                        UserReview[]                      @relation("UserReviewsGiven")
+  butcherProfile                      Butcher?
+  butcherOrders                       ButcherOrder[]
+  following                           Follow[]                          @relation("Followers")
+  followers                           Follow[]                          @relation("Following")
+  listings                            Listing[]
+  fees                                ListingFee[]
+  liveStreams                         LiveStream[]
+  receivedMessages                    Message[]                         @relation("ReceivedMessages")
+  sentMessages                        Message[]                         @relation("SentMessages")
+  notifications                       Notification[]
+  payments                            Payment[]
+  posts                               Post[]
+  postComments                        PostComment[]
+  postLikes                           PostLike[]
+  postReposts                         PostRepost[]
+  stories                             Story[]
+  storyViews                          StoryView[]
+  storyReactions                      StoryReaction[]
+  subscription                        Subscription?
+  sessions                            UserSession[]
+  butcherReviews                      ButcherReview[]
+  butcherApplications                 ButcherApplication[]
+  butcherApplicationTimelineEvents    ButcherApplicationTimelineEvent[]
+  verifiedButcherApplicationDocuments ButcherApplicationDocument[]      @relation("DocumentVerifiedBy")
+  supportTickets                      SupportTicket[]
 
   @@index([username])
   @@index([email])
@@ -94,19 +98,19 @@ model Follow {
 }
 
 model Plan {
-  id             String        @id @default(uuid())
+  id             String         @id @default(uuid())
   slug           String
   name           String
-  description    String        @default("")
+  description    String         @default("")
   audience       PlanAudience
-  monthlyPrice   Float         @default(0)
-  yearlyPrice    Float         @default(0)
-  currency       String        @default("SAR")
-  yearlyDiscount Float         @default(0)
-  isActive       Boolean       @default(true)
-  sortOrder      Int           @default(0)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  monthlyPrice   Float          @default(0)
+  yearlyPrice    Float          @default(0)
+  currency       String         @default("SAR")
+  yearlyDiscount Float          @default(0)
+  isActive       Boolean        @default(true)
+  sortOrder      Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   features       PlanFeature[]
   subscriptions  Subscription[]
 
@@ -153,28 +157,28 @@ model Subscription {
 }
 
 model Payment {
-  id             String                 @id @default(uuid())
+  id             String                @id @default(uuid())
   userId         String
   subscriptionId String?
   feeId          String?
   referenceId    String?
   referenceType  PaymentReferenceType?
-  orderId        String                 @unique
+  orderId        String                @unique
   amount         Float
-  currency       String                 @default("SAR")
+  currency       String                @default("SAR")
   method         PaymentMethod
-  status         PaymentStatus          @default(pending)
+  status         PaymentStatus         @default(pending)
   transactionId  String?
   checkoutUrl    String?
   description    String?
   descriptionAr  String?
   metadata       Json?
   paidAt         DateTime?
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  fee            ListingFee?            @relation(fields: [feeId], references: [id])
-  subscription   Subscription?          @relation(fields: [subscriptionId], references: [id])
-  user           User                   @relation(fields: [userId], references: [id])
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  fee            ListingFee?           @relation(fields: [feeId], references: [id])
+  subscription   Subscription?         @relation(fields: [subscriptionId], references: [id])
+  user           User                  @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([status])
@@ -261,23 +265,23 @@ model ListingOffer {
 }
 
 model Post {
-  id            String        @id @default(uuid())
-  authorId      String
-  content       String
-  arabicContent String
-  image         String?
-  isHidden      Boolean       @default(false)
-  likesCount    Int           @default(0)
-  repostsCount  Int           @default(0)
-  commentsCount Int           @default(0)
-  viewsCount    Int           @default(0)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  deletedAt     DateTime?
-  author        User          @relation(fields: [authorId], references: [id])
-  comments      PostComment[]
-  likes         PostLike[]
-  reposts       PostRepost[]
+  id               String            @id @default(uuid())
+  authorId         String
+  content          String
+  arabicContent    String
+  image            String?
+  isHidden         Boolean           @default(false)
+  likesCount       Int               @default(0)
+  repostsCount     Int               @default(0)
+  commentsCount    Int               @default(0)
+  viewsCount       Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  deletedAt        DateTime?
+  author           User              @relation(fields: [authorId], references: [id])
+  comments         PostComment[]
+  likes            PostLike[]
+  reposts          PostRepost[]
   knowledgeArticle KnowledgeArticle?
 
   @@index([authorId])
@@ -320,26 +324,26 @@ model PostComment {
 }
 
 model Story {
-  id              String          @id @default(uuid())
-  userId          String
-  thumbnail       String
-  mediaUrl        String?
-  caption         String?
-  captionAr       String?
-  location        String?
-  duration        Int             @default(5)
-  isLive          Boolean         @default(false)
-  liveStreamId    String?
-  listingId       String?
-  viewsCount      Int             @default(0)
-  reactionsCount  Int             @default(0)
-  expiresAt       DateTime
-  createdAt       DateTime        @default(now())
-  deletedAt       DateTime?
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  listing         Listing?        @relation(fields: [listingId], references: [id], onDelete: SetNull)
-  views           StoryView[]
-  reactions       StoryReaction[]
+  id             String          @id @default(uuid())
+  userId         String
+  thumbnail      String
+  mediaUrl       String?
+  caption        String?
+  captionAr      String?
+  location       String?
+  duration       Int             @default(5)
+  isLive         Boolean         @default(false)
+  liveStreamId   String?
+  listingId      String?
+  viewsCount     Int             @default(0)
+  reactionsCount Int             @default(0)
+  expiresAt      DateTime
+  createdAt      DateTime        @default(now())
+  deletedAt      DateTime?
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing        Listing?        @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  views          StoryView[]
+  reactions      StoryReaction[]
 
   @@index([userId])
   @@index([expiresAt])
@@ -497,13 +501,13 @@ model Activity {
 }
 
 model Butcher {
-  id                  String           @id @default(uuid())
-  userId              String           @unique
+  id                  String              @id @default(uuid())
+  userId              String              @unique
   nameAr              String
   nameEn              String
   logo                String?
   cover               String?
-  type                ButcherType      @default(regular)
+  type                ButcherType         @default(regular)
   country             Country
   city                String
   cityAr              String
@@ -516,24 +520,24 @@ model Butcher {
   bioEn               String?
   specialties         String[]
   commercialReg       String?
-  subscriptionActive  Boolean          @default(false)
+  subscriptionActive  Boolean             @default(false)
   subscriptionExpiry  DateTime?
-  rating              Float            @default(0)
-  reviewCount         Int              @default(0)
-  orderCompletionRate Float            @default(100)
-  activityScore       Int              @default(50)
-  profileViews        Int              @default(0)
-  totalOrders         Int              @default(0)
-  openTime            String           @default("06:00")
-  closeTime           String           @default("22:00")
+  rating              Float               @default(0)
+  reviewCount         Int                 @default(0)
+  orderCompletionRate Float               @default(100)
+  activityScore       Int                 @default(50)
+  profileViews        Int                 @default(0)
+  totalOrders         Int                 @default(0)
+  openTime            String              @default("06:00")
+  closeTime           String              @default("22:00")
   closedDays          String[]
-  isOpen              Boolean          @default(true)
-  sourceApplicationId String?          @unique
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  isOpen              Boolean             @default(true)
+  sourceApplicationId String?             @unique
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
   deletedAt           DateTime?
-  user                User                 @relation(fields: [userId], references: [id])
-  sourceApplication   ButcherApplication?  @relation("ButcherSourceApplication", fields: [sourceApplicationId], references: [id])
+  user                User                @relation(fields: [userId], references: [id])
+  sourceApplication   ButcherApplication? @relation("ButcherSourceApplication", fields: [sourceApplicationId], references: [id])
   offers              ButcherOffer[]
   orders              ButcherOrder[]
   products            ButcherProduct[]
@@ -549,30 +553,30 @@ model Butcher {
 }
 
 model ButcherProduct {
-  id            String         @id @default(uuid())
-  butcherId     String
-  nameAr        String
-  nameEn        String
-  category      MeatCategory
-  images        String[]
-  pricePerKg    Float?
-  priceFixed    Float?
-  pricingNoteAr String?
-  availableCuts String[]
-  weightMin     Float?
-  weightMax     Float?
+  id                String         @id @default(uuid())
+  butcherId         String
+  nameAr            String
+  nameEn            String
+  category          MeatCategory
+  images            String[]
+  pricePerKg        Float?
+  priceFixed        Float?
+  pricingNoteAr     String?
+  availableCuts     String[]
+  weightMin         Float?
+  weightMax         Float?
   availableQuantity Float          @default(0)
   reservedQuantity  Float          @default(0)
-  inStock       Boolean        @default(true)
-  freshness     String         @default("fresh")
-  descriptionAr String
-  descriptionEn String
-  country       Country
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  deletedAt     DateTime?
-  orderItems    ButcherOrder[]
-  butcher       Butcher        @relation(fields: [butcherId], references: [id])
+  inStock           Boolean        @default(true)
+  freshness         String         @default("fresh")
+  descriptionAr     String
+  descriptionEn     String
+  country           Country
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
+  orderItems        ButcherOrder[]
+  butcher           Butcher        @relation(fields: [butcherId], references: [id])
 
   @@index([butcherId])
   @@index([inStock])
@@ -580,7 +584,7 @@ model ButcherProduct {
 }
 
 model ButcherOffer {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   butcherId       String
   titleAr         String
   titleEn         String
@@ -592,9 +596,9 @@ model ButcherOffer {
   image           String
   validUntil      DateTime
   country         Country
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
   deletedAt       DateTime?
-  butcher         Butcher  @relation(fields: [butcherId], references: [id])
+  butcher         Butcher   @relation(fields: [butcherId], references: [id])
 
   @@index([butcherId])
   @@index([validUntil])
@@ -622,32 +626,32 @@ model ButcherStory {
 }
 
 model ButcherOrder {
-  id              String         @id @default(uuid())
-  orderNumber     String         @unique
-  butcherId       String
-  customerId      String
-  productId       String
-  cutType         String
-  weightKg        Float
-  reservedQuantity Float         @default(0)
-  deliveryType    String         @default("pickup")
-  deliveryAddress String?
-  status          OrderStatus    @default(pending)
-  paymentStatus   OrderPaymentStatus @default(unpaid)
-  paidAt          DateTime?
-  totalPrice      Float
-  currency        String         @default("SAR")
-  notes           String?
-  cancelledBy     String?
+  id                 String             @id @default(uuid())
+  orderNumber        String             @unique
+  butcherId          String
+  customerId         String
+  productId          String
+  cutType            String
+  weightKg           Float
+  reservedQuantity   Float              @default(0)
+  deliveryType       String             @default("pickup")
+  deliveryAddress    String?
+  status             OrderStatus        @default(pending)
+  paymentStatus      OrderPaymentStatus @default(unpaid)
+  paidAt             DateTime?
+  totalPrice         Float
+  currency           String             @default("SAR")
+  notes              String?
+  cancelledBy        String?
   cancellationReason String?
-  cancelledAt     DateTime?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  butcher         Butcher        @relation(fields: [butcherId], references: [id])
-  customer        User           @relation(fields: [customerId], references: [id])
-  product         ButcherProduct @relation(fields: [productId], references: [id])
-  timeline        OrderTimeline[]
-  audits          OrderStatusAudit[]
+  cancelledAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  butcher            Butcher            @relation(fields: [butcherId], references: [id])
+  customer           User               @relation(fields: [customerId], references: [id])
+  product            ButcherProduct     @relation(fields: [productId], references: [id])
+  timeline           OrderTimeline[]
+  audits             OrderStatusAudit[]
 
   @@index([butcherId])
   @@index([customerId])
@@ -658,24 +662,24 @@ model ButcherOrder {
 }
 
 model OrderTimeline {
-  id        String      @id @default(uuid())
+  id        String       @id @default(uuid())
   orderId   String
   status    OrderStatus
   note      String?
   createdBy String
-  createdAt DateTime    @default(now())
+  createdAt DateTime     @default(now())
   order     ButcherOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId, createdAt])
 }
 
 model OrderStatusAudit {
-  id             String      @id @default(uuid())
+  id             String       @id @default(uuid())
   orderId        String
   previousStatus OrderStatus
   newStatus      OrderStatus
   changedBy      String
-  changedAt      DateTime    @default(now())
+  changedAt      DateTime     @default(now())
   order          ButcherOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId, changedAt])
@@ -687,6 +691,22 @@ model OrderNumberSequence {
   year       Int      @unique
   lastNumber Int      @default(0)
   updatedAt  DateTime @updatedAt
+}
+
+// General account rating — any user can rate any other user's account once (editable).
+model UserReview {
+  id         String   @id @default(uuid())
+  targetId   String
+  reviewerId String
+  rating     Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  target     User     @relation("UserReviewsReceived", fields: [targetId], references: [id])
+  reviewer   User     @relation("UserReviewsGiven", fields: [reviewerId], references: [id])
+
+  @@unique([targetId, reviewerId])
+  @@index([targetId])
+  @@index([reviewerId])
 }
 
 model ButcherReview {
@@ -723,11 +743,11 @@ model ButcherApplication {
   lng           Float?
   bioAr         String?
   bioEn         String?
-  specialties   String[]                 @default([])
+  specialties   String[] @default([])
   /// Application layer must validate HH:mm (24-hour), e.g. "06:00", "22:30".
-  openTime      String                   @default("06:00")
+  openTime      String   @default("06:00")
   /// Application layer must validate HH:mm (24-hour), e.g. "06:00", "22:30".
-  closeTime     String                   @default("22:00")
+  closeTime     String   @default("22:00")
 
   rejectionReason String?
   acceptedTermsAt DateTime?
@@ -995,16 +1015,16 @@ model AppSetting {
 }
 
 model ContentSection {
-  id        String   @id @default(uuid())
-  slug      String   @unique
+  id        String    @id @default(uuid())
+  slug      String    @unique
   titleAr   String
   titleEn   String?
   bodyAr    String
   bodyEn    String?
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive  Boolean   @default(true)
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   @@index([deletedAt])

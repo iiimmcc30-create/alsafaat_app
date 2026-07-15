@@ -53,3 +53,30 @@ export function formatRelativeTimeAr(input?: string | Date | null): string {
 
   return date.toLocaleDateString('ar-SA');
 }
+
+/**
+ * Smart post timestamp: relative for the first week ("قبل ساعتين"),
+ * then falls back to an explicit date + time ("١٥ يوليو ٢٠٢٦ - ٣:٢٠ م").
+ */
+export function formatPostTimestampAr(input?: string | Date | null): string {
+  if (!input) return '';
+  const date = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(date.getTime())) {
+    return typeof input === 'string' ? input : '';
+  }
+
+  const diffDays = (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24);
+  if (diffDays < 7) return formatRelativeTimeAr(date);
+
+  const datePart = date.toLocaleDateString('ar-SA', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const timePart = date.toLocaleTimeString('ar-SA', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `${datePart} - ${timePart}`;
+}

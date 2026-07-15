@@ -2,6 +2,7 @@
 // SAFAT — App Context (current user + global state)
 
 import { createContext, ReactNode, useState, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, Post, Listing } from '@/services/types';
 import { useAuth } from './AuthContext';
 import { API_BASE } from '@/services/api';
@@ -9,6 +10,8 @@ import { parseApiError } from '@/services/apiError';
 import { authFetch } from '@/services/authFetch';
 import { needsUpload } from '@/services/mediaUri';
 import { uploadImageFromUri } from '@/services/upload';
+
+const BOOKMARKS_STORAGE_KEY = 'sarouh:bookmarked_posts';
 
 export type ActionResult = { ok: boolean; error?: string };
 
@@ -39,8 +42,10 @@ interface AppContextValue {
   addListing: (listingData: any) => Promise<ActionResult>;
   likedPosts: Set<string>;
   repostedPosts: Set<string>;
+  bookmarkedPosts: Set<string>;
   toggleLike: (postId: string) => Promise<void>;
   toggleRepost: (postId: string) => Promise<void>;
+  toggleBookmark: (postId: string) => void;
   addComment: (postId: string, content: string) => Promise<boolean>;
   removeListing: (listingId: string) => Promise<ActionResult>;
   refetchData: () => Promise<void>;
@@ -55,6 +60,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [listingsState, setListingsState] = useState<Listing[]>([]);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [repostedPosts, setRepostedPosts] = useState<Set<string>>(new Set());
+  const [bookmarkedPosts, setBookmarkedPosts] = useState<Set<string>>(new Set());
+
+  // Bookmarks are device-local (no backend model yet) — restore on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(BOOKMARKS_STORAGE_KEY);
+        if (raw) setBookmarkedPosts(new Set(JSON.parse(raw)));
+      } catch {
+        /* ignore corrupt/missing storage */
+      }
+    })();
+  }, []);
+
+  const toggleBookmark = useCallback((postId: string) => {
+    setBookmarkedPosts((prev) => {
+      const next = new Set(prev);
+      if (next.has(postId)) next.delete(postId);
+      else next.add(postId);
+      AsyncStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify([...next])).catch(() => {});
+      return next;
+    });
+  }, []);
 
   // Helper mapping functions
   const mapBackendUser = useCallback((u: any): User => {
@@ -83,10 +111,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       content: p.content,
       arabicContent: p.arabicContent,
       image: p.image,
+      images: Array.isArray(p.images) && p.images.length > 0 ? p.images : p.image ? [p.image] : undefined,
+      video: p.video ?? undefined,
       likes: p.likesCount ?? 0,
       reposts: p.repostsCount ?? 0,
       comments: p.commentsCount ?? 0,
+      views: typeof p.viewsCount === 'number' ? p.viewsCount : undefined,
       postedAt: new Date(p.createdAt).toLocaleDateString('ar-SA'),
+      createdAt: p.createdAt,
       liked: p.liked ?? false,
       reposted: p.reposted ?? false,
     };
@@ -531,8 +563,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addListing,
         likedPosts,
         repostedPosts,
+        bookmarkedPosts,
         toggleLike,
         toggleRepost,
+        toggleBookmark,
         addComment,
         removeListing,
         refetchData,

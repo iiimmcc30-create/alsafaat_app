@@ -39,8 +39,10 @@ export default function PostsScreen() {
     posts,
     likedPosts,
     repostedPosts,
+    bookmarkedPosts,
     toggleLike,
     toggleRepost,
+    toggleBookmark,
     deletePost,
     addComment,
     fetchPosts,
@@ -158,6 +160,7 @@ export default function PostsScreen() {
                     ...post,
                     liked: likedPosts.has(post.id),
                     reposted: repostedPosts.has(post.id),
+                    bookmarked: bookmarkedPosts.has(post.id),
                   }}
                   onLike={() => requireAuth(isAuthenticated, 'الإعجاب') && toggleLike(post.id)}
                   onComment={() =>
@@ -165,6 +168,9 @@ export default function PostsScreen() {
                   }
                   onRepost={() =>
                     requireAuth(isAuthenticated, 'إعادة النشر') && toggleRepost(post.id)
+                  }
+                  onBookmark={() =>
+                    requireAuth(isAuthenticated, 'الحفظ') && toggleBookmark(post.id)
                   }
                   onShare={() => sharePost(post)}
                   onMenu={() => showPostMenu(post, me, router, deletePost, isAuthenticated)}
@@ -176,7 +182,7 @@ export default function PostsScreen() {
         )}
       </SafeAreaView>
 
-      <CreatePostFab />
+      <CreatePostFab mode="fixed" />
 
       <PostCommentsModal
         visible={!!commentsPostId}

@@ -85,6 +85,8 @@ export const FLATICON_ALIASES: Record<string, string> = {
   'trash-outline': 'trash',
   remove: 'minus-circle',
   'auto-fix': 'magic-wand',
+  flag: 'flag',
+  'flag-outline': 'flag',
 
   // Visibility
   eye: 'eye',

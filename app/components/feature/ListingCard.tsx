@@ -293,16 +293,26 @@ function createStyles(colors: ThemeColors) {
     opacity: 0.92,
   },
 
-  // قائمة السوق المضغوطة — صف وليس بطاقة
+  // قائمة السوق المضغوطة — بطاقة صف مع ظل خفيف
   listRow: {
     ...rtlRow,
     alignItems: 'center',
     minHeight: 100,
-    maxHeight: 110,
-    paddingVertical: 8,
+    maxHeight: 116,
+    paddingVertical: 10,
     paddingHorizontal: spacing.md,
     gap: spacing.md,
-    backgroundColor: colors.bgDeep,
+    backgroundColor: colors.bgElevated,
+    borderRadius: 14,
+    marginHorizontal: spacing.md,
+    marginVertical: 5,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderHairline,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
   },
   listContent: {
     flex: 1,

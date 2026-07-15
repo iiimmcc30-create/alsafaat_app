@@ -1,15 +1,13 @@
 // Powered by OnSpace.AI
-// SAFAT — Profile Tab (حسابي) — compact, animated, modern
+// SAFAT — Profile Tab (حسابي)
+// Layout: Cover → Avatar → Info (name, rating stars, bio, location) → Stats
+//         → Actions → Sticky "المنشورات" header → merged timeline
+// Merging posts + listings into one timeline is scoped to this screen only.
 import { AppIcon } from '@/components/ui/FlaticonIcon';
 import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import {
   ActivityIndicator,
@@ -17,6 +15,7 @@ import {
   Animated,
   Pressable,
   RefreshControl,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -34,91 +33,80 @@ import { PostItem } from '@/components/feature/PostItem';
 import { PostCommentsModal } from '@/components/feature/PostCommentsModal';
 import { requireAuth, sharePost, showPostMenu } from '@/lib/postInteractions';
 import { fetchStoriesFeed, type StoryGroup } from '@/services/stories';
+import { buildProfileTimeline } from '@/lib/profileTimeline';
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-const COVER_HEIGHT = 140;
-const AVATAR_SIZE  = 86;
-type ProfileTab = 'posts' | 'listings' | 'about';
+const COVER_HEIGHT = 130;
+const AVATAR_SIZE = 78;
 
-const TABS: { id: ProfileTab; label: string }[] = [
-  { id: 'posts',    label: 'المنشورات' },
-  { id: 'listings', label: 'الإعلانات' },
-  { id: 'about',    label: 'التقييم' },
-];
-
-// ─── Component ────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
-  const router  = useRouter();
-  const insets  = useSafeAreaInsets();
-  const { tab } = useLocalSearchParams<{ tab?: string }>();
-
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  useLocalSearchParams<{ tab?: string }>(); // legacy deep-link param — timeline has no tabs now
   const { gradients } = useTheme();
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
 
   const {
-    me, listings, posts,
-    likedPosts, repostedPosts,
-    toggleLike, toggleRepost, deletePost, addComment,
+    me,
+    listings,
+    posts,
+    likedPosts,
+    repostedPosts,
+    bookmarkedPosts,
+    toggleLike,
+    toggleRepost,
+    toggleBookmark,
+    deletePost,
+    addComment,
     updateMe,
   } = useApp();
   const { accessToken, isAuthenticated } = useAuth();
 
-  const [activeTab,      setActiveTab]      = useState<ProfileTab>('posts');
   const [uploadingCover, setUploadingCover] = useState(false);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
-  const [hasStories,     setHasStories]     = useState(false);
-  const [myStoryGroup,   setMyStoryGroup]   = useState<StoryGroup | null>(null);
-  const [refreshing,     setRefreshing]     = useState(false);
+  const [hasStories, setHasStories] = useState(false);
+  const [myStoryGroup, setMyStoryGroup] = useState<StoryGroup | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // ── Animated values ──────────────────────────────────────────────────────
   const scrollY = useRef(new Animated.Value(0)).current;
-
-  // Cover fades as you scroll past it
   const coverOpacity = scrollY.interpolate({
-    inputRange: [0, COVER_HEIGHT * 0.7],
+    inputRange: [0, COVER_HEIGHT * 0.65],
     outputRange: [1, 0],
     extrapolate: 'clamp',
   });
 
-  const switchTab = useCallback((newTab: ProfileTab) => {
-    setActiveTab(newTab);
-  }, []);
-
-  // Deep-link to a tab
-  useEffect(() => {
-    if (tab === 'listings') switchTab('listings');
-    else if (tab === 'about') switchTab('about');
-    else if (tab === 'posts') switchTab('posts');
-  }, [tab, switchTab]);
-
-  // Fetch stories
   const loadStories = useCallback(async () => {
     try {
       const data = await fetchStoriesFeed(accessToken);
       const mine = data.myStories ?? null;
       setMyStoryGroup(mine);
+      const now = Date.now();
       setHasStories(
         mine != null &&
-        (mine.stories?.length ?? 0) > 0 &&
-        mine.stories.some((s: any) => !s.expired),
+          (mine.stories?.length ?? 0) > 0 &&
+          mine.stories.some((s) => new Date(s.expiresAt).getTime() > now),
       );
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
   }, [accessToken]);
 
-  useFocusEffect(useCallback(() => { void loadStories(); }, [loadStories]));
+  useFocusEffect(
+    useCallback(() => {
+      void loadStories();
+    }, [loadStories]),
+  );
 
-  // ─── Data ─────────────────────────────────────────────────────────────────
   const myListings = listings.filter((l) => l.seller.id === me.id);
-  const myPosts    = posts.filter((p) => p.author.id === me.id);
+  const myPosts = posts.filter((p) => p.author.id === me.id);
+  const timeline = useMemo(
+    () => buildProfileTimeline(myPosts, myListings),
+    [myPosts, myListings],
+  );
 
-  const country      = getCountryInfo(me.country);
-  const hasRating    = me.rating != null && (me.reviewCount ?? 0) > 0;
-  const ratingLabel  = hasRating ? me.rating!.toFixed(1) : '—';
-  const ratingDetail = hasRating
-    ? `${me.rating!.toFixed(1)} / 5.0 ⭐  (${me.reviewCount} تقييم)`
-    : 'لا توجد تقييمات بعد';
+  const country = getCountryInfo(me.country);
+  const hasRating = me.rating != null && (me.reviewCount ?? 0) > 0;
+  const ratingLabel = hasRating ? me.rating!.toFixed(1) : null;
 
-  // ─── Handlers ─────────────────────────────────────────────────────────────
   const openConnections = (t: 'followers' | 'following') => {
     router.push({
       pathname: '/profile/connections',
@@ -147,8 +135,11 @@ export default function ProfileScreen() {
     try {
       const res = await updateMe({ coverImage: result.assets[0].uri });
       if (!res.ok) Alert.alert('خطأ', res.error || 'فشل حفظ الغلاف');
-    } catch { Alert.alert('خطأ', 'فشل رفع الغلاف'); }
-    finally    { setUploadingCover(false); }
+    } catch {
+      Alert.alert('خطأ', 'فشل رفع الغلاف');
+    } finally {
+      setUploadingCover(false);
+    }
   };
 
   const handleShare = () => {
@@ -158,23 +149,27 @@ export default function ProfileScreen() {
     });
   };
 
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadStories();
     setRefreshing(false);
   }, [loadStories]);
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  const onScroll = useCallback(
+    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+      scrollY.setValue(e.nativeEvent.contentOffset.y);
+    },
+    [scrollY],
+  );
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
-      <Animated.ScrollView
+      <ScrollView
         showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true },
-        )}
-        scrollEventThrottle={16}
         stickyHeaderIndices={[1]}
+        scrollEventThrottle={16}
+        onScroll={onScroll}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -182,15 +177,20 @@ export default function ProfileScreen() {
             tintColor={colors.electricBright}
           />
         }
+        contentContainerStyle={{
+          paddingBottom: Math.max(insets.bottom, 12) + 24,
+        }}
       >
-        {/* ── [0] Profile header ────────────────────────────────────────── */}
-        <View>
-
-          {/* Cover — tappable to change photo */}
-          <Pressable onPress={handlePickCover} disabled={uploadingCover} style={styles.coverWrap}>
+        {/* ═══════════════ HEADER ═══════════════ */}
+        <View style={styles.headerBlock}>
+          <Pressable onPress={handlePickCover} disabled={uploadingCover} style={styles.cover}>
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: coverOpacity }]}>
               {me.coverImage ? (
-                <Image source={{ uri: me.coverImage }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <Image
+                  source={{ uri: me.coverImage }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                />
               ) : (
                 <LinearGradient
                   colors={gradients.royal}
@@ -200,27 +200,30 @@ export default function ProfileScreen() {
                 />
               )}
               <LinearGradient
-                colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.45)']}
+                colors={['transparent', 'rgba(0,0,0,0.4)']}
                 style={StyleSheet.absoluteFill}
               />
             </Animated.View>
             <View style={styles.cameraBadge} pointerEvents="none">
-              {uploadingCover
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <AppIcon name="camera-outline" size={14} color="#fff" />}
+              {uploadingCover ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <AppIcon name="camera-outline" size={14} color="#fff" />
+              )}
             </View>
           </Pressable>
 
-          {/* ── Avatar + action buttons row ─────────────────────────── */}
-          <View style={styles.avatarRow}>
-            {/* Avatar with story ring */}
+          <View style={styles.avatarOverlap}>
             <Pressable
               onPress={() => {
                 if (hasStories && myStoryGroup) {
-                  router.push({ pathname: '/stories/view', params: { groupIndex: '0' } } as never);
+                  router.push({
+                    pathname: '/stories/view',
+                    params: { groupIndex: '0' },
+                  } as never);
                 }
               }}
-              style={styles.avatarWrap}
+              style={styles.avatarOuter}
             >
               <LinearGradient
                 colors={
@@ -228,211 +231,156 @@ export default function ProfileScreen() {
                     ? [colors.electricBright, colors.cyan, '#34D399']
                     : [colors.borderSoft, colors.borderSoft]
                 }
-                style={styles.avatarRingGradient}
+                style={styles.avatarRing}
                 start={{ x: 0, y: 1 }}
                 end={{ x: 1, y: 0 }}
               >
-                <View style={styles.avatarInnerWrap}>
-                  <Image source={uriSource(me.avatar)} style={styles.avatar} contentFit="cover" />
+                <View style={styles.avatarClip}>
+                  <Image
+                    source={uriSource(me.avatar)}
+                    style={styles.avatarImg}
+                    contentFit="cover"
+                  />
                 </View>
               </LinearGradient>
-              {me.verified && (
-                <View style={styles.verifiedBadge}>
-                  <AppIcon name="checkmark-circle" size={17} color={colors.electricBright} />
+              {me.verified ? (
+                <View style={styles.verifiedDot}>
+                  <AppIcon name="checkmark-circle" size={16} color={colors.electricBright} />
                 </View>
-              )}
+              ) : null}
             </Pressable>
-
-            {/* Action buttons — right side */}
-            <View style={styles.actionRow}>
-              <Pressable style={styles.btnEdit} onPress={() => router.push('/profile/edit')}>
-                <AppIcon name="edit-outline" size={13} color={colors.textSecondary} />
-                <Text style={styles.btnEditText}>تعديل</Text>
-              </Pressable>
-              <Pressable style={styles.btnIcon} onPress={handleShare}>
-                <AppIcon name="share-social-outline" size={16} color={colors.textSecondary} />
-              </Pressable>
-              <Pressable
-                style={styles.btnIcon}
-                onPress={() =>
-                  Alert.alert('المزيد', '', [
-                    { text: 'نسخ الرابط',  onPress: handleShare },
-                    { text: 'الإعدادات',   onPress: () => router.push('/settings/account') },
-                    { text: 'إلغاء', style: 'cancel' },
-                  ])
-                }
-              >
-                <AppIcon name="ellipsis-horizontal" size={16} color={colors.textSecondary} />
-              </Pressable>
-            </View>
           </View>
 
-          {/* ── Name · handle · bio · location ─────────────────────── */}
-          <View style={styles.infoWrap}>
+          <View style={styles.info}>
             <View style={styles.nameRow}>
               <Text style={styles.displayName} numberOfLines={1}>
                 {me.arabicName || me.displayName}
               </Text>
-              {me.verified && (
-                <AppIcon name="checkmark-circle" size={16} color={colors.electricBright} />
-              )}
+              {me.verified ? (
+                <AppIcon name="checkmark-circle" size={15} color={colors.electricBright} />
+              ) : null}
             </View>
 
-            <Text style={styles.handle}>@{me.username}</Text>
+            <View style={styles.handleRatingRow}>
+              <Text style={styles.handle}>@{me.username}</Text>
+              <View style={styles.ratingChip}>
+                <AppIcon name="star" size={12} color={colors.gold} />
+                <Text style={styles.ratingText}>
+                  {ratingLabel ?? '—'}
+                  {hasRating ? ` (${(me.reviewCount ?? 0).toLocaleString('ar-SA')})` : ''}
+                </Text>
+              </View>
+            </View>
 
             {!!me.bio && (
-              <Text style={styles.bio} numberOfLines={2}>{me.bio}</Text>
+              <Text style={styles.bio} numberOfLines={3}>
+                {me.bio}
+              </Text>
             )}
-
             <View style={styles.metaRow}>
-              <View style={styles.metaChip}>
+              <View style={styles.metaItem}>
                 <AppIcon name="map-marker-outline" size={12} color={colors.textMuted} />
-                <Text style={styles.metaText}>{country.flag} {country.ar}</Text>
+                <Text style={styles.metaText}>
+                  {country.flag} {country.ar}
+                </Text>
               </View>
-              {hasRating && (
-                <View style={styles.metaChip}>
-                  <AppIcon name="star" size={12} color={colors.gold} />
-                  <Text style={[styles.metaText, { color: colors.gold }]}>{ratingLabel}</Text>
-                </View>
-              )}
             </View>
           </View>
 
-          {/* ── Stats row ───────────────────────────────────────────── */}
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNum}>{myPosts.length}</Text>
+          <View style={styles.stats}>
+            <View style={styles.stat}>
+              <Text style={styles.statNum}>{timeline.length}</Text>
               <Text style={styles.statLbl}>منشورات</Text>
             </View>
-            <View style={styles.statDivider} />
-            <Pressable style={styles.statItem} onPress={() => openConnections('followers')}>
+            <Pressable style={styles.stat} onPress={() => openConnections('followers')}>
               <Text style={styles.statNum}>{me.followers.toLocaleString('ar-SA')}</Text>
               <Text style={styles.statLbl}>متابعون</Text>
             </Pressable>
-            <View style={styles.statDivider} />
-            <Pressable style={styles.statItem} onPress={() => openConnections('following')}>
+            <Pressable style={styles.stat} onPress={() => openConnections('following')}>
               <Text style={styles.statNum}>{me.following.toLocaleString('ar-SA')}</Text>
               <Text style={styles.statLbl}>متابَعون</Text>
             </Pressable>
           </View>
+
+          <View style={styles.actions}>
+            <Pressable style={styles.btnPrimary} onPress={() => router.push('/profile/edit')}>
+              <Text style={styles.btnPrimaryText}>تعديل الملف</Text>
+            </Pressable>
+            <Pressable style={styles.btnIcon} onPress={handleShare}>
+              <AppIcon name="share-social-outline" size={16} color={colors.textPrimary} />
+            </Pressable>
+            <Pressable
+              style={styles.btnIcon}
+              onPress={() =>
+                Alert.alert('المزيد', '', [
+                  { text: 'نسخ الرابط', onPress: handleShare },
+                  { text: 'الإعدادات', onPress: () => router.push('/settings/account') },
+                  { text: 'إلغاء', style: 'cancel' },
+                ])
+              }
+            >
+              <AppIcon name="ellipsis-horizontal" size={16} color={colors.textPrimary} />
+            </Pressable>
+          </View>
         </View>
 
-        {/* ── [1] تبويبات أفقية: المنشورات | الإعلانات | التقييم ── */}
-        <View style={styles.tabBar}>
-          {TABS.map((t) => {
-            const active = activeTab === t.id;
-            return (
-              <Pressable
-                key={t.id}
-                style={styles.tabItem}
-                onPress={() => switchTab(t.id)}
-              >
-                <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                  {t.label}
-                </Text>
-                {active ? <View style={styles.tabUnderline} /> : null}
-              </Pressable>
-            );
-          })}
+        {/* ═══════════════ STICKY SECTION HEADER ═══════════════ */}
+        <View style={styles.sectionBar}>
+          <Text style={styles.sectionTitle}>المنشورات</Text>
         </View>
 
-        {/* ── [2] محتوى التبويب النشط فقط (لا تظهر الثلاثة فوق بعض) ── */}
-        {activeTab === 'posts' && (
-          myPosts.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📝</Text>
-              <Text style={styles.emptyText}>لا منشورات بعد</Text>
+        {/* ═══════════════ TIMELINE — posts + listings merged by date ═══════════════ */}
+        <View style={styles.body}>
+          {timeline.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>لا يوجد محتوى بعد</Text>
               <Pressable style={styles.emptyBtn} onPress={() => router.push('/create/post')}>
                 <Text style={styles.emptyBtnText}>+ أنشئ منشوراً</Text>
               </Pressable>
             </View>
           ) : (
-            myPosts.map((post) => (
-              <PostItem
-                key={post.id}
-                post={{
-                  ...post,
-                  liked:    likedPosts.has(post.id),
-                  reposted: repostedPosts.has(post.id),
-                }}
-                onLike={()    => requireAuth(isAuthenticated, 'الإعجاب')     && toggleLike(post.id)}
-                onComment={()  => requireAuth(isAuthenticated, 'التعليق')     && setCommentsPostId(post.id)}
-                onRepost={()   => requireAuth(isAuthenticated, 'إعادة النشر') && toggleRepost(post.id)}
-                onShare={()    => sharePost(post)}
-                onMenu={()     => showPostMenu(post, me, router, deletePost, isAuthenticated)}
-              />
-            ))
-          )
-        )}
-
-        {activeTab === 'listings' && (
-          myListings.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📦</Text>
-              <Text style={styles.emptyText}>لا إعلانات بعد</Text>
-              <Text style={styles.emptyHint}>اضغط + لإضافة إعلانك الأول</Text>
-            </View>
-          ) : (
-            <View>
-              {myListings.map((l) => (
-                <ListingCard
-                  key={l.id}
-                  listing={l}
-                  variant="list"
-                  onPress={() => router.push({ pathname: '/listing/[id]', params: { id: l.id } })}
+            timeline.map((entry) =>
+              entry.kind === 'post' ? (
+                <PostItem
+                  key={entry.id}
+                  post={{
+                    ...entry.data,
+                    liked: likedPosts.has(entry.data.id),
+                    reposted: repostedPosts.has(entry.data.id),
+                    bookmarked: bookmarkedPosts.has(entry.data.id),
+                  }}
+                  onLike={() =>
+                    requireAuth(isAuthenticated, 'الإعجاب') && toggleLike(entry.data.id)
+                  }
+                  onComment={() =>
+                    requireAuth(isAuthenticated, 'التعليق') && setCommentsPostId(entry.data.id)
+                  }
+                  onRepost={() =>
+                    requireAuth(isAuthenticated, 'إعادة النشر') && toggleRepost(entry.data.id)
+                  }
+                  onBookmark={() =>
+                    requireAuth(isAuthenticated, 'الحفظ') && toggleBookmark(entry.data.id)
+                  }
+                  onShare={() => sharePost(entry.data)}
+                  onMenu={() =>
+                    showPostMenu(entry.data, me, router, deletePost, isAuthenticated)
+                  }
                 />
-              ))}
-              <View style={{ height: 80 }} />
-            </View>
-          )
-        )}
+              ) : (
+                <ListingCard
+                  key={entry.id}
+                  listing={entry.data}
+                  variant="list"
+                  onPress={() =>
+                    router.push({ pathname: '/listing/[id]', params: { id: entry.data.id } })
+                  }
+                />
+              ),
+            )
+          )}
+        </View>
+      </ScrollView>
 
-        {activeTab === 'about' && (
-          <View style={styles.aboutWrap}>
-            {[
-              { icon: 'star-outline',           label: 'التقييم',   value: ratingDetail },
-              { icon: 'earth',                  label: 'الدولة',    value: `${country.flag} ${country.ar}` },
-              {
-                icon: 'shield-checkmark-outline',
-                label: 'الحالة',
-                value: me.verified ? '✅ موثّق' : '🔓 غير موثّق',
-              },
-              { icon: 'people-outline',     label: 'المتابعون', value: me.followers.toLocaleString('ar-SA') },
-              { icon: 'person-add-outline', label: 'يتابع',     value: me.following.toLocaleString('ar-SA') },
-            ].map((item, i, arr) => (
-              <View
-                key={item.label}
-                style={[styles.aboutRow, i < arr.length - 1 && styles.aboutRowBorder]}
-              >
-                <AppIcon name={item.icon as string} size={16} color={colors.glow} />
-                <Text style={styles.aboutLabel}>{item.label}</Text>
-                <Text style={styles.aboutValue}>{item.value}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <View style={{ height: 80 + insets.bottom }} />
-      </Animated.ScrollView>
-
-      {/* ── FAB — new listing (only visible on listings tab) ──────────── */}
-      {activeTab === 'listings' && (
-        <Pressable
-          style={[styles.fab, { bottom: 24 + insets.bottom }]}
-          onPress={() => router.push('/create/listing')}
-        >
-          <LinearGradient
-            colors={gradients.royal}
-            style={styles.fabGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <AppIcon name="add" size={26} color="#fff" />
-          </LinearGradient>
-        </Pressable>
-      )}
-
-      {/* Comments modal */}
       <PostCommentsModal
         visible={!!commentsPostId}
         postId={commentsPostId}
@@ -445,16 +393,21 @@ export default function ProfileScreen() {
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
-    root: { flex: 1, backgroundColor: colors.bgDeep },
+    root: {
+      flex: 1,
+      backgroundColor: colors.bgDeep,
+    },
 
-    // ── Cover ──────────────────────────────────────────────────────────────
-    coverWrap: {
+    headerBlock: {
+      backgroundColor: colors.bgDeep,
+    },
+
+    cover: {
       height: COVER_HEIGHT,
-      overflow: 'hidden',
       backgroundColor: colors.bgElevated,
+      overflow: 'hidden',
     },
     cameraBadge: {
       position: 'absolute',
@@ -466,90 +419,49 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: 'rgba(0,0,0,0.5)',
       alignItems: 'center',
       justifyContent: 'center',
-      borderWidth: 1,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: 'rgba(255,255,255,0.25)',
     },
 
-    // ── Avatar row ─────────────────────────────────────────────────────────
-    avatarRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      justifyContent: 'space-between',
+    avatarOverlap: {
+      marginTop: -(AVATAR_SIZE / 2),
       paddingHorizontal: spacing.lg,
-      marginTop: -(AVATAR_SIZE / 2 + 2),
-      paddingBottom: 4,
       zIndex: 2,
     },
-    avatarWrap: { position: 'relative' },
-    avatarRingGradient: {
+    avatarOuter: {
+      alignSelf: 'flex-start',
+      position: 'relative',
+    },
+    avatarRing: {
       width: AVATAR_SIZE + 4,
       height: AVATAR_SIZE + 4,
       borderRadius: (AVATAR_SIZE + 4) / 2,
       padding: 2,
     },
-    avatarInnerWrap: {
+    avatarClip: {
       width: AVATAR_SIZE,
       height: AVATAR_SIZE,
       borderRadius: AVATAR_SIZE / 2,
       overflow: 'hidden',
-      backgroundColor: colors.bgElevated,
       borderWidth: 3,
       borderColor: colors.bgDeep,
+      backgroundColor: colors.bgElevated,
     },
-    avatar: { width: '100%', height: '100%' },
-    verifiedBadge: {
+    avatarImg: {
+      width: '100%',
+      height: '100%',
+    },
+    verifiedDot: {
       position: 'absolute',
-      bottom: 1,
-      right: 1,
-      width: 22,
-      height: 22,
-      borderRadius: 11,
+      bottom: 0,
+      right: 0,
       backgroundColor: colors.bgDeep,
-      alignItems: 'center',
-      justifyContent: 'center',
+      borderRadius: 10,
     },
 
-    // ── Action buttons (compact + modern) ──────────────────────────────────
-    actionRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      paddingBottom: 4,
-    },
-    btnEdit: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 5,
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: radius.pill,
-      borderWidth: 1,
-      borderColor: colors.borderMid,
-      backgroundColor: colors.bgSurface,
-    },
-    btnEditText: {
-      ...typography.micro,
-      color: colors.textSecondary,
-      fontWeight: '700',
-      fontSize: 12,
-    },
-    btnIcon: {
-      width: 33,
-      height: 33,
-      borderRadius: 17,
-      borderWidth: 1,
-      borderColor: colors.borderMid,
-      backgroundColor: colors.bgSurface,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    // ── Info (tight, no gap) ───────────────────────────────────────────────
-    infoWrap: {
+    info: {
       paddingHorizontal: spacing.lg,
-      paddingTop: 2,
-      paddingBottom: 8,
-      gap: 2,
+      paddingTop: spacing.sm,
     },
     nameRow: {
       flexDirection: 'row',
@@ -558,193 +470,155 @@ function createStyles(colors: ThemeColors) {
     },
     displayName: {
       ...typography.h2,
-      fontSize: 19,
-      color: colors.textPrimary,
+      fontSize: 20,
       fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    handleRatingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 2,
     },
     handle: {
-      ...typography.micro,
+      ...typography.caption,
       color: colors.textMuted,
+    },
+    ratingChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+    },
+    ratingText: {
+      ...typography.caption,
+      color: colors.gold,
+      fontWeight: '700',
       fontSize: 12,
     },
     bio: {
-      ...typography.caption,
+      ...typography.body,
       color: colors.textSecondary,
       lineHeight: 20,
-      marginTop: 2,
+      marginTop: 6,
     },
     metaRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 8,
-      marginTop: 4,
+      gap: 12,
+      marginTop: 6,
     },
-    metaChip: {
+    metaItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 3,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: radius.pill,
-      backgroundColor: colors.bgSurface,
+      gap: 4,
     },
     metaText: {
-      ...typography.micro,
+      ...typography.caption,
       color: colors.textMuted,
-      fontSize: 11,
+      fontSize: 12,
     },
 
-    // ── Stats row (compact) ────────────────────────────────────────────────
-    statsRow: {
+    stats: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 10,
-      marginHorizontal: spacing.lg,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.borderHairline,
+      gap: 18,
+      paddingHorizontal: spacing.lg,
+      paddingTop: 12,
     },
-    statItem: {
-      flex: 1,
-      alignItems: 'center',
-      gap: 1,
+    stat: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 4,
     },
     statNum: {
-      ...typography.h3,
+      ...typography.bodyStrong,
       color: colors.textPrimary,
       fontWeight: '800',
-      fontSize: 18,
+      fontSize: 14,
     },
     statLbl: {
-      ...typography.micro,
+      ...typography.caption,
       color: colors.textMuted,
-      textAlign: 'center',
-      fontSize: 10,
-    },
-    statDivider: {
-      width: StyleSheet.hairlineWidth,
-      height: 28,
-      backgroundColor: colors.borderHairline,
+      fontSize: 13,
     },
 
-    // ── Tab bar — صف أفقي واحد ─────────────────────────────────────────────
-    tabBar: {
+    actions: {
       flexDirection: 'row',
-      alignItems: 'stretch',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: spacing.lg,
+      paddingTop: 12,
+      paddingBottom: 10,
+    },
+    btnPrimary: {
+      flex: 1,
+      height: 34,
+      borderRadius: radius.pill,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderMid,
+      backgroundColor: colors.bgSurface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    btnPrimaryText: {
+      ...typography.caption,
+      color: colors.textPrimary,
+      fontWeight: '700',
+    },
+    btnIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderMid,
+      backgroundColor: colors.bgSurface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    // Sticky section header — single "المنشورات" label, no tab switching
+    sectionBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       backgroundColor: colors.bgDeep,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.borderSoft,
-      width: '100%',
+      paddingHorizontal: spacing.lg,
+      height: 44,
     },
-    tabItem: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 13,
-      position: 'relative',
-    },
-    tabLabel: {
-      ...typography.caption,
-      color: colors.textMuted,
-      fontWeight: '600',
-      fontSize: 13,
-      textAlign: 'center',
-    },
-    tabLabelActive: {
+    sectionTitle: {
+      ...typography.bodyStrong,
       color: colors.textPrimary,
       fontWeight: '800',
+      fontSize: 15,
     },
-    tabUnderline: {
-      position: 'absolute',
-      bottom: 0,
-      left: '20%',
-      right: '20%',
-      height: 2.5,
-      borderRadius: 2,
-      backgroundColor: colors.electricBright,
+    body: {
+      backgroundColor: colors.bgDeep,
     },
 
-    // ── Floating Action Button ─────────────────────────────────────────────
-    fab: {
-      position: 'absolute',
-      right: 20,
-      width: 54,
-      height: 54,
-      borderRadius: 27,
-      overflow: 'hidden',
-      // shadow
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 10,
-    },
-    fabGradient: {
-      width: '100%',
-      height: '100%',
+    empty: {
       alignItems: 'center',
       justifyContent: 'center',
-    },
-
-    // ── Empty states ───────────────────────────────────────────────────────
-    emptyState: {
-      alignItems: 'center',
-      paddingVertical: 60,
+      paddingVertical: 48,
       gap: 10,
     },
-    emptyIcon: { fontSize: 40 },
-    emptyText: {
+    emptyTitle: {
       ...typography.body,
       color: colors.textMuted,
-      textAlign: 'center',
-    },
-    emptyHint: {
-      ...typography.caption,
-      color: colors.textSubtle,
-      textAlign: 'center',
     },
     emptyBtn: {
-      paddingHorizontal: spacing.xl,
-      paddingVertical: spacing.md,
+      marginTop: 4,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 10,
       borderRadius: radius.pill,
       backgroundColor: colors.royal,
-      borderWidth: 1,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.electric,
     },
     emptyBtnText: {
       ...typography.bodyStrong,
       color: colors.textBrandStrong,
-    },
-
-    // ── About / Rating ─────────────────────────────────────────────────────
-    aboutWrap: {
-      margin: spacing.lg,
-      backgroundColor: colors.bgSurface,
-      borderRadius: radius.xl,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.borderSoft,
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.xs,
-    },
-    aboutRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.md,
-      paddingVertical: 13,
-    },
-    aboutRowBorder: {
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.borderSoft,
-    },
-    aboutLabel: {
-      flex: 1,
-      ...typography.body,
-      color: colors.textSecondary,
-    },
-    aboutValue: {
-      ...typography.bodyStrong,
-      color: colors.textPrimary,
-      textAlign: 'right',
     },
   });
 }
