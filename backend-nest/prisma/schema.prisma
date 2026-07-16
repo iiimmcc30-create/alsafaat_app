@@ -921,6 +921,7 @@ enum PaymentReferenceType {
   butcher_order
   featured_ad
   pinned_ad
+  commission
 }
 
 enum BoostType {

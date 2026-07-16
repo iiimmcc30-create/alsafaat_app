@@ -83,7 +83,7 @@ export class PaymentsRepository {
     description?: string;
     descriptionAr?: string;
     metadata: Record<string, unknown>;
-    referenceId: string;
+    referenceId?: string;
     referenceType: PaymentReferenceType;
     subscriptionId?: string;
     feeId?: string;
@@ -91,16 +91,18 @@ export class PaymentsRepository {
     const pendingWhere = {
       userId: params.userId,
       status: 'pending' as const,
-      referenceId: params.referenceId,
+      ...(params.referenceId ? { referenceId: params.referenceId } : {}),
       referenceType: params.referenceType,
     };
 
     return this.prisma.$transaction(async (tx) => {
-      const existingPending = await tx.payment.findFirst({
-        where: pendingWhere,
-        orderBy: { createdAt: 'asc' },
-        select: { id: true, checkoutUrl: true, orderId: true },
-      });
+      const existingPending = params.referenceId
+        ? await tx.payment.findFirst({
+            where: pendingWhere,
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, checkoutUrl: true, orderId: true },
+          })
+        : null;
       if (existingPending) return { existingPending };
 
       try {
@@ -391,6 +393,9 @@ export class PaymentsRepository {
           nameAr: order.butcher.nameAr,
         };
       }
+
+      // ── Custom commission payment — no side-effects needed ───────────────
+      // Payment is already marked paid above; we just return processed: true.
 
       // ── Listing boost (featured_ad / pinned_ad) ──────────────────────────
       let boost:

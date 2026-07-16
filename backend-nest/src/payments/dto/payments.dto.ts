@@ -23,6 +23,7 @@ const PAYMENT_TYPES = [
   'fee',
   'listing_fee',
   'butcher_order',
+  'commission',
 ] as const;
 const BILLING_CYCLES = ['monthly', 'yearly'] as const;
 
@@ -43,8 +44,9 @@ export class InitiatePaymentDto {
   @IsEnum(PAYMENT_TYPES)
   type!: (typeof PAYMENT_TYPES)[number];
 
+  @IsOptional()
   @IsUUID()
-  referenceId!: string;
+  referenceId?: string;
 
   @IsOptional()
   @IsString()

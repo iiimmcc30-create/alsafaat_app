@@ -14,6 +14,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -69,6 +70,12 @@ export default function FeesScreen() {
   const [processing, setProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [commissionRules, setCommissionRules] = useState<CommissionRuleRow[]>([]);
+
+  // ─── Custom commission payment state ─────────────────────────────────────
+  const [commissionAmount, setCommissionAmount] = useState('');
+  const [commissionMethod, setCommissionMethod] = useState<NIPaymentMethod>('mada');
+  const [commissionProcessing, setCommissionProcessing] = useState(false);
+  const QUICK_AMOUNTS = [25, 50, 100, 200, 500];
 
   const fetchFees = async () => {
     try {
@@ -220,6 +227,70 @@ export default function FeesScreen() {
       Alert.alert('❌ خطأ في الاتصال', 'تعذر الاتصال بالخادم.');
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const handlePayCommission = async () => {
+    const amount = parseFloat(commissionAmount.replace(/,/g, ''));
+    if (!amount || amount < 1) {
+      Alert.alert('مبلغ غير صالح', 'يرجى إدخال مبلغ لا يقل عن 1 ريال');
+      return;
+    }
+    setCommissionProcessing(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/payments/initiate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          amount,
+          currency: 'SAR',
+          method: commissionMethod,
+          type: 'commission',
+          descriptionAr: `سداد عمولة سرح بمبلغ ${amount} ريال`,
+          description: `Sarh commission payment: ${amount} SAR`,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+
+      if (res.ok && json.success && json.data) {
+        const { checkoutUrl, paymentId, devMode } = json.data as {
+          checkoutUrl?: string;
+          paymentId?: string;
+          devMode?: boolean;
+        };
+
+        if (devMode && paymentId) {
+          const simRes = await fetch(`${API_BASE}/api/payments/${paymentId}/dev-complete`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          const simJson = await simRes.json().catch(() => ({}));
+          if (simRes.ok && simJson.success) {
+            setCommissionAmount('');
+            Alert.alert('✅ شكراً لك', `تم سداد عمولة سرح بمبلغ ${amount} ريال. جزاك الله خيراً!`);
+          } else {
+            Alert.alert('خطأ', simJson.messageAr ?? 'فشل محاكاة الدفع');
+          }
+          return;
+        }
+
+        if (checkoutUrl) {
+          await Linking.openURL(checkoutUrl);
+          setCommissionAmount('');
+          Alert.alert('أكمل الدفع', 'تم فتح صفحة الدفع. بعد إتمام الدفع ستصلك رسالة تأكيد.');
+        } else {
+          Alert.alert('❌ خطأ', 'لم يتم استلام رابط الدفع من الخادم');
+        }
+      } else {
+        Alert.alert('❌ فشل', json.messageAr ?? json.message ?? 'تعذّر إنشاء عملية الدفع');
+      }
+    } catch {
+      Alert.alert('❌ خطأ في الاتصال', 'تعذّر الوصول للخادم');
+    } finally {
+      setCommissionProcessing(false);
     }
   };
 
@@ -396,6 +467,122 @@ export default function FeesScreen() {
               <Text style={styles.infoText}>
                 تُحسب الرسوم عند نشر الإعلان وتُستحق خلال ١٤ يوم. التأخر يوقف الإعلان مؤقتاً.
               </Text>
+            </View>
+
+            {/* ─── Custom Commission Section ─── */}
+            <View style={styles.commissionCard}>
+              <LinearGradient
+                colors={[`${colors.emerald}18`, `${colors.electricBright}10`]}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              />
+              <View style={styles.commissionHeader}>
+                <View style={styles.commissionIconWrap}>
+                  <AppIcon name="heart" size={20} color={colors.textBrandSuccess} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.commissionTitle}>سداد عمولة سرح</Text>
+                  <Text style={styles.commissionSub}>ادعم المنصة بأي مبلغ تراه مناسباً</Text>
+                </View>
+              </View>
+
+              {/* Quick amount chips */}
+              <View style={styles.quickAmountsRow}>
+                {QUICK_AMOUNTS.map((amt) => (
+                  <Pressable
+                    key={amt}
+                    onPress={() => setCommissionAmount(String(amt))}
+                    style={[
+                      styles.quickChip,
+                      commissionAmount === String(amt) && {
+                        borderColor: colors.electricBright,
+                        backgroundColor: `${colors.electricBright}18`,
+                      },
+                    ]}
+                  >
+                    <Text style={[
+                      styles.quickChipText,
+                      commissionAmount === String(amt) && { color: colors.electricBright },
+                    ]}>
+                      {amt} ريال
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Custom amount input */}
+              <View style={styles.amountInputWrap}>
+                <Text style={styles.amountInputLabel}>أو أدخل مبلغاً مخصصاً</Text>
+                <View style={styles.amountInputRow}>
+                  <Text style={styles.amountCurrencyLabel}>ريال</Text>
+                  <TextInput
+                    style={styles.amountInput}
+                    value={commissionAmount}
+                    onChangeText={(v) => setCommissionAmount(v.replace(/[^0-9.]/g, ''))}
+                    placeholder="0"
+                    placeholderTextColor={colors.textSubtle}
+                    keyboardType="numeric"
+                    textAlign="right"
+                    maxLength={8}
+                  />
+                </View>
+              </View>
+
+              {/* Payment method mini-selector */}
+              <Text style={styles.commissionMethodLabel}>طريقة السداد</Text>
+              <View style={styles.commissionMethodRow}>
+                {PAYMENT_METHODS.map((m) => (
+                  <Pressable
+                    key={m.id}
+                    onPress={() => setCommissionMethod(m.id)}
+                    style={[
+                      styles.commissionMethodChip,
+                      commissionMethod === m.id && { borderColor: m.color, backgroundColor: `${m.color}15` },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 14 }}>{m.icon}</Text>
+                    <Text style={[
+                      styles.commissionMethodLabel2,
+                      commissionMethod === m.id && { color: m.color },
+                    ]}>
+                      {m.arabic}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Pay CTA */}
+              <Pressable
+                onPress={handlePayCommission}
+                disabled={commissionProcessing || !commissionAmount}
+                style={[
+                  styles.commissionPayBtn,
+                  (!commissionAmount || commissionProcessing) && { opacity: 0.55 },
+                ]}
+              >
+                <LinearGradient
+                  colors={[colors.electric, colors.electricBright, colors.electric]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.commissionPayBtnInner}
+                >
+                  {commissionProcessing ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <AppIcon name="shield-check" size={18} color="#fff" />
+                      <Text style={styles.commissionPayBtnText}>
+                        سدّد العمولة
+                        {commissionAmount ? ` · ${commissionAmount} ريال` : ''}
+                      </Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </Pressable>
+
+              <View style={styles.commissionNiBadge}>
+                <AppIcon name="lock" size={11} color={colors.textSubtle} />
+                <Text style={styles.commissionNiText}>دفع آمن عبر Network International · PCI-DSS Level 1</Text>
+              </View>
             </View>
           </>
         )}
@@ -1025,5 +1212,104 @@ function createStyles(colors: ThemeColors) {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
   },
   niBadgeText: { ...typography.micro, color: colors.textSubtle },
+
+  // ─── Custom Commission Section ────────────────────────────────────────────
+  commissionCard: {
+    marginTop: spacing.xl,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: `${colors.emerald}30`,
+    overflow: 'hidden',
+    padding: spacing.xl,
+    gap: spacing.lg,
+  },
+  commissionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  commissionIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: `${colors.emerald}20`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: `${colors.emerald}35`,
+  },
+  commissionTitle: { ...typography.h3, color: colors.textPrimary },
+  commissionSub:   { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+  quickAmountsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  quickChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.bgSurface,
+  },
+  quickChipText: { ...typography.caption, color: colors.textMuted, fontWeight: '600' },
+  amountInputWrap: { gap: spacing.sm },
+  amountInputLabel: { ...typography.micro, color: colors.textMuted },
+  amountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bgSurface,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.borderMid,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 2,
+    gap: spacing.sm,
+  },
+  amountCurrencyLabel: { ...typography.caption, color: colors.textMuted, fontWeight: '700' },
+  amountInput: {
+    flex: 1,
+    fontSize: 28,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    paddingVertical: spacing.sm,
+    textAlignVertical: 'center',
+  },
+  commissionMethodLabel:  { ...typography.micro, color: colors.textMuted, fontWeight: '600' },
+  commissionMethodRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  commissionMethodChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.bgSurface,
+  },
+  commissionMethodLabel2: { ...typography.micro, color: colors.textMuted },
+  commissionPayBtn: { borderRadius: radius.xl, overflow: 'hidden' },
+  commissionPayBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: spacing.lg,
+    borderRadius: radius.xl,
+  },
+  commissionPayBtnText: { ...typography.bodyStrong, color: '#fff', fontSize: 16 },
+  commissionNiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  commissionNiText: { ...typography.micro, color: colors.textSubtle },
   });
 }

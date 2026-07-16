@@ -151,6 +151,11 @@ export class PaymentsService implements OnApplicationBootstrap, OnApplicationShu
       return;
     }
 
+    if (type === 'commission') {
+      // Custom commission payments — user enters any amount; no linked record required.
+      return;
+    }
+
     throwApi(400, 'invalid_type', 'نوع الدفع غير صالح');
   }
 
@@ -191,14 +196,17 @@ export class PaymentsService implements OnApplicationBootstrap, OnApplicationShu
       }
     }
 
-    await this.checkReference(user.userId, type, referenceId, amount, planId);
+    if (type !== 'commission') {
+      if (!referenceId) throwApi(400, 'ref_required', 'معرّف المرجع مطلوب');
+      await this.checkReference(user.userId, type, referenceId, amount, planId);
+    }
 
     const orderReference = buildNIOrderReference(user.userId);
     const contact = await this.repo.findUserContact(user.userId);
 
     const paymentMetadata: Record<string, unknown> = {
       type,
-      referenceId,
+      ...(referenceId ? { referenceId } : {}),
       userId: user.userId,
       ...(type === 'subscription' && planId && billingCycle
         ? { targetPlanId: planId, billingCycle }
@@ -577,6 +585,14 @@ export class PaymentsService implements OnApplicationBootstrap, OnApplicationShu
             titleAr: isFeatured ? '⭐ تم تمييز إعلانك' : '📌 تم تثبيت إعلانك',
             bodyAr: `إعلانك ${isFeatured ? 'مميز' : 'مثبّت'} حتى ${b.expiresAt.toLocaleDateString('ar-SA')}.`,
             data: { boostId: b.id, listingId: b.listingId, boostType: b.boostType },
+          });
+        } else if (type === 'commission') {
+          await this.notifications.notifyUser({
+            userId,
+            type: 'system',
+            titleAr: '✅ شكراً على دعمك لسرح',
+            bodyAr: `تم استلام عمولتك بمبلغ ${payment.amount} ${payment.currency}. رقم العملية: ${niTransactionId}`,
+            data: { paymentId: payment.id, transactionId: niTransactionId, type: 'commission' },
           });
         } else {
           await this.notifications.notifyUser({
