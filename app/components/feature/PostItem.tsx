@@ -1,7 +1,6 @@
-// SAFAT — Modern Post Card (X / Threads / Instagram-grade polish)
-// White elevated card, soft shadow, generous spacing, expandable text,
-// media carousel/video, and a redesigned interaction bar where green is
-// reserved strictly for the active state.
+// SAFAT — Post card (X / Twitter-identical layout)
+// Flat list row — no card, no shadow, hairline bottom separator.
+// Avatar right (RTL) → single meta line (name · @handle · time · ⋯) → body → actions.
 import { AppIcon } from '@/components/ui/FlaticonIcon';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { Image, uriSource } from '@/components/ui/AppImage';
@@ -14,7 +13,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { rtlRow } from '@/lib/rtl';
 import { formatPostTimestampAr } from '@/lib/formatRelativeTime';
@@ -32,20 +31,62 @@ interface PostItemProps {
   onBookmark?: () => void;
 }
 
-const TEXT_COLLAPSE_LENGTH = 220;
+const TEXT_COLLAPSE_LINES = 8;
 
 function formatCount(n: number): string {
   if (n >= 1_000_000) {
     const v = n / 1_000_000;
-    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1).replace(/\.0$/, '')}M`;
+    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}م`;
   }
   if (n >= 1_000) {
     const v = n / 1_000;
-    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1).replace(/\.0$/, '')}K`;
+    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}ألف`;
   }
   return String(n);
 }
 
+/** Render text with hashtags (#كلمة) in brand colour. */
+function PostBody({ text, style, lines }: { text: string; style: TextStyle; lines?: number }) {
+  const parts = useMemo(() => {
+    const tokens: { text: string; isTag: boolean }[] = [];
+    const re = /(#[\u0600-\u06FF\w]+)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) tokens.push({ text: text.slice(last, m.index), isTag: false });
+      tokens.push({ text: m[0], isTag: true });
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) tokens.push({ text: text.slice(last), isTag: false });
+    return tokens;
+  }, [text]);
+
+  if (parts.length === 1 && !parts[0].isTag) {
+    return (
+      <Text style={style} numberOfLines={lines}>
+        {text}
+      </Text>
+    );
+  }
+
+  return (
+    <Text style={style} numberOfLines={lines}>
+      {parts.map((p, i) =>
+        p.isTag ? (
+          <Text key={i} style={[style, { color: '#1D9BF0' }]}>
+            {p.text}
+          </Text>
+        ) : (
+          <Text key={i}>{p.text}</Text>
+        ),
+      )}
+    </Text>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Animated action button (Scale + opacity on press)
+// ─────────────────────────────────────────────────────────────────────────────
 function ActionBtn({
   icon,
   iconColor,
@@ -54,7 +95,7 @@ function ActionBtn({
   onPress,
   style,
   countStyle,
-  size = 22,
+  size = 19,
 }: {
   icon: string;
   iconColor: string;
@@ -68,49 +109,38 @@ function ActionBtn({
   const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(1)).current;
 
-  const handlePressIn = useCallback(() => {
+  const pressIn = useCallback(() => {
     Animated.parallel([
-      Animated.spring(scale, { toValue: 0.8, useNativeDriver: true, speed: 40, bounciness: 6 }),
-      Animated.timing(opacity, { toValue: 0.55, duration: 90, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 0.78, useNativeDriver: true, speed: 40, bounciness: 0 }),
+      Animated.timing(opacity, { toValue: 0.5, duration: 80, useNativeDriver: true }),
     ]).start();
   }, [scale, opacity]);
 
-  const handlePressOut = useCallback(() => {
+  const pressOut = useCallback(() => {
     Animated.parallel([
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 26, bounciness: 8 }),
-      Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 22, bounciness: 10 }),
+      Animated.timing(opacity, { toValue: 1, duration: 160, useNativeDriver: true }),
     ]).start();
   }, [scale, opacity]);
 
   return (
-    <Pressable
-      style={style}
-      onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      hitSlop={8}
-    >
-      <Animated.View style={{ transform: [{ scale }], opacity }}>
+    <Pressable style={style} onPress={onPress} onPressIn={pressIn} onPressOut={pressOut} hitSlop={10}>
+      <Animated.View style={[{ transform: [{ scale }], opacity }, rtlRow, { alignItems: 'center', gap: 4 }]}>
         <AppIcon name={icon} size={size} color={iconColor} />
+        {count !== undefined && count > 0 ? (
+          <Text style={[countStyle, { color: textColor }]}>{formatCount(count)}</Text>
+        ) : null}
       </Animated.View>
-      {count !== undefined && count > 0 ? (
-        <Text style={[countStyle, { color: textColor }]}>{formatCount(count)}</Text>
-      ) : null}
     </Pressable>
   );
 }
 
-function PostItemComponent({
-  post,
-  onLike,
-  onComment,
-  onRepost,
-  onShare,
-  onMenu,
-  onBookmark,
-}: PostItemProps) {
+// ─────────────────────────────────────────────────────────────────────────────
+// Post Item
+// ─────────────────────────────────────────────────────────────────────────────
+function PostItemComponent({ post, onLike, onComment, onRepost, onShare, onMenu, onBookmark }: PostItemProps) {
   const { styles, colors, scheme } = useThemedStyles((theme) => ({
-    styles: createStyles(theme.colors, theme.scheme),
+    styles: createStyles(theme.colors),
     colors: theme.colors,
     scheme: theme.scheme,
   }));
@@ -129,118 +159,136 @@ function PostItemComponent({
   );
 
   const bodyText = post.arabicContent || post.content;
-  const isLong = bodyText.length > TEXT_COLLAPSE_LENGTH;
 
   return (
-    <View style={styles.card}>
-      <View style={styles.headerRow}>
-        <UserProfileLink userId={post.author.id}>
-          <Image source={uriSource(post.author.avatar)} style={styles.avatar} contentFit="cover" />
-        </UserProfileLink>
+    <View style={styles.row}>
+      {/* ── Avatar ─────────────────────────────── */}
+      <UserProfileLink userId={post.author.id}>
+        <Image source={uriSource(post.author.avatar)} style={styles.avatar} contentFit="cover" />
+      </UserProfileLink>
 
-        <UserProfileLink userId={post.author.id} style={styles.headerInfo}>
-          <View style={styles.nameRow}>
+      {/* ── Main column ────────────────────────── */}
+      <View style={styles.main}>
+
+        {/* Meta line: [name @handle · time] [⋯] */}
+        <View style={styles.metaLine}>
+          <UserProfileLink userId={post.author.id} style={styles.metaInfo}>
             <Text style={styles.name} numberOfLines={1}>
               {post.author.arabicName}
             </Text>
             {post.author.verified ? (
-              <AppIcon name="checkmark-circle" size={15} color={colors.electricBright} />
+              <AppIcon name="checkmark-circle" size={14} color={colors.electricBright} />
             ) : null}
             {post.author.isAI ? (
               <View style={styles.aiBadge}>
-                <Text style={styles.aiBadgeText}>مدعوم بالذكاء الاصطناعي</Text>
+                <Text style={styles.aiBadgeText}>AI</Text>
               </View>
             ) : null}
-          </View>
-          <View style={styles.subRow}>
-            <Text style={styles.username} numberOfLines={1}>
-              @{post.author.username}
+            <Text style={styles.metaMuted} numberOfLines={1}>
+              {'@' + post.author.username}
             </Text>
-            <Text style={styles.dot}>·</Text>
-            <Text style={styles.time} numberOfLines={1}>
+            <Text style={styles.metaDot}>·</Text>
+            <Text style={styles.metaMuted} numberOfLines={1}>
               {timestamp}
             </Text>
-          </View>
-        </UserProfileLink>
+          </UserProfileLink>
 
-        <Pressable
-          hitSlop={10}
-          onPress={onMenu}
-          style={({ pressed }) => [styles.menuBtn, pressed && styles.menuBtnPressed]}
-        >
-          <AppIcon name="ellipsis-horizontal" size={20} color={colors.textMuted} />
-        </Pressable>
-      </View>
-
-      <View style={styles.content}>
-        <Text style={styles.body} numberOfLines={expanded || !isLong ? undefined : 5}>
-          {bodyText}
-        </Text>
-        {isLong ? (
-          <Pressable onPress={() => setExpanded((e) => !e)} hitSlop={6}>
-            <Text style={styles.showMore}>{expanded ? 'عرض أقل' : 'عرض المزيد'}</Text>
+          <Pressable
+            hitSlop={12}
+            onPress={onMenu}
+            style={({ pressed }) => [styles.menuBtn, pressed && styles.menuBtnPressed]}
+          >
+            <AppIcon name="ellipsis-horizontal" size={18} color={colors.textSubtle} />
           </Pressable>
+        </View>
+
+        {/* Body text */}
+        <PostBody
+          text={bodyText}
+          style={styles.body}
+          lines={expanded ? undefined : TEXT_COLLAPSE_LINES}
+        />
+        {bodyText.split('\n').length > TEXT_COLLAPSE_LINES ||
+        bodyText.length > 400 ? (
+          !expanded ? (
+            <Pressable onPress={() => setExpanded(true)} hitSlop={6}>
+              <Text style={styles.showMore}>عرض المزيد</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => setExpanded(false)} hitSlop={6}>
+              <Text style={styles.showMore}>عرض أقل</Text>
+            </Pressable>
+          )
         ) : null}
-      </View>
 
-      {images.length > 0 || post.video ? (
-        <View style={styles.mediaWrap}>
-          <PostMediaGallery images={images} video={post.video} colors={colors} scheme={scheme} />
-        </View>
-      ) : null}
+        {/* Media */}
+        {images.length > 0 || post.video ? (
+          <View style={styles.mediaWrap}>
+            <PostMediaGallery images={images} video={post.video} colors={colors} scheme={scheme} />
+          </View>
+        ) : null}
 
-      <View style={styles.actions}>
-        <ActionBtn
-          icon={post.liked ? 'heart' : 'heart-outline'}
-          iconColor={post.liked ? colors.electricBright : colors.textMuted}
-          textColor={post.liked ? colors.electricBright : colors.textMuted}
-          count={post.likes}
-          onPress={onLike}
-          style={styles.actionBtn}
-          countStyle={styles.actionCount}
-        />
-        <ActionBtn
-          icon="chatbubble-outline"
-          iconColor={colors.textMuted}
-          textColor={colors.textMuted}
-          count={post.comments}
-          onPress={onComment}
-          style={styles.actionBtn}
-          countStyle={styles.actionCount}
-        />
-        <ActionBtn
-          icon="repeat-outline"
-          iconColor={post.reposted ? colors.electricBright : colors.textMuted}
-          textColor={post.reposted ? colors.electricBright : colors.textMuted}
-          count={post.reposts}
-          onPress={onRepost}
-          style={styles.actionBtn}
-          countStyle={styles.actionCount}
-        />
-        <ActionBtn
-          icon={post.bookmarked ? 'bookmark' : 'bookmark-outline'}
-          iconColor={post.bookmarked ? colors.electricBright : colors.textMuted}
-          textColor={post.bookmarked ? colors.electricBright : colors.textMuted}
-          onPress={onBookmark ?? (() => {})}
-          style={styles.actionBtn}
-          countStyle={styles.actionCount}
-        />
-        <View style={styles.viewsBtn}>
-          <AppIcon name="eye-outline" size={20} color={colors.textSubtle} />
-          {post.views ? (
-            <Text style={[styles.actionCount, { color: colors.textSubtle }]}>
-              {formatCount(post.views)}
-            </Text>
-          ) : null}
+        {/* Action bar */}
+        <View style={styles.actions}>
+          {/* Comment */}
+          <ActionBtn
+            icon="chatbubble-outline"
+            iconColor={colors.textSubtle}
+            textColor={colors.textSubtle}
+            count={post.comments}
+            onPress={onComment}
+            style={styles.actionBtn}
+            countStyle={styles.actionCount}
+          />
+          {/* Repost */}
+          <ActionBtn
+            icon="repeat-outline"
+            iconColor={post.reposted ? colors.electricBright : colors.textSubtle}
+            textColor={post.reposted ? colors.electricBright : colors.textSubtle}
+            count={post.reposts}
+            onPress={onRepost}
+            style={styles.actionBtn}
+            countStyle={styles.actionCount}
+          />
+          {/* Like */}
+          <ActionBtn
+            icon={post.liked ? 'heart' : 'heart-outline'}
+            iconColor={post.liked ? colors.rose : colors.textSubtle}
+            textColor={post.liked ? colors.rose : colors.textSubtle}
+            count={post.likes}
+            onPress={onLike}
+            style={styles.actionBtn}
+            countStyle={styles.actionCount}
+          />
+          {/* Views / Stats */}
+          <ActionBtn
+            icon="stats-chart-outline"
+            iconColor={colors.textSubtle}
+            textColor={colors.textSubtle}
+            count={post.views ?? (post.likes + post.reposts + post.comments > 0 ? post.likes + post.reposts + post.comments : undefined)}
+            onPress={() => {}}
+            style={styles.actionBtn}
+            countStyle={styles.actionCount}
+          />
+          {/* Bookmark */}
+          <ActionBtn
+            icon={post.bookmarked ? 'bookmark' : 'bookmark-outline'}
+            iconColor={post.bookmarked ? colors.electricBright : colors.textSubtle}
+            textColor={colors.textSubtle}
+            onPress={onBookmark ?? (() => {})}
+            style={styles.actionBtn}
+            countStyle={styles.actionCount}
+          />
+          {/* Share */}
+          <ActionBtn
+            icon="share-outline"
+            iconColor={colors.textSubtle}
+            textColor={colors.textSubtle}
+            onPress={onShare}
+            style={styles.actionBtn}
+            countStyle={styles.actionCount}
+          />
         </View>
-        <ActionBtn
-          icon="share-outline"
-          iconColor={colors.textMuted}
-          textColor={colors.textMuted}
-          onPress={onShare}
-          style={styles.actionBtn}
-          countStyle={styles.actionCount}
-        />
       </View>
     </View>
   );
@@ -275,134 +323,128 @@ function arePropsEqual(prev: PostItemProps, next: PostItemProps): boolean {
 
 export const PostItem = memo(PostItemComponent, arePropsEqual);
 
-function createStyles(colors: ThemeColors, scheme: 'light' | 'dark') {
-  const cardBg = scheme === 'dark' ? colors.bgElevated : colors.bgDeep;
-
+function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
-    card: {
-      backgroundColor: cardBg,
-      borderRadius: radius.lg,
-      marginHorizontal: spacing.md,
-      marginBottom: spacing.md,
-      padding: spacing.lg,
-      borderWidth: scheme === 'dark' ? StyleSheet.hairlineWidth : 0,
-      borderColor: colors.borderHairline,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: scheme === 'dark' ? 0.4 : 0.07,
-      shadowRadius: 16,
-      elevation: scheme === 'dark' ? 2 : 3,
-    },
-    headerRow: {
+    // Full-width flat row, hairline separator at bottom — exactly like X
+    row: {
       ...rtlRow,
-      alignItems: 'center',
-      gap: spacing.md,
+      alignItems: 'flex-start',
+      paddingHorizontal: spacing.md,
+      paddingTop: 12,
+      paddingBottom: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.borderHairline,
+      gap: 10,
+      backgroundColor: colors.bgDeep,
     },
+
     avatar: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       backgroundColor: colors.bgElevated,
+      flexShrink: 0,
+      marginTop: 1,
     },
-    headerInfo: {
+
+    main: {
       flex: 1,
       minWidth: 0,
     },
-    nameRow: {
+
+    // Single line: [name · @handle · time] [⋯]
+    metaLine: {
       ...rtlRow,
       alignItems: 'center',
-      flexWrap: 'wrap',
-      gap: 4,
+      justifyContent: 'space-between',
+    },
+    metaInfo: {
+      ...rtlRow,
+      alignItems: 'center',
+      flex: 1,
+      flexWrap: 'nowrap',
+      gap: 3,
+      minWidth: 0,
+      overflow: 'hidden',
     },
     name: {
-      ...typography.bodyStrong,
+      fontSize: 15,
+      fontWeight: '700',
       color: colors.textPrimary,
-      fontSize: 15.5,
-      fontWeight: '600',
+      flexShrink: 1,
+    },
+    metaMuted: {
+      fontSize: 14,
+      color: colors.textMuted,
+      flexShrink: 1,
+    },
+    metaDot: {
+      fontSize: 14,
+      color: colors.textSubtle,
+      flexShrink: 0,
     },
     aiBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-      borderRadius: radius.pill,
-      backgroundColor: colors.electric + '22',
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 4,
+      backgroundColor: colors.electric + '25',
       borderWidth: 1,
       borderColor: colors.electric + '55',
     },
     aiBadgeText: {
-      ...typography.micro,
+      fontSize: 10,
+      fontWeight: '800',
       color: colors.electricBright,
-      fontWeight: '700',
     },
-    subRow: {
-      ...rtlRow,
-      alignItems: 'center',
-      gap: 4,
-      marginTop: 1,
-    },
-    username: {
-      ...typography.caption,
-      color: colors.textMuted,
-      fontSize: 13,
-    },
-    dot: {
-      color: colors.textSubtle,
-      fontSize: 12,
-    },
-    time: {
-      ...typography.caption,
-      color: colors.textMuted,
-      fontSize: 13,
-    },
+
     menuBtn: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
+      flexShrink: 0,
     },
     menuBtnPressed: {
       backgroundColor: colors.bgElevated,
     },
-    content: {
-      marginTop: spacing.md,
-    },
+
     body: {
       ...typography.body,
+      fontSize: 15,
+      lineHeight: 22,
       color: colors.textPrimary,
-      fontSize: 16,
-      lineHeight: 24,
       textAlign: 'right',
-    },
-    showMore: {
-      ...typography.caption,
-      color: colors.electricBright,
-      fontWeight: '700',
+      writingDirection: 'rtl',
       marginTop: 4,
     },
-    mediaWrap: {
-      marginTop: spacing.md,
+    showMore: {
+      fontSize: 14,
+      color: colors.electricBright,
+      fontWeight: '600',
+      marginTop: 3,
     },
+
+    mediaWrap: {
+      marginTop: 10,
+      borderRadius: 14,
+      overflow: 'hidden',
+    },
+
+    // Action bar — 6 items spread evenly, exactly like X
     actions: {
       ...rtlRow,
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginTop: spacing.lg,
+      marginTop: 10,
     },
     actionBtn: {
-      ...rtlRow,
-      alignItems: 'center',
-      gap: 5,
-      minWidth: 34,
-    },
-    viewsBtn: {
-      ...rtlRow,
-      alignItems: 'center',
-      gap: 5,
-      minWidth: 34,
+      flexShrink: 0,
+      minWidth: 36,
     },
     actionCount: {
-      fontSize: 12.5,
-      fontWeight: '600',
+      fontSize: 13,
+      fontWeight: '500',
     },
   });
 }
