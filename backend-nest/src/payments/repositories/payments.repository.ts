@@ -423,4 +423,40 @@ export class PaymentsRepository {
       where: { id: paymentId, userId },
     });
   }
+
+  findPaymentByIdFull(paymentId: string) {
+    return this.prisma.payment.findUnique({
+      where: { id: paymentId },
+    });
+  }
+
+  /**
+   * Returns pending payments that:
+   *  - were created more than `olderThanMinutes` ago
+   *  - already have a transactionId / orderId (i.e. NI knows about them)
+   * These are candidates for status polling.
+   */
+  findStalePendingPayments(olderThanMinutes = 10) {
+    const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000);
+    return this.prisma.payment.findMany({
+      where: {
+        status: 'pending',
+        createdAt: { lt: cutoff },
+        orderId: { not: null },
+      },
+      select: {
+        id: true,
+        orderId: true,
+        transactionId: true,
+        userId: true,
+        referenceType: true,
+        referenceId: true,
+        amount: true,
+        currency: true,
+        metadata: true,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    });
+  }
 }

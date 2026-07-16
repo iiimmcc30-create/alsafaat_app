@@ -46,6 +46,23 @@ export class PaymentsController {
     return successResponse(await this.payments.simulateDevPayment(user, id));
   }
 
+  /**
+   * POST /api/payments/:id/sync
+   * Polls Network International for the current status of a pending payment
+   * and updates orders / subscriptions automatically.
+   * Call this after returning from the NI checkout page if the webhook
+   * hasn't fired yet (race condition, slow network, etc.).
+   */
+  @RateLimit('payment')
+  @Post(':id/sync')
+  @HttpCode(200)
+  async syncStatus(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    return successResponse(await this.payments.syncPayment(user, id));
+  }
+
   @RawBody()
   @Public()
   @Post('webhook')

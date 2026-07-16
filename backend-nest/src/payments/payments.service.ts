@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import axios from 'axios';
 import crypto from 'crypto';
 import { PaymentReferenceType, PlanAudience } from '@prisma/client';
@@ -55,8 +55,23 @@ function verifyNISignature(
   }
 }
 
+// ── NI order state → local outcome ──────────────────────────────────────────
+function niStateIsSuccess(state: string): boolean {
+  return ['CAPTURED', 'AUTHORISED', 'PURCHASED', 'PAID'].includes(
+    state.toUpperCase(),
+  );
+}
+function niStateIsFailure(state: string): boolean {
+  return ['FAILED', 'REVERSED', 'CANCELLED', 'EXPIRED'].includes(
+    state.toUpperCase(),
+  );
+}
+
+const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;  // every 5 min
+const STALE_AFTER_MINUTES   = 10;              // payments older than 10 min
+
 @Injectable()
-export class PaymentsService {
+export class PaymentsService implements OnApplicationBootstrap, OnApplicationShutdown {
   constructor(
     private readonly repo: PaymentsRepository,
     private readonly logger: LoggerService,
@@ -594,6 +609,157 @@ export class PaymentsService {
         { paymentId: payment.id, eventType },
         'NI Payment failed',
       );
+    }
+  }
+
+  // ── Auto-sync lifecycle ────────────────────────────────────────────────────
+
+  private syncTimer: ReturnType<typeof setInterval> | null = null;
+
+  onApplicationBootstrap() {
+    const isDev =
+      !process.env.NI_API_KEY ||
+      process.env.NI_API_KEY.startsWith('test_') ||
+      process.env.NODE_ENV !== 'production';
+    if (isDev) return; // only run in production with real NI keys
+
+    this.syncTimer = setInterval(() => {
+      void this.runAutoSync();
+    }, AUTO_SYNC_INTERVAL_MS);
+
+    this.logger.info({}, `Payment auto-sync started (every ${AUTO_SYNC_INTERVAL_MS / 60000} min)`);
+  }
+
+  onApplicationShutdown() {
+    if (this.syncTimer) clearInterval(this.syncTimer);
+  }
+
+  /**
+   * Runs every AUTO_SYNC_INTERVAL_MS in production.
+   * Finds stale pending payments and polls NI for their current status.
+   */
+  private async runAutoSync() {
+    try {
+      const stalePending = await this.repo.findStalePendingPayments(STALE_AFTER_MINUTES);
+      if (!stalePending.length) return;
+
+      this.logger.info({ count: stalePending.length }, 'Payment auto-sync: checking stale payments');
+
+      await Promise.allSettled(
+        stalePending.map((p) => this.syncPaymentByOrderRef(p.id, p.orderId ?? '')),
+      );
+    } catch (err) {
+      this.logger.error({ err }, 'Payment auto-sync error');
+    }
+  }
+
+  /**
+   * Manual sync: fetch order status from NI and update local DB.
+   * Exposed as POST /api/payments/:id/sync (authenticated, own payment only).
+   */
+  async syncPayment(user: JwtPayload, paymentId: string) {
+    const payment = await this.repo.findPaymentOwnedByUser(paymentId, user.userId);
+    if (!payment) throwApi(404, 'not_found', 'الدفعة غير موجودة');
+    if (payment.status !== 'pending') {
+      return { paymentId: payment.id, status: payment.status, synced: false };
+    }
+
+    const orderRef = payment.orderId;
+    if (!orderRef) throwApi(400, 'no_order_ref', 'لا يوجد رقم مرجعي للطلب');
+
+    return this.syncPaymentByOrderRef(paymentId, orderRef);
+  }
+
+  /**
+   * Core sync logic: query NI → update DB → send notifications.
+   */
+  private async syncPaymentByOrderRef(paymentId: string, orderRef: string) {
+    const isDev =
+      !process.env.NI_API_KEY ||
+      process.env.NI_API_KEY.startsWith('test_') ||
+      process.env.NODE_ENV !== 'production';
+
+    if (isDev) {
+      return { paymentId, status: 'pending', synced: false, devMode: true };
+    }
+
+    try {
+      const niRes = await axios.get(
+        `${process.env.NI_BASE_URL}/outlets/${process.env.NI_OUTLET_ID}/orders/${orderRef}`,
+        {
+          headers: {
+            Authorization: `Basic ${Buffer.from(`${process.env.NI_API_KEY}:`).toString('base64')}`,
+            Accept: 'application/json',
+          },
+          timeout: 10_000,
+        },
+      );
+
+      const order = niRes.data as Record<string, unknown>;
+      const state = String((order.state ?? order.status ?? '') as string).toUpperCase();
+      const niTxId = String(order.reference ?? order.transactionId ?? orderRef);
+
+      const payment = await this.repo.findPaymentByIdFull(paymentId);
+      if (!payment || payment.status !== 'pending') {
+        return { paymentId, status: payment?.status ?? 'unknown', synced: false };
+      }
+
+      const storedMeta = (payment.metadata ?? {}) as Record<string, unknown>;
+      const type       = payment.referenceType ?? (storedMeta.type as string | undefined);
+      const referenceId = payment.referenceId ?? (storedMeta.referenceId as string | undefined);
+      const userId     = payment.userId ?? (storedMeta.userId as string | undefined) ?? '';
+      const targetPlanId = (storedMeta.targetPlanId as string | undefined);
+      const billingCycle = (storedMeta.billingCycle as string | undefined) ?? 'monthly';
+
+      if (niStateIsSuccess(state)) {
+        const fulfillment = await this.repo.processSuccessfulPayment({
+          paymentId,
+          niTransactionId: niTxId,
+          type,
+          referenceId,
+          userId,
+          targetPlanId,
+          billingCycle,
+          storedMeta,
+        });
+
+        if (fulfillment.processed) {
+          await this.subscriptionCache.invalidate(userId);
+          await this.notifications.notifyUser({
+            userId,
+            type: 'system',
+            titleAr: '✅ تم الدفع بنجاح',
+            bodyAr: `تم تأكيد دفعتك — رقم العملية: ${niTxId}`,
+            data: { paymentId, transactionId: niTxId },
+          });
+          this.logger.info({ paymentId, orderRef, state }, 'Payment synced → paid');
+        }
+        return { paymentId, status: 'paid', synced: fulfillment.processed };
+      }
+
+      if (niStateIsFailure(state)) {
+        await this.repo.markPaymentFailedById(paymentId);
+        if (type === 'subscription' && targetPlanId) {
+          await this.subscriptionLifecycle.notifyRenewalFailed(userId, targetPlanId);
+        } else {
+          await this.notifications.notifyUser({
+            userId,
+            type: 'system',
+            titleAr: '❌ لم يتم الدفع',
+            bodyAr: 'لم تكتمل عملية الدفع. يرجى المحاولة مجدداً.',
+            data: { paymentId },
+          });
+        }
+        this.logger.warn({ paymentId, orderRef, state }, 'Payment synced → failed');
+        return { paymentId, status: 'failed', synced: true };
+      }
+
+      // Still pending on NI side
+      return { paymentId, status: 'pending', synced: false, niState: state };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error({ err: message, paymentId, orderRef }, 'NI sync API error');
+      throwApi(502, 'sync_error', 'تعذر الاتصال ببوابة الدفع للتحقق من الحالة');
     }
   }
 
