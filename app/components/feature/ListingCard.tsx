@@ -308,11 +308,6 @@ function createStyles(colors: ThemeColors) {
     marginVertical: 5,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderHairline,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 3,
   },
   listContent: {
     flex: 1,
