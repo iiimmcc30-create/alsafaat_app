@@ -596,33 +596,61 @@ export default function CreateListingScreen() {
             <View style={styles.modalSheet}>
               {/* Header */}
               <View style={styles.modalHeader}>
-                <Pressable onPress={() => setShowPledge(false)} style={styles.modalCloseBtn} hitSlop={8}>
-                  <Text style={styles.modalCloseX}>✕</Text>
-                </Pressable>
-                <View style={styles.modalHeaderText}>
-                  <Text style={styles.modalTitle}>📜 تعهد النشر</Text>
-                  <Text style={styles.modalSubtitle}>يجب قراءة التعهد والموافقة عليه</Text>
+                <View style={styles.pledgeHeaderIcon}>
+                  <AppIcon name="shield-check" size={24} color="#FFFFFF" />
                 </View>
+                <View style={styles.modalHeaderText}>
+                  <Text style={styles.modalTitle}>تعهد نشر الإعلان</Text>
+                  <Text style={styles.modalSubtitle}>الشفافية تحفظ حقوق البائع والمشتري</Text>
+                </View>
+                <Pressable onPress={() => setShowPledge(false)} style={styles.modalCloseBtn} hitSlop={8}>
+                  <AppIcon name="close" size={18} color="#FFFFFF" />
+                </Pressable>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={styles.modalScroll}
+                contentContainerStyle={styles.modalScrollContent}
+              >
+                <View style={styles.pledgeIntro}>
+                  <AppIcon name="information-circle-outline" size={18} color={colors.electricBright} />
+                  <Text style={styles.pledgeIntroText}>
+                    راجع البنود التالية بعناية. لن يتم نشر الإعلان قبل موافقتك الصريحة.
+                  </Text>
+                </View>
 
                 {/* شروط وسياسة المنصة */}
                 <View style={styles.pledgeCard}>
-                  <Text style={styles.pledgeCardTitle}>📋 شروط وسياسة المنصة</Text>
+                  <View style={styles.pledgeSectionTitleRow}>
+                    <View style={styles.pledgeSectionIcon}>
+                      <AppIcon name="document-text-outline" size={17} color={colors.textBrandStrong} />
+                    </View>
+                    <Text style={styles.pledgeCardTitle}>شروط وسياسة المنصة</Text>
+                  </View>
                   {[
                     'أُقرّ المستخدم بأن المعلومات المنشورة صحيحة ومطابقة للواقع.',
                     'لا يحق نشر إعلانات وهمية أو مضللة أو لحيوانات غير موجودة.',
                     'يلتزم البائع بالوفاء بالصفقة بعد قبول العرض.',
                     'تحتفظ المنصة بحق إزالة أي إعلان مخالف دون إشعار.',
                   ].map((item, i) => (
-                    <Text key={i} style={styles.pledgeItem}>{i + 1}. {item}</Text>
+                    <View key={i} style={styles.pledgeItemRow}>
+                      <View style={styles.pledgeItemNumber}>
+                        <Text style={styles.pledgeItemNumberText}>{i + 1}</Text>
+                      </View>
+                      <Text style={styles.pledgeItem}>{item}</Text>
+                    </View>
                   ))}
                 </View>
 
                 {/* تعهد السعي / العمولة */}
                 <View style={[styles.pledgeCard, styles.pledgeCardGold]}>
-                  <Text style={styles.pledgeCardTitleGold}>💰 تعهد السعي (العمولة)</Text>
+                  <View style={styles.pledgeSectionTitleRow}>
+                    <View style={[styles.pledgeSectionIcon, styles.pledgeSectionIconGold]}>
+                      <AppIcon name="receipt-outline" size={17} color={colors.gold} />
+                    </View>
+                    <Text style={styles.pledgeCardTitleGold}>تعهد السعي (العمولة)</Text>
+                  </View>
                   <Text style={styles.pledgeBodyText}>
                     أتعهد بدفع سعي (عمولة) منصة سرح عند إتمام أي بيع يتم عبر المنصة، وفق النظام التالي:
                   </Text>
@@ -648,9 +676,14 @@ export default function CreateListingScreen() {
 
                 {/* القسم بالله */}
                 <View style={[styles.pledgeCard, styles.pledgeCardBlue]}>
-                  <Text style={styles.pledgeCardTitleBlue}>🤲 القسم بالله</Text>
+                  <View style={styles.pledgeSectionTitleRow}>
+                    <View style={[styles.pledgeSectionIcon, styles.pledgeSectionIconBlue]}>
+                      <AppIcon name="shield-check" size={17} color={colors.electricBright} />
+                    </View>
+                    <Text style={styles.pledgeCardTitleBlue}>الإقرار بصحة المعلومات</Text>
+                  </View>
                   <Text style={styles.pledgeOath}>
-                    "أقسم بالله العظيم أن هذا الإعلان صحيح، وأن ما عرضته مطابق للحقيقة، وأتعهد بدفع سعي المنصة عند البيع وفق نظام العمولة المعتمد."
+                    «أقسم بالله العظيم أن هذا الإعلان صحيح، وأن ما عرضته مطابق للحقيقة، وأتعهد بدفع سعي المنصة عند البيع وفق نظام العمولة المعتمد.»
                   </Text>
                 </View>
 
@@ -660,7 +693,7 @@ export default function CreateListingScreen() {
                   style={[styles.checkboxRow, pledgeChecked && styles.checkboxRowActive]}
                 >
                   <View style={[styles.checkbox, pledgeChecked && styles.checkboxChecked]}>
-                    {pledgeChecked && <Text style={styles.checkmark}>✓</Text>}
+                    {pledgeChecked && <AppIcon name="check" size={13} color="#FFFFFF" />}
                   </View>
                   <Text style={styles.checkboxText}>
                     أقر بأنني قرأت وفهمت جميع الشروط، وأتعهد بدفع السعي (العمولة) وفق نظام سوق سرح عند إتمام أي بيع، وأقسم بالله على صحة المعلومات.
@@ -677,9 +710,19 @@ export default function CreateListingScreen() {
                   onPress={handlePledgeConfirm}
                   disabled={!pledgeChecked}
                 >
-                  <Text style={[styles.modalConfirmText, !pledgeChecked && { color: colors.textMuted }]}>
-                    أوافق وأتعهد — متابعة
-                  </Text>
+                  <LinearGradient
+                    colors={pledgeChecked ? gradients.royal : [colors.bgSurface, colors.bgSurface]}
+                    style={styles.modalConfirmGradient}
+                  >
+                    <AppIcon
+                      name="shield-check"
+                      size={18}
+                      color={pledgeChecked ? '#FFFFFF' : colors.textMuted}
+                    />
+                    <Text style={[styles.modalConfirmText, !pledgeChecked && { color: colors.textMuted }]}>
+                      أوافق وأتابع النشر
+                    </Text>
+                  </LinearGradient>
                 </Pressable>
                 <Pressable style={styles.modalCancelBtn} onPress={() => setShowPledge(false)}>
                   <Text style={styles.modalCancelText}>إلغاء</Text>
@@ -880,48 +923,90 @@ function createStyles(colors: ThemeColors) {
 
   // ─── Pledge Modal Styles ───────────────────────────────────────────────────
   modalBackdrop: {
-    flex: 1, backgroundColor: 'rgba(6,9,26,0.80)',
+    flex: 1, backgroundColor: 'rgba(5,10,18,0.68)',
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: colors.bgDeep,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    borderWidth: 1, borderColor: colors.borderMid,
-    maxHeight: '92%',
+    backgroundColor: colors.bgPrimary,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSoft,
+    maxHeight: '94%',
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    backgroundColor: '#1E3A8A',
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md,
+    backgroundColor: colors.electric,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
   },
-  modalCloseBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  pledgeHeaderIcon: {
+    width: 42, height: 42, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center', justifyContent: 'center',
   },
-  modalCloseX: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  modalCloseBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center', justifyContent: 'center',
+  },
   modalHeaderText: { flex: 1, alignItems: 'flex-end' },
-  modalTitle: { ...typography.h3, color: '#fff' },
-  modalSubtitle: { ...typography.caption, color: 'rgba(255,255,255,0.75)' },
+  modalTitle: { ...typography.h3, color: '#fff', fontWeight: '800' },
+  modalSubtitle: { ...typography.caption, color: 'rgba(255,255,255,0.78)', marginTop: 2 },
   modalScroll: { paddingHorizontal: spacing.lg },
+  modalScrollContent: { paddingBottom: spacing.md },
+  pledgeIntro: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm,
+    padding: spacing.md, marginTop: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: `${colors.electric}0D`,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: `${colors.electric}35`,
+  },
+  pledgeIntroText: {
+    flex: 1, ...typography.caption, color: colors.textSecondary,
+    lineHeight: 20, textAlign: 'right',
+  },
   pledgeCard: {
     backgroundColor: colors.bgSurface, borderRadius: radius.lg,
-    borderWidth: 1, borderColor: colors.borderSoft,
-    padding: spacing.lg, marginTop: spacing.md, gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSoft,
+    padding: spacing.lg, marginTop: spacing.md, gap: spacing.md,
   },
   pledgeCardGold: {
-    backgroundColor: '#1A1400',
+    backgroundColor: `${colors.gold}08`,
     borderColor: `${colors.gold}40`,
   },
   pledgeCardBlue: {
-    backgroundColor: '#0A1530',
+    backgroundColor: `${colors.electric}08`,
     borderColor: `${colors.electric}40`,
   },
+  pledgeSectionTitleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+  },
+  pledgeSectionIcon: {
+    width: 32, height: 32, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: `${colors.electric}12`,
+  },
+  pledgeSectionIconGold: { backgroundColor: `${colors.gold}14` },
+  pledgeSectionIconBlue: { backgroundColor: `${colors.electricBright}12` },
   pledgeCardTitle: { ...typography.bodyStrong, color: colors.textBrandStrong, textAlign: 'right' },
   pledgeCardTitleGold: { ...typography.bodyStrong, color: colors.gold, textAlign: 'right' },
   pledgeCardTitleBlue: { ...typography.bodyStrong, color: colors.textBrand, textAlign: 'right' },
-  pledgeItem: { ...typography.body, color: colors.textSecondary, lineHeight: 24, textAlign: 'right' },
+  pledgeItemRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm,
+  },
+  pledgeItemNumber: {
+    width: 24, height: 24, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: `${colors.electric}12`, flexShrink: 0,
+  },
+  pledgeItemNumberText: {
+    ...typography.micro, color: colors.textBrandStrong, fontWeight: '800',
+  },
+  pledgeItem: {
+    flex: 1, ...typography.body, color: colors.textSecondary,
+    lineHeight: 24, textAlign: 'right',
+  },
   pledgeBodyText: { ...typography.body, color: colors.textSecondary, lineHeight: 22, textAlign: 'right' },
   commRateRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -932,17 +1017,17 @@ function createStyles(colors: ThemeColors) {
   commDueNote: { ...typography.caption, color: colors.textMuted, textAlign: 'right', marginTop: spacing.sm },
   commDueBold: { color: colors.rose, fontWeight: '700' },
   pledgeOath: {
-    ...typography.h3, color: colors.textBrandStrong,
-    lineHeight: 30, textAlign: 'center',
-    fontStyle: 'italic', paddingVertical: spacing.sm,
+    ...typography.body, color: colors.textPrimary,
+    lineHeight: 27, textAlign: 'center',
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.sm,
   },
   checkboxRow: {
     flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md,
     backgroundColor: colors.bgSurface, borderRadius: radius.lg,
-    borderWidth: 1, borderColor: colors.borderSoft,
+    borderWidth: 1.5, borderColor: colors.borderSoft,
     padding: spacing.md, marginTop: spacing.md,
   },
-  checkboxRowActive: { borderColor: colors.electric, backgroundColor: `${colors.electric}10` },
+  checkboxRowActive: { borderColor: colors.electric, backgroundColor: `${colors.electric}0D` },
   checkbox: {
     width: 22, height: 22, borderRadius: 6,
     borderWidth: 2, borderColor: colors.borderMid,
@@ -951,19 +1036,22 @@ function createStyles(colors: ThemeColors) {
     flexShrink: 0, marginTop: 2,
   },
   checkboxChecked: { backgroundColor: colors.electric, borderColor: colors.electric },
-  checkmark: { color: '#fff', fontSize: 14, fontWeight: '800' },
   checkboxText: { flex: 1, ...typography.body, color: colors.textSecondary, lineHeight: 22, textAlign: 'right' },
   modalBtns: {
     flexDirection: 'row', gap: spacing.md,
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.lg,
     borderTopWidth: 1, borderTopColor: colors.borderSoft,
+    backgroundColor: colors.bgPrimary,
   },
   modalConfirmBtn: {
-    flex: 1, backgroundColor: '#1E3A8A', borderRadius: radius.xl,
-    paddingVertical: spacing.lg, alignItems: 'center',
-    borderWidth: 1, borderColor: colors.electric,
+    flex: 2, borderRadius: radius.xl, overflow: 'hidden',
   },
-  modalConfirmBtnDisabled: { backgroundColor: colors.bgSurface, borderColor: colors.borderSoft },
+  modalConfirmGradient: {
+    minHeight: 52, paddingHorizontal: spacing.lg,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: spacing.sm, borderRadius: radius.xl,
+  },
+  modalConfirmBtnDisabled: { opacity: 0.65 },
   modalConfirmText: { ...typography.bodyStrong, color: '#fff' },
   modalCancelBtn: {
     flex: 1, backgroundColor: colors.bgSurface, borderRadius: radius.xl,

@@ -1,5 +1,4 @@
 import { Injectable, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
-import axios from 'axios';
 import crypto from 'crypto';
 import { PaymentReferenceType, PlanAudience } from '@prisma/client';
 import { normalizePlanSlug, type BillingCycle } from '../lib/plans';
@@ -13,6 +12,11 @@ import { PlansService } from '../plans/plans.service';
 import type { JwtPayload } from '../common/types/jwt-payload.interface';
 import { InitiatePaymentDto } from './dto/payments.dto';
 import { PaymentsRepository } from './repositories/payments.repository';
+import {
+  createNiCheckout,
+  fetchNiOrder,
+  isNiSandboxMockMode,
+} from './ni-client';
 
 function buildNIOrderReference(userId: string): string {
   const ts = Date.now().toString(36).toUpperCase();
@@ -235,10 +239,7 @@ export class PaymentsService implements OnApplicationBootstrap, OnApplicationShu
         { paymentId: existingPending.id },
         'Returning existing pending payment',
       );
-      const isDev =
-        !process.env.NI_API_KEY ||
-        process.env.NI_API_KEY.startsWith('test_') ||
-        process.env.NODE_ENV !== 'production';
+      const isDev = isNiSandboxMockMode();
       return {
         paymentId: existingPending.id,
         orderId: existingPending.orderId,
@@ -251,10 +252,7 @@ export class PaymentsService implements OnApplicationBootstrap, OnApplicationShu
     const payment = txResult.payment!;
 
     try {
-      const isDev =
-        !process.env.NI_API_KEY ||
-        process.env.NI_API_KEY.startsWith('test_') ||
-        process.env.NODE_ENV !== 'production';
+      const isDev = isNiSandboxMockMode();
 
       let checkoutUrl: string;
 
@@ -267,59 +265,33 @@ export class PaymentsService implements OnApplicationBootstrap, OnApplicationShu
           metadata: { ...paymentMetadata, sandbox: true },
         });
       } else {
-        const niRes = await axios.post(
-          `${process.env.NI_BASE_URL}/outlets/${process.env.NI_OUTLET_ID}/payment-links`,
-          {
-            action: 'SALE',
-            amount: {
-              currencyCode: currency,
-              value: Math.round(amount * 100),
-            },
-            language: 'ar',
-            description: descriptionAr || description || 'سرح Payment',
-            merchantAttributes: {
-              redirectUrl: `${process.env.APP_URL}/payment/result`,
-              cancelUrl: `${process.env.APP_URL}/payment/cancel`,
-              merchantOrderReference: orderReference,
-            },
-            billingAddress: {
-              firstName:
-                contact?.displayName ?? contact?.arabicName ?? 'Customer',
-              email: contact?.email ?? '',
-              countryCode: 'SA',
-            },
-            paymentMethods: [mapMethodToNI(method)],
-            customData: {
-              paymentId: payment.id,
-              type,
-              referenceId,
-              userId: user.userId,
-              ...(planId ? { targetPlanId: planId, billingCycle } : {}),
-            },
+        const appUrl = process.env.APP_URL ?? 'https://sarh-app.up.railway.app';
+        const { checkoutUrl: niUrl, niOrderReference } = await createNiCheckout({
+          amount,
+          currency,
+          orderReference,
+          description: descriptionAr || description || 'سرح Payment',
+          redirectUrl: `${appUrl}/payment/result?paymentId=${payment.id}`,
+          cancelUrl: `${appUrl}/payment/cancel`,
+          firstName:
+            contact?.displayName ?? contact?.arabicName ?? 'Customer',
+          email: contact?.email ?? '',
+          paymentMethods: [mapMethodToNI(method)],
+          customData: {
+            paymentId: payment.id,
+            type,
+            referenceId,
+            userId: user.userId,
+            ...(planId ? { targetPlanId: planId, billingCycle } : {}),
           },
-          {
-            headers: {
-              Authorization: `Basic ${Buffer.from(`${process.env.NI_API_KEY}:`).toString('base64')}`,
-              'Content-Type': 'application/json',
-              Accept: 'application/json',
-            },
-            timeout: 12000,
-          },
-        );
+        });
 
-        checkoutUrl =
-          niRes.data?.paymentLink ??
-          niRes.data?.url ??
-          niRes.data?._links?.payment?.href;
-        if (!checkoutUrl) throw new Error('NI returned no payment link');
-
-        const niOrderRef =
-          niRes.data?.reference ?? niRes.data?.orderReference ?? orderReference;
+        checkoutUrl = niUrl;
 
         await this.repo.updatePaymentCheckout(payment.id, {
-          transactionId: niOrderRef,
+          transactionId: niOrderReference,
           checkoutUrl,
-          metadata: { ...paymentMetadata, niOrderReference: niOrderRef },
+          metadata: { ...paymentMetadata, niOrderReference },
         });
       }
 
@@ -643,11 +615,7 @@ export class PaymentsService implements OnApplicationBootstrap, OnApplicationShu
   private syncTimer: ReturnType<typeof setInterval> | null = null;
 
   onApplicationBootstrap() {
-    const isDev =
-      !process.env.NI_API_KEY ||
-      process.env.NI_API_KEY.startsWith('test_') ||
-      process.env.NODE_ENV !== 'production';
-    if (isDev) return; // only run in production with real NI keys
+    if (isNiSandboxMockMode()) return; // skip auto-sync without real NI keys
 
     this.syncTimer = setInterval(() => {
       void this.runAutoSync();
@@ -700,32 +668,22 @@ export class PaymentsService implements OnApplicationBootstrap, OnApplicationShu
    * Core sync logic: query NI → update DB → send notifications.
    */
   private async syncPaymentByOrderRef(paymentId: string, orderRef: string) {
-    const isDev =
-      !process.env.NI_API_KEY ||
-      process.env.NI_API_KEY.startsWith('test_') ||
-      process.env.NODE_ENV !== 'production';
-
-    if (isDev) {
+    if (isNiSandboxMockMode()) {
       return { paymentId, status: 'pending', synced: false, devMode: true };
     }
 
     try {
-      const niRes = await axios.get(
-        `${process.env.NI_BASE_URL}/outlets/${process.env.NI_OUTLET_ID}/orders/${orderRef}`,
-        {
-          headers: {
-            Authorization: `Basic ${Buffer.from(`${process.env.NI_API_KEY}:`).toString('base64')}`,
-            Accept: 'application/json',
-          },
-          timeout: 10_000,
-        },
-      );
+      const existing = await this.repo.findPaymentByIdFull(paymentId);
+      const niRef =
+        existing?.transactionId && !String(existing.transactionId).startsWith('DEV-')
+          ? String(existing.transactionId)
+          : orderRef;
 
-      const order = niRes.data as Record<string, unknown>;
+      const order = (await fetchNiOrder(niRef)) as Record<string, unknown>;
       const state = String((order.state ?? order.status ?? '') as string).toUpperCase();
-      const niTxId = String(order.reference ?? order.transactionId ?? orderRef);
+      const niTxId = String(order.reference ?? order.transactionId ?? niRef);
 
-      const payment = await this.repo.findPaymentByIdFull(paymentId);
+      const payment = existing;
       if (!payment || payment.status !== 'pending') {
         return { paymentId, status: payment?.status ?? 'unknown', synced: false };
       }
@@ -805,11 +763,7 @@ export class PaymentsService implements OnApplicationBootstrap, OnApplicationShu
 
   /** Local/sandbox only: mark a pending payment as paid without NI webhook. */
   async simulateDevPayment(user: JwtPayload, paymentId: string) {
-    const isDev =
-      !process.env.NI_API_KEY ||
-      process.env.NI_API_KEY.startsWith('test_') ||
-      process.env.NODE_ENV !== 'production';
-    if (!isDev) {
+    if (!isNiSandboxMockMode()) {
       throwApi(403, 'forbidden', 'غير متاح في بيئة الإنتاج');
     }
 

@@ -5,7 +5,8 @@ import { AppIcon } from '@/components/ui/FlaticonIcon';
 import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -53,7 +54,6 @@ export default function UserProfileScreen() {
     toggleBookmark,
     deletePost,
     addComment,
-    followedUserIds,
     setFollowState,
   } = useApp();
   const { accessToken, isAuthenticated } = useAuth();
@@ -80,27 +80,21 @@ export default function UserProfileScreen() {
     const targetId = id || me.id;
     setLoading(true);
     const data = await fetchUserProfile(targetId);
-    if (data) {
-      // Merge with local follow override so navigating back never resets the button
-      const localFollowing = followedUserIds.has(data.id);
-      setProfile({ ...data, isFollowing: data.isFollowing || localFollowing });
-      // Keep local state in sync with what the API returned
-      if (data.isFollowing !== localFollowing) {
-        setFollowState(data.id, data.isFollowing);
-      }
-    } else {
-      setProfile(null);
-    }
+    setProfile(data);
+    if (data) setFollowState(data.id, data.isFollowing);
     setLoading(false);
-  }, [id, me.id, followedUserIds, setFollowState]);
+  }, [id, me.id, setFollowState]);
 
-  useEffect(() => {
-    if (isOwnProfile) {
-      router.replace('/(tabs)/profile');
-      return;
-    }
-    void loadProfile();
-  }, [isOwnProfile, loadProfile, router]);
+  // Always read the authoritative follow state when returning to this screen.
+  useFocusEffect(
+    useCallback(() => {
+      if (isOwnProfile) {
+        router.replace('/(tabs)/profile');
+        return;
+      }
+      void loadProfile();
+    }, [isOwnProfile, loadProfile, router]),
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -116,28 +110,52 @@ export default function UserProfileScreen() {
   );
 
   const handleFollow = async () => {
-    if (!profile || !accessToken) {
+    if (!profile || !accessToken || followLoading) {
       Alert.alert('تسجيل الدخول', 'يجب تسجيل الدخول للمتابعة');
       return;
     }
+    const wasFollowing = profile.isFollowing;
+    const previousCount = profile.followersCount;
+
+    // Optimistic UI; reconcile with the server response below.
+    setProfile((prev) =>
+      prev
+        ? {
+            ...prev,
+            isFollowing: !wasFollowing,
+            followersCount: Math.max(0, previousCount + (wasFollowing ? -1 : 1)),
+          }
+        : prev,
+    );
     setFollowLoading(true);
-    const result = await toggleFollowUser(profile.id);
-    if (result) {
-      // Update global follow state — survives navigation
+    try {
+      const result = await toggleFollowUser(profile.id);
+      if (!result) throw new Error('follow_failed');
+
       setFollowState(profile.id, result.following);
       setProfile((prev) =>
         prev
           ? {
               ...prev,
               isFollowing: result.following,
-              followersCount: prev.followersCount + (result.following ? 1 : -1),
+              followersCount: Math.max(
+                0,
+                previousCount + (result.following ? 1 : 0) - (wasFollowing ? 1 : 0),
+              ),
             }
           : prev,
       );
-    } else {
+    } catch {
+      setFollowState(profile.id, wasFollowing);
+      setProfile((prev) =>
+        prev
+          ? { ...prev, isFollowing: wasFollowing, followersCount: previousCount }
+          : prev,
+      );
       Alert.alert('خطأ', 'تعذّرت المتابعة، حاول مجدداً');
+    } finally {
+      setFollowLoading(false);
     }
-    setFollowLoading(false);
   };
 
   const handleRateSubmit = async (rating: number): Promise<boolean> => {

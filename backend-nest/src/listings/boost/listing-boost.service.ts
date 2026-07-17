@@ -5,7 +5,7 @@ import { throwApi } from '../../common/exceptions/api.exception';
 import { LoggerService } from '../../common/services/logger.service';
 import { AppNotificationsService } from '../../queue/services/app-notifications.service';
 import type { JwtPayload } from '../../common/types/jwt-payload.interface';
-import axios from 'axios';
+import { createNiCheckout, isNiSandboxMockMode } from '../../payments/ni-client';
 
 // ─── Pricing table ────────────────────────────────────────────────────────────
 
@@ -27,11 +27,6 @@ function buildOrderRef(prefix: string, userId: string): string {
   const uid = userId.replace(/-/g, '').slice(0, 6).toUpperCase();
   return `${prefix}-${uid}-${ts}`;
 }
-
-const isDev = () =>
-  !process.env.NI_API_KEY ||
-  process.env.NI_API_KEY.startsWith('test_') ||
-  process.env.NODE_ENV !== 'production';
 
 @Injectable()
 export class ListingBoostService {
@@ -119,9 +114,13 @@ export class ListingBoostService {
 
     let checkoutUrl: string;
 
-    if (isDev()) {
+    if (isNiSandboxMockMode()) {
       checkoutUrl = `https://sandbox.network.ae/demo/${orderRef}`;
-      this.logger.info({ boostId: boost.id, paymentId: payment.id }, 'Boost created in dev mode');
+      this.logger.info({ boostId: boost.id, paymentId: payment.id }, 'Boost created in mock mode');
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { checkoutUrl, transactionId: `DEV-${orderRef}` },
+      });
     } else {
       const contact = await this.prisma.user.findUnique({
         where: { id: user.userId },
@@ -130,53 +129,38 @@ export class ListingBoostService {
 
       const appUrl = process.env.APP_URL ?? 'https://sarh-app.up.railway.app';
 
-      const niRes = await axios.post(
-        `${process.env.NI_BASE_URL}/outlets/${process.env.NI_OUTLET_ID}/payment-links`,
-        {
-          action: 'SALE',
-          amount: { currencyCode: currency, value: Math.round(amount * 100) },
-          language: 'ar',
+      try {
+        const { checkoutUrl: niUrl, niOrderReference } = await createNiCheckout({
+          amount,
+          currency,
+          orderReference: orderRef,
           description: descriptionAr,
-          merchantAttributes: {
-            redirectUrl: `${appUrl}/payment/result?paymentId=${payment.id}&type=${referenceType}`,
-            cancelUrl:   `${appUrl}/payment/cancel`,
-            merchantOrderReference: orderRef,
-          },
-          billingAddress: {
-            firstName: contact?.displayName ?? contact?.arabicName ?? 'Customer',
-            email:     contact?.email ?? '',
-            countryCode: 'SA',
-          },
+          redirectUrl: `${appUrl}/payment/result?paymentId=${payment.id}&type=${referenceType}`,
+          cancelUrl: `${appUrl}/payment/cancel`,
+          firstName: contact?.displayName ?? contact?.arabicName ?? 'Customer',
+          email: contact?.email ?? '',
           paymentMethods: [niMethod],
           customData: {
             paymentId: payment.id,
-            boostId:   boost.id,
+            boostId: boost.id,
             listingId,
             boostType,
-            userId:         user.userId,
+            userId: user.userId,
             referenceType,
           },
-        },
-        {
-          headers: {
-            Authorization: `Basic ${Buffer.from(`${process.env.NI_API_KEY}:`).toString('base64')}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 12_000,
-        },
-      );
+        });
 
-      checkoutUrl =
-        niRes.data?.paymentLink ??
-        niRes.data?.url ??
-        niRes.data?._links?.payment?.href;
-      if (!checkoutUrl) throwApi(502, 'no_payment_link', 'بوابة الدفع لم تُرجع رابطاً');
+        checkoutUrl = niUrl;
 
-      // Save the checkout URL on the payment record
-      await this.prisma.payment.update({
-        where: { id: payment.id },
-        data: { checkoutUrl },
-      });
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: { checkoutUrl, transactionId: niOrderReference },
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error({ err: message, boostId: boost.id }, 'NI boost checkout failed');
+        throwApi(502, 'payment_gateway_error', 'تعذر الاتصال ببوابة الدفع');
+      }
     }
 
     return {
@@ -186,7 +170,7 @@ export class ListingBoostService {
       checkoutUrl,
       amount,
       currency,
-      devMode: isDev(),
+      devMode: isNiSandboxMockMode(),
     };
   }
 
@@ -234,7 +218,7 @@ export class ListingBoostService {
 
   /** Dev-only: simulate boost payment without NI. */
   async devCompleteBoost(user: JwtPayload, boostId: string) {
-    if (!isDev()) throwApi(403, 'forbidden', 'غير متاح في الإنتاج');
+    if (!isNiSandboxMockMode()) throwApi(403, 'forbidden', 'غير متاح في الإنتاج');
 
     const boost = await this.prisma.listingBoost.findFirst({
       where: { id: boostId, userId: user.userId },

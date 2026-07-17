@@ -3,6 +3,7 @@ import { AppIcon } from '@/components/ui/FlaticonIcon';
 
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -31,7 +32,7 @@ type ConnectionsTab = 'followers' | 'following';
 
 export default function ProfileConnectionsScreen() {
   const router = useRouter();
-  const { me } = useApp();
+  const { me, setFollowState } = useApp();
   const { accessToken } = useAuth();
   const { colors } = useTheme();
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
@@ -64,27 +65,43 @@ export default function ProfileConnectionsScreen() {
     setLoading(false);
   }, [targetUserId, activeTab]);
 
-  useEffect(() => {
-    loadConnections();
-  }, [loadConnections]);
+  // Refresh when returning from a user profile so buttons never show stale state.
+  useFocusEffect(
+    useCallback(() => {
+      void loadConnections();
+    }, [loadConnections]),
+  );
 
   const handleFollowToggle = async (user: ConnectionUser) => {
-    if (!accessToken) {
+    if (!accessToken || followLoadingId === user.id) {
       Alert.alert('تسجيل الدخول', 'يجب تسجيل الدخول للمتابعة');
       return;
     }
     if (user.id === me.id) return;
 
+    const wasFollowing = user.isFollowing;
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === user.id ? { ...u, isFollowing: !wasFollowing } : u,
+      ),
+    );
     setFollowLoadingId(user.id);
-    const result = await toggleFollowUser(user.id);
-    if (result) {
+    try {
+      const result = await toggleFollowUser(user.id);
+      if (!result) throw new Error('follow_failed');
+      setFollowState(user.id, result.following);
       setUsers((prev) =>
         prev.map((u) => (u.id === user.id ? { ...u, isFollowing: result.following } : u)),
       );
-    } else {
+    } catch {
+      setFollowState(user.id, wasFollowing);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, isFollowing: wasFollowing } : u)),
+      );
       Alert.alert('خطأ', 'تعذّرت المتابعة');
+    } finally {
+      setFollowLoadingId(null);
     }
-    setFollowLoadingId(null);
   };
 
   const handleTabChange = (tab: ConnectionsTab) => {

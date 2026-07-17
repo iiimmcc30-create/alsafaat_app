@@ -314,18 +314,32 @@ export default function PaymentScreen() {
           return;
         }
 
-        // Production: open NI checkout
-        const canOpen = await Linking.canOpenURL(checkoutUrl);
-        if (canOpen) await Linking.openURL(checkoutUrl);
-        else await WebBrowser.openBrowserAsync(checkoutUrl);
-
-        Alert.alert('أكمل الدفع عبر المتصفح', 'سيتم تحديث اشتراكك تلقائياً بعد التأكيد من البنك.', [{
-          text: 'حسناً',
-          onPress: async () => { await refetchSubscription(); router.back(); },
-        }]);
+        // Hosted NI checkout. This account is connected to the real KSA gateway,
+        // so random card numbers are rejected by the gateway itself.
+        Alert.alert(
+          'صفحة الدفع الآمنة',
+          'ستُفتح بوابة Network International.\n\nلا تستخدم رقماً عشوائياً للبطاقة؛ يلزم استخدام بطاقة صالحة، أو بطاقة اختبار رسمية يوفرها حساب NI إن تم تفعيل وضع الاختبار.',
+          [
+            {
+              text: 'متابعة للدفع',
+              onPress: async () => {
+                const canOpen = await Linking.canOpenURL(checkoutUrl);
+                if (canOpen) await Linking.openURL(checkoutUrl);
+                else await WebBrowser.openBrowserAsync(checkoutUrl);
+                await refetchSubscription();
+              },
+            },
+            { text: 'إلغاء', style: 'cancel', onPress: () => setStep('method') },
+          ],
+        );
       } else {
         setStep('method');
-        const detail = json.messageAr || json.message || json.error || 'حدث خطأ أثناء الدفع.';
+        const detail =
+          json.messageAr ||
+          (json.error === 'payment_gateway_error'
+            ? 'تعذر إنشاء رابط الدفع. حاول مرة أخرى بعد قليل.'
+            : json.message) ||
+          'حدث خطأ أثناء الدفع.';
         Alert.alert('فشل الدفع', String(detail));
       }
     } catch {

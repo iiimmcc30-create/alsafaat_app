@@ -172,7 +172,13 @@ export default function SidebarScreen() {
             onPress={() => handleNav('/(tabs)/messages')}
           />
           <SidebarMenuRow
-            item={{ key: 'subscription', icon: 'crown-outline', label: 'الاشتراك والرسوم' }}
+            item={{ key: 'fees', icon: 'receipt-outline', label: 'سداد الرسوم' }}
+            colors={colors}
+            showDivider
+            onPress={() => handleNav('/fees')}
+          />
+          <SidebarMenuRow
+            item={{ key: 'subscription', icon: 'crown-outline', label: 'الباقات والاشتراك' }}
             colors={colors}
             showDivider={false}
             onPress={() => handleNav('/subscription')}

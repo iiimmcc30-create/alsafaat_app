@@ -5,11 +5,12 @@ import { AppIcon } from '@/components/ui/FlaticonIcon';
 
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -22,7 +23,6 @@ import { radius, spacing, typography, type ThemeColors } from '@/constants/theme
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon, rtlForwardIcon } from '@/lib/rtl';
-import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -71,10 +71,11 @@ export default function FeesScreen() {
   const [loading, setLoading] = useState(true);
   const [commissionRules, setCommissionRules] = useState<CommissionRuleRow[]>([]);
 
-  // ─── Custom commission payment state ─────────────────────────────────────
+  // ─── Custom fee / commission payment (entry modal) ───────────────────────
   const [commissionAmount, setCommissionAmount] = useState('');
   const [commissionMethod, setCommissionMethod] = useState<NIPaymentMethod>('mada');
   const [commissionProcessing, setCommissionProcessing] = useState(false);
+  const [showFeePayModal, setShowFeePayModal] = useState(true);
   const QUICK_AMOUNTS = [25, 50, 100, 200, 500];
 
   const fetchFees = async () => {
@@ -249,8 +250,8 @@ export default function FeesScreen() {
           currency: 'SAR',
           method: commissionMethod,
           type: 'commission',
-          descriptionAr: `سداد عمولة سرح بمبلغ ${amount} ريال`,
-          description: `Sarh commission payment: ${amount} SAR`,
+          descriptionAr: `سداد رسوم سرح بمبلغ ${amount} ريال`,
+          description: `Sarh fee payment: ${amount} SAR`,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -270,7 +271,8 @@ export default function FeesScreen() {
           const simJson = await simRes.json().catch(() => ({}));
           if (simRes.ok && simJson.success) {
             setCommissionAmount('');
-            Alert.alert('✅ شكراً لك', `تم سداد عمولة سرح بمبلغ ${amount} ريال. جزاك الله خيراً!`);
+            setShowFeePayModal(false);
+            Alert.alert('✅ شكراً لك', `تم سداد رسوم سرح بمبلغ ${amount} ريال. جزاك الله خيراً!`);
           } else {
             Alert.alert('خطأ', simJson.messageAr ?? 'فشل محاكاة الدفع');
           }
@@ -278,9 +280,21 @@ export default function FeesScreen() {
         }
 
         if (checkoutUrl) {
-          await Linking.openURL(checkoutUrl);
+          setShowFeePayModal(false);
           setCommissionAmount('');
-          Alert.alert('أكمل الدفع', 'تم فتح صفحة الدفع. بعد إتمام الدفع ستصلك رسالة تأكيد.');
+          Alert.alert(
+            'صفحة الدفع الآمنة',
+            'ستُفتح بوابة Network International.\n\n⚠️ لا تستخدم أرقاماً وهمية للبطاقة — يلزم بطاقة حقيقية صالحة لإتمام الدفع.',
+            [
+              {
+                text: 'متابعة للدفع',
+                onPress: async () => {
+                  await Linking.openURL(checkoutUrl);
+                },
+              },
+              { text: 'إلغاء', style: 'cancel' },
+            ],
+          );
         } else {
           Alert.alert('❌ خطأ', 'لم يتم استلام رابط الدفع من الخادم');
         }
@@ -293,6 +307,137 @@ export default function FeesScreen() {
       setCommissionProcessing(false);
     }
   };
+
+  const renderFeePayForm = (inModal: boolean) => (
+    <>
+      <View style={styles.commissionHeader}>
+        <View style={styles.commissionIconWrap}>
+          <AppIcon name="credit-card-outline" size={20} color={colors.textBrandSuccess} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.commissionTitle}>سداد الرسوم</Text>
+          <Text style={styles.commissionSub}>
+            المبلغ اختياري — أدخل أي قيمة تناسبك أو اختر مبلغاً سريعاً
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.quickAmountsRow}>
+        {QUICK_AMOUNTS.map((amt) => (
+          <Pressable
+            key={amt}
+            onPress={() => setCommissionAmount(String(amt))}
+            style={[
+              styles.quickChip,
+              commissionAmount === String(amt) && {
+                borderColor: colors.electricBright,
+                backgroundColor: `${colors.electricBright}18`,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.quickChipText,
+                commissionAmount === String(amt) && { color: colors.electricBright },
+              ]}
+            >
+              {amt} ريال
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={styles.amountInputWrap}>
+        <Text style={styles.amountInputLabel}>مبلغ مخصص (اختياري)</Text>
+        <View style={styles.amountInputRow}>
+          <Text style={styles.amountCurrencyLabel}>ريال</Text>
+          <TextInput
+            style={styles.amountInput}
+            value={commissionAmount}
+            onChangeText={(v) => setCommissionAmount(v.replace(/[^0-9.]/g, ''))}
+            placeholder="اتركه فارغاً أو أدخل المبلغ"
+            placeholderTextColor={colors.textSubtle}
+            keyboardType="numeric"
+            textAlign="right"
+            maxLength={8}
+          />
+        </View>
+      </View>
+
+      <Text style={styles.commissionMethodLabel}>طريقة السداد</Text>
+      <View style={styles.commissionMethodRow}>
+        {PAYMENT_METHODS.map((m) => (
+          <Pressable
+            key={m.id}
+            onPress={() => setCommissionMethod(m.id)}
+            style={[
+              styles.commissionMethodChip,
+              commissionMethod === m.id && {
+                borderColor: m.color,
+                backgroundColor: `${m.color}15`,
+              },
+            ]}
+          >
+            <Text style={{ fontSize: 14 }}>{m.icon}</Text>
+            <Text
+              style={[
+                styles.commissionMethodLabel2,
+                commissionMethod === m.id && { color: m.color },
+              ]}
+            >
+              {m.arabic}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Pressable
+        onPress={handlePayCommission}
+        disabled={commissionProcessing || !commissionAmount}
+        style={[
+          styles.commissionPayBtn,
+          (!commissionAmount || commissionProcessing) && { opacity: 0.55 },
+        ]}
+      >
+        <LinearGradient
+          colors={[colors.electric, colors.electricBright, colors.electric]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.commissionPayBtnInner}
+        >
+          {commissionProcessing ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <AppIcon name="shield-check" size={18} color="#fff" />
+              <Text style={styles.commissionPayBtnText}>
+                {commissionAmount
+                  ? `ادفع الآن · ${commissionAmount} ريال`
+                  : 'أدخل المبلغ للمتابعة'}
+              </Text>
+            </>
+          )}
+        </LinearGradient>
+      </Pressable>
+
+      {inModal ? (
+        <Pressable
+          onPress={() => !commissionProcessing && setShowFeePayModal(false)}
+          style={styles.feeModalSkip}
+          disabled={commissionProcessing}
+        >
+          <Text style={styles.feeModalSkipText}>لاحقاً — متابعة إلى الصفحة</Text>
+        </Pressable>
+      ) : null}
+
+      <View style={styles.commissionNiBadge}>
+        <AppIcon name="lock" size={11} color={colors.textSubtle} />
+        <Text style={styles.commissionNiText}>
+          دفع آمن عبر Network International · PCI-DSS Level 1
+        </Text>
+      </View>
+    </>
+  );
 
   const planColors = planGradientColors(subscription.plan?.sortOrder ?? 0);
 
@@ -469,121 +614,24 @@ export default function FeesScreen() {
               </Text>
             </View>
 
-            {/* ─── Custom Commission Section ─── */}
-            <View style={styles.commissionCard}>
+            {/* Re-open fee payment */}
+            <Pressable
+              onPress={() => setShowFeePayModal(true)}
+              style={styles.reopenFeePayBtn}
+            >
               <LinearGradient
-                colors={[`${colors.emerald}18`, `${colors.electricBright}10`]}
+                colors={[`${colors.emerald}22`, `${colors.electricBright}14`]}
                 style={StyleSheet.absoluteFill}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
               />
-              <View style={styles.commissionHeader}>
-                <View style={styles.commissionIconWrap}>
-                  <AppIcon name="heart" size={20} color={colors.textBrandSuccess} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.commissionTitle}>سداد عمولة سرح</Text>
-                  <Text style={styles.commissionSub}>ادعم المنصة بأي مبلغ تراه مناسباً</Text>
-                </View>
+              <AppIcon name="credit-card-outline" size={20} color={colors.textBrandSuccess} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.reopenFeePayTitle}>سداد الرسوم</Text>
+                <Text style={styles.reopenFeePaySub}>المبلغ اختياري — ادفع أي قيمة تناسبك</Text>
               </View>
-
-              {/* Quick amount chips */}
-              <View style={styles.quickAmountsRow}>
-                {QUICK_AMOUNTS.map((amt) => (
-                  <Pressable
-                    key={amt}
-                    onPress={() => setCommissionAmount(String(amt))}
-                    style={[
-                      styles.quickChip,
-                      commissionAmount === String(amt) && {
-                        borderColor: colors.electricBright,
-                        backgroundColor: `${colors.electricBright}18`,
-                      },
-                    ]}
-                  >
-                    <Text style={[
-                      styles.quickChipText,
-                      commissionAmount === String(amt) && { color: colors.electricBright },
-                    ]}>
-                      {amt} ريال
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {/* Custom amount input */}
-              <View style={styles.amountInputWrap}>
-                <Text style={styles.amountInputLabel}>أو أدخل مبلغاً مخصصاً</Text>
-                <View style={styles.amountInputRow}>
-                  <Text style={styles.amountCurrencyLabel}>ريال</Text>
-                  <TextInput
-                    style={styles.amountInput}
-                    value={commissionAmount}
-                    onChangeText={(v) => setCommissionAmount(v.replace(/[^0-9.]/g, ''))}
-                    placeholder="0"
-                    placeholderTextColor={colors.textSubtle}
-                    keyboardType="numeric"
-                    textAlign="right"
-                    maxLength={8}
-                  />
-                </View>
-              </View>
-
-              {/* Payment method mini-selector */}
-              <Text style={styles.commissionMethodLabel}>طريقة السداد</Text>
-              <View style={styles.commissionMethodRow}>
-                {PAYMENT_METHODS.map((m) => (
-                  <Pressable
-                    key={m.id}
-                    onPress={() => setCommissionMethod(m.id)}
-                    style={[
-                      styles.commissionMethodChip,
-                      commissionMethod === m.id && { borderColor: m.color, backgroundColor: `${m.color}15` },
-                    ]}
-                  >
-                    <Text style={{ fontSize: 14 }}>{m.icon}</Text>
-                    <Text style={[
-                      styles.commissionMethodLabel2,
-                      commissionMethod === m.id && { color: m.color },
-                    ]}>
-                      {m.arabic}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {/* Pay CTA */}
-              <Pressable
-                onPress={handlePayCommission}
-                disabled={commissionProcessing || !commissionAmount}
-                style={[
-                  styles.commissionPayBtn,
-                  (!commissionAmount || commissionProcessing) && { opacity: 0.55 },
-                ]}
-              >
-                <LinearGradient
-                  colors={[colors.electric, colors.electricBright, colors.electric]}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                  style={styles.commissionPayBtnInner}
-                >
-                  {commissionProcessing ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <>
-                      <AppIcon name="shield-check" size={18} color="#fff" />
-                      <Text style={styles.commissionPayBtnText}>
-                        سدّد العمولة
-                        {commissionAmount ? ` · ${commissionAmount} ريال` : ''}
-                      </Text>
-                    </>
-                  )}
-                </LinearGradient>
-              </Pressable>
-
-              <View style={styles.commissionNiBadge}>
-                <AppIcon name="lock" size={11} color={colors.textSubtle} />
-                <Text style={styles.commissionNiText}>دفع آمن عبر Network International · PCI-DSS Level 1</Text>
-              </View>
-            </View>
+              <AppIcon name={rtlForwardIcon} size={18} color={colors.textMuted} />
+            </Pressable>
           </>
         )}
 
@@ -681,19 +729,17 @@ export default function FeesScreen() {
               )}
             </LinearGradient>
 
-            {/* Upgrade CTA */}
-            {subscription.plan?.monthlyPrice === 0 && (
-              <Pressable
-                style={styles.upgradeBtn}
-                onPress={() => router.push('/subscription')}
-              >
-                <LinearGradient colors={['#7C3AED', '#A855F7']} style={styles.upgradeBtnInner}>
-                  <AppIcon name="crown" size={18} color="#fff" />
-                  <Text style={styles.upgradeBtnText}>ترقية الباقة · اكتشف المزيد</Text>
-                  <AppIcon name={rtlForwardIcon} size={16} color="#fff" />
-                </LinearGradient>
-              </Pressable>
-            )}
+            {/* Packages CTA — always visible */}
+            <Pressable
+              style={styles.upgradeBtn}
+              onPress={() => router.push('/subscription')}
+            >
+              <LinearGradient colors={['#7C3AED', '#A855F7']} style={styles.upgradeBtnInner}>
+                <AppIcon name="crown" size={18} color="#fff" />
+                <Text style={styles.upgradeBtnText}>عرض كل الباقات والاشتراكات</Text>
+                <AppIcon name={rtlForwardIcon} size={16} color="#fff" />
+              </LinearGradient>
+            </Pressable>
 
             {/* Renew/pay subscription */}
             <View style={styles.subActions}>
@@ -713,6 +759,13 @@ export default function FeesScreen() {
                   subtitle: 'وفّر ٢٠٪ مع الدفع السنوي',
                   color: colors.gold,
                   onPress: () => router.push({ pathname: '/payment', params: { planId: subscription.planSlug, cycle: 'yearly' } }),
+                },
+                {
+                  icon: 'crown-outline',
+                  title: 'تغيير الباقة',
+                  subtitle: 'قارن الباقات واختر الأنسب لك',
+                  color: '#A855F7',
+                  onPress: () => router.push('/subscription'),
                 },
                 {
                   icon: 'receipt-outline',
@@ -836,7 +889,7 @@ export default function FeesScreen() {
         <View style={{ height: 80 }} />
       </ScrollView>
 
-      {/* Payment Modal */}
+      {/* Payment Modal — listing fees */}
       {showPayModal && (
         <View style={styles.modalBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => !processing && setShowPayModal(false)} />
@@ -903,6 +956,40 @@ export default function FeesScreen() {
           </View>
         </View>
       )}
+
+      {/* Entry modal — سداد الرسوم بمبلغ اختياري */}
+      <Modal
+        visible={showFeePayModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !commissionProcessing && setShowFeePayModal(false)}
+      >
+        <View style={styles.feeModalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => !commissionProcessing && setShowFeePayModal(false)}
+          />
+          <View style={styles.feeModalSheet}>
+            <View style={styles.feeModalHandle} />
+            <View style={styles.feeModalHeader}>
+              <Text style={styles.feeModalTitle}>سداد الرسوم</Text>
+              <Pressable
+                onPress={() => !commissionProcessing && setShowFeePayModal(false)}
+                hitSlop={10}
+              >
+                <AppIcon name="close" size={22} color={colors.textMuted} />
+              </Pressable>
+            </View>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.feeModalBody}
+            >
+              {renderFeePayForm(true)}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1311,5 +1398,64 @@ function createStyles(colors: ThemeColors) {
     gap: 5,
   },
   commissionNiText: { ...typography.micro, color: colors.textSubtle },
+
+  reopenFeePayBtn: {
+    marginTop: spacing.lg,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.bgSurface,
+  },
+  reopenFeePayTitle: { ...typography.bodyStrong, color: colors.textPrimary },
+  reopenFeePaySub: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+
+  feeModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  feeModalSheet: {
+    backgroundColor: colors.bgPrimary,
+    borderTopLeftRadius: radius.xxl,
+    borderTopRightRadius: radius.xxl,
+    maxHeight: '88%',
+    paddingBottom: spacing.xl,
+  },
+  feeModalHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.borderMid,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  feeModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+  },
+  feeModalTitle: { ...typography.h3, color: colors.textPrimary },
+  feeModalBody: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxl,
+    gap: spacing.md,
+  },
+  feeModalSkip: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  feeModalSkipText: {
+    ...typography.body,
+    color: colors.textMuted,
+    fontWeight: '600',
+  },
   });
 }
