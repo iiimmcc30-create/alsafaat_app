@@ -8,7 +8,8 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useState } from 'react';
+import { controls, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { ltrInputText, marginStart, rtlInputText, rtlRow } from '@/lib/rtl';
 
@@ -31,6 +32,9 @@ export function AppTextInput({
   ltr = false,
   style,
   placeholderTextColor,
+  onFocus,
+  onBlur,
+  editable = true,
   ...props
 }: AppTextInputProps) {
   const { styles, colors } = useThemedStyles((theme) => ({
@@ -38,17 +42,40 @@ export function AppTextInput({
     colors: theme.colors,
   }));
   const inputStyle = ltr ? ltrInputText : rtlInputText;
+  const [focused, setFocused] = useState(false);
 
   return (
     <View style={containerStyle}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View style={[styles.wrap, error ? styles.wrapError : null]}>
+      <View
+        style={[
+          styles.wrap,
+          focused && styles.wrapFocused,
+          error ? styles.wrapError : null,
+          !editable && styles.wrapDisabled,
+        ]}
+      >
         {icon ? (
-          <AppIcon name={icon} size={18} color={colors.textMuted} style={styles.icon} />
+          <View style={[styles.iconBubble, focused && styles.iconBubbleFocused]}>
+            <AppIcon
+              name={icon}
+              size={17}
+              color={focused ? colors.electricBright : colors.textMuted}
+            />
+          </View>
         ) : null}
         <TextInput
           placeholderTextColor={placeholderTextColor ?? colors.textSubtle}
           style={[styles.input, inputStyle, style]}
+          editable={editable}
+          onFocus={(event) => {
+            setFocused(true);
+            onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            onBlur?.(event);
+          }}
           {...props}
         />
       </View>
@@ -74,18 +101,40 @@ function createStyles(colors: ThemeColors) {
       borderRadius: radius.lg,
       borderWidth: 1,
       borderColor: colors.borderSoft,
-      paddingHorizontal: spacing.md,
-      minHeight: 48,
+      paddingHorizontal: spacing.sm,
+      minHeight: controls.heightLg,
+    },
+    wrapFocused: {
+      borderColor: colors.electricBright,
+      backgroundColor: colors.bgSurface,
+      shadowColor: colors.electric,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 2,
     },
     wrapError: {
       borderColor: colors.danger,
     },
-    icon: marginStart(spacing.sm),
+    wrapDisabled: { opacity: 0.55 },
+    iconBubble: {
+      width: 34,
+      height: 34,
+      borderRadius: radius.md,
+      backgroundColor: colors.bgSurface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...marginStart(spacing.sm),
+    },
+    iconBubbleFocused: {
+      backgroundColor: colors.bgGlass,
+    },
     input: {
       flex: 1,
       ...typography.body,
       color: colors.textPrimary,
-      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.md,
     },
     error: {
       ...typography.micro,

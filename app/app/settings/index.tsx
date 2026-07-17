@@ -60,13 +60,25 @@ export default function SettingsScreen() {
           <AppIcon name={rtlBackIcon} size={22} color={colors.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle}>الإعدادات والخصوصية</Text>
-        <View style={styles.backBtn} />
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scroll, rtlDirection]}
       >
+        <View style={styles.intro}>
+          <View style={styles.introIcon}>
+            <AppIcon name="shield-check-outline" size={24} color={colors.electricBright} />
+          </View>
+          <View style={styles.introText}>
+            <Text style={styles.introTitle}>إدارة تجربتك بأمان</Text>
+            <Text style={styles.introSubtitle}>
+              تحكم في حسابك وخصوصيتك وطرق التواصل مع الدعم.
+            </Text>
+          </View>
+        </View>
+
         {SECTIONS.map((section) => (
           <View key={section.key} style={styles.sectionBlock}>
             {/* Section header row — tapping navigates to the section page */}
@@ -74,7 +86,9 @@ export default function SettingsScreen() {
               onPress={() => router.push(section.route as any)}
               style={({ pressed }) => [styles.sectionHeader, pressed && { opacity: 0.72 }]}
             >
-              <AppIcon name={section.icon} size={22} color={colors.textPrimary} />
+              <View style={styles.sectionIcon}>
+                <AppIcon name={section.icon} size={20} color={colors.electricBright} />
+              </View>
               <Text style={styles.sectionTitle}>{section.title}</Text>
               <AppIcon name={rtlForwardIcon} size={18} color={colors.textMuted} />
             </Pressable>
@@ -91,7 +105,9 @@ export default function SettingsScreen() {
                     pressed && { opacity: 0.72 },
                   ]}
                 >
-                  <AppIcon name={item.icon} size={20} color={colors.textPrimary} />
+                  <View style={styles.subIcon}>
+                    <AppIcon name={item.icon} size={17} color={colors.textSecondary} />
+                  </View>
                   <Text style={styles.subLabel}>{item.label}</Text>
                   <AppIcon name={rtlForwardIcon} size={14} color={colors.textSubtle} />
                 </Pressable>
@@ -110,15 +126,45 @@ function createStyles(colors: ThemeColors) {
     header: {
       alignItems: 'center',
       paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.md,
+      minHeight: 60,
+      backgroundColor: colors.bgGlassStrong,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.borderHairline,
     },
-    backBtn: { width: 36, alignItems: 'center' },
-    headerTitle: { ...typography.h3, color: colors.textPrimary, flex: 1, textAlign: 'center' },
-    scroll: { padding: spacing.lg, gap: spacing.lg },
-    sectionBlock: {
+    backBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: radius.md,
       backgroundColor: colors.bgSurface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerSpacer: { width: 42, height: 42 },
+    headerTitle: { ...typography.h3, color: colors.textPrimary, flex: 1, textAlign: 'center' },
+    scroll: { padding: spacing.lg, paddingBottom: spacing.huge, gap: spacing.lg },
+    intro: {
+      ...rtlRow,
+      alignItems: 'center',
+      gap: spacing.md,
+      padding: spacing.lg,
+      backgroundColor: colors.royal,
+      borderRadius: radius.xl,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderMid,
+    },
+    introIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: radius.lg,
+      backgroundColor: colors.bgGlassStrong,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    introText: { flex: 1, gap: spacing.xs },
+    introTitle: { ...typography.bodyStrong, color: colors.textPrimary },
+    introSubtitle: { ...typography.caption, color: colors.textSecondary, lineHeight: 19 },
+    sectionBlock: {
+      backgroundColor: colors.bgGlassStrong,
       borderRadius: radius.xl,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.borderSoft,
@@ -128,10 +174,18 @@ function createStyles(colors: ThemeColors) {
       ...rtlRow,
       alignItems: 'center',
       paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.lg,
+      paddingVertical: spacing.md,
       gap: spacing.md,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.borderHairline,
+    },
+    sectionIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.md,
+      backgroundColor: colors.bgGlass,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     sectionTitle: { ...typography.bodyStrong, color: colors.textPrimary, flex: 1 },
     subList: { paddingVertical: spacing.xs },
@@ -145,6 +199,14 @@ function createStyles(colors: ThemeColors) {
     subRowDivider: {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.borderHairline,
+    },
+    subIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: radius.sm,
+      backgroundColor: colors.bgSurface,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     subLabel: { ...typography.body, color: colors.textSecondary, flex: 1 },
   });

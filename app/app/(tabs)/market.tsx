@@ -90,6 +90,16 @@ export default function MarketScreen() {
   // الهيدر داخل FlatList حتى يتحرك مع القائمة
   const ListHeader = (
     <View>
+      <View style={styles.pageHeader}>
+        <View>
+          <Text style={styles.pageTitle}>السوق</Text>
+          <Text style={styles.pageSubtitle}>اكتشف أحدث الإعلانات من مجتمع سرح</Text>
+        </View>
+        <View style={styles.marketIcon}>
+          <AppIcon name="tags" size={22} color={colors.electricBright} />
+        </View>
+      </View>
+
       {/* شريط البحث */}
       <View style={styles.searchRow}>
         <View style={styles.searchBox}>
@@ -171,12 +181,36 @@ export default function MarketScreen() {
 function createMarketStyles(colors: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgDeep },
+    pageHeader: {
+      ...rtlRow,
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.sm,
+    },
+    pageTitle: { ...typography.h1, color: colors.textPrimary },
+    pageSubtitle: {
+      ...typography.caption,
+      color: colors.textMuted,
+      marginTop: spacing.xs,
+    },
+    marketIcon: {
+      width: 46,
+      height: 46,
+      borderRadius: radius.lg,
+      backgroundColor: colors.bgGlass,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderMid,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
     searchRow: {
       ...rtlRow,
       gap: spacing.sm,
       paddingHorizontal: spacing.lg,
-      paddingTop: spacing.md,
+      paddingTop: spacing.lg,
       marginBottom: spacing.sm,
     },
     searchBox: {
@@ -184,11 +218,11 @@ function createMarketStyles(colors: ThemeColors) {
       ...rtlRow,
       alignItems: 'center',
       gap: spacing.sm,
-      backgroundColor: colors.bgSurface,
+      backgroundColor: colors.bgGlassStrong,
       borderRadius: radius.xl,
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      borderWidth: 1,
+      minHeight: 52,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.borderSoft,
     },
     searchInput: {
@@ -199,10 +233,10 @@ function createMarketStyles(colors: ThemeColors) {
       writingDirection: 'rtl',
     },
     filterBtn: {
-      width: 42, height: 42, borderRadius: radius.md,
-      backgroundColor: colors.bgSurface,
+      width: 52, height: 52, borderRadius: radius.lg,
+      backgroundColor: colors.bgGlassStrong,
       alignItems: 'center', justifyContent: 'center',
-      borderWidth: 1, borderColor: colors.borderSoft,
+      borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSoft,
     },
     filterBtnActive: { borderColor: colors.gold, backgroundColor: `${colors.gold}15` },
 
@@ -211,10 +245,10 @@ function createMarketStyles(colors: ThemeColors) {
       ...rtlRow,
       alignItems: 'center',
       gap: 4,
-      paddingHorizontal: spacing.md, paddingVertical: 6,
+      paddingHorizontal: spacing.md, minHeight: 38,
       borderRadius: radius.pill,
-      backgroundColor: colors.bgSurface,
-      borderWidth: 1, borderColor: colors.borderSoft,
+      backgroundColor: colors.bgGlassStrong,
+      borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSoft,
     },
     catChipActive: { backgroundColor: colors.royal, borderColor: colors.electric },
     catIcon: { fontSize: 14 },

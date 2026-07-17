@@ -32,7 +32,7 @@ export const commonStyles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(2,110,152,0.25)',
+    backgroundColor: colors.bgGlass,
     borderWidth: 1,
     borderColor: colors.borderStrong,
   },

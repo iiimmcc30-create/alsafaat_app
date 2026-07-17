@@ -152,28 +152,28 @@ const lightGradients: ThemeGradients = {
   rim: ['rgba(0,107,60,0.35)', 'rgba(0,107,60,0)'],
 };
 
-export function createShadow(palette: ThemeColors) {
+export function createShadow(palette: BaseThemeColors) {
   return {
     glow: {
       shadowColor: palette.glow,
       shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.55,
-      shadowRadius: 22,
-      elevation: 12,
+      shadowOpacity: 0.24,
+      shadowRadius: 16,
+      elevation: 8,
     },
     soft: {
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: palette === lightColors ? 0.12 : 0.32,
-      shadowRadius: 16,
-      elevation: 6,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: palette === lightColors ? 0.08 : 0.24,
+      shadowRadius: 12,
+      elevation: 4,
     },
     card: {
       shadowColor: palette === lightColors ? '#000000' : '#000408',
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: palette === lightColors ? 0.08 : 0.45,
-      shadowRadius: 24,
-      elevation: 10,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: palette === lightColors ? 0.07 : 0.3,
+      shadowRadius: 20,
+      elevation: 7,
     },
     pressed: {
       shadowColor: palette.electric,
@@ -284,5 +284,45 @@ export const typography = {
   micro: { fontSize: 11, fontWeight: '700' as const, letterSpacing: 0.6, ...rtlText },
 };
 
-export const theme = { colors, gradients, spacing, radius, typography, shadow };
+/** Shared 2026 layout metrics. Keep screens visually consistent across device sizes. */
+export const layout = {
+  screenPadding: spacing.lg,
+  sectionGap: spacing.xxl,
+  contentMaxWidth: 720,
+  headerHeight: 60,
+  tabBarHeight: 64,
+};
+
+export const controls = {
+  heightSm: 40,
+  heightMd: 48,
+  heightLg: 54,
+  iconButton: 42,
+  minTouchTarget: 44,
+};
+
+/** Animation durations and spring values for shared interactive components. */
+export const motion = {
+  fast: 140,
+  normal: 220,
+  slow: 360,
+  pressScale: 0.97,
+  spring: {
+    damping: 18,
+    stiffness: 240,
+    mass: 0.8,
+  },
+};
+
+export const theme = {
+  colors,
+  gradients,
+  spacing,
+  radius,
+  typography,
+  shadow,
+  layout,
+  controls,
+  motion,
+};
 export default theme;

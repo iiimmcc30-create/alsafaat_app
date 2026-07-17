@@ -32,7 +32,8 @@ export function ActionSheetHost() {
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="slide"
+      statusBarTranslucent
       onRequestClose={() => closeActionSheet(null)}
     >
       <Pressable style={styles.backdrop} onPress={() => closeActionSheet(null)}>
@@ -40,6 +41,7 @@ export function ActionSheetHost() {
           style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}
           onPress={(e) => e.stopPropagation?.()}
         >
+          <View style={styles.handle} />
           <Text style={styles.title}>{state?.title}</Text>
           {state?.message ? (
             <Text style={styles.message}>{state.message}</Text>
@@ -53,7 +55,7 @@ export function ActionSheetHost() {
                   styles.item,
                   item.destructive && styles.itemDanger,
                   item.cancel && styles.itemCancel,
-                  pressed && { opacity: 0.85 },
+                  pressed && styles.itemPressed,
                 ]}
                 onPress={() => closeActionSheet(item.cancel ? null : item.key)}
               >
@@ -79,18 +81,26 @@ function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     backdrop: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.55)',
+      backgroundColor: colors.bgOverlay,
       justifyContent: 'flex-end',
     },
     sheet: {
-      backgroundColor: colors.bgSurface,
-      borderTopLeftRadius: radius.xl,
-      borderTopRightRadius: radius.xl,
-      paddingTop: spacing.lg,
+      backgroundColor: colors.bgGlassStrong,
+      borderTopLeftRadius: radius.xxl,
+      borderTopRightRadius: radius.xxl,
+      paddingTop: spacing.sm,
       paddingHorizontal: spacing.lg,
-      borderTopWidth: 1,
+      borderTopWidth: StyleSheet.hairlineWidth,
       borderColor: colors.borderSoft,
       gap: spacing.sm,
+    },
+    handle: {
+      width: 40,
+      height: 4,
+      borderRadius: radius.pill,
+      backgroundColor: colors.borderStrong,
+      alignSelf: 'center',
+      marginBottom: spacing.sm,
     },
     title: {
       ...typography.h3,
@@ -105,20 +115,26 @@ function createStyles(colors: ThemeColors) {
     },
     list: { gap: spacing.sm, marginTop: spacing.sm },
     item: {
-      paddingVertical: 14,
+      minHeight: 52,
+      paddingHorizontal: spacing.lg,
       borderRadius: radius.lg,
       backgroundColor: colors.bgElevated,
-      borderWidth: 1,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.borderSoft,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     itemDanger: {
       backgroundColor: 'rgba(239,68,68,0.12)',
       borderColor: 'rgba(239,68,68,0.35)',
     },
     itemCancel: {
-      backgroundColor: colors.bgGlass,
+      backgroundColor: colors.bgSurface,
       marginTop: spacing.xs,
+    },
+    itemPressed: {
+      opacity: 0.82,
+      transform: [{ scale: 0.985 }],
     },
     itemText: {
       ...typography.bodyStrong,

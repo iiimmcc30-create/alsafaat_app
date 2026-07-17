@@ -4,9 +4,9 @@
 import { Tabs, useRouter } from 'expo-router';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { AppIcon } from '@/components/ui/FlaticonIcon';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { radius } from '@/constants/theme';
+import { layout, radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { rtlDirection } from '@/lib/rtl';
 import type { FlaticonStyle } from '@/constants/flaticon-glyphs';
@@ -24,7 +24,17 @@ function TabBarIcon({
   focused?: boolean;
 }) {
   const variant: FlaticonStyle = focused ? 'sr' : 'rr';
-  return <AppIcon name={name} variant={variant} color={color} size={size} />;
+  return (
+    <View
+      style={[
+        styles.iconWrap,
+        focused && { backgroundColor: `${color}14` },
+      ]}
+    >
+      <AppIcon name={name} variant={variant} color={color} size={focused ? size + 1 : size} />
+      {focused ? <View style={[styles.activeDot, { backgroundColor: color }]} /> : null}
+    </View>
+  );
 }
 
 function AddListingTabButton({
@@ -40,7 +50,11 @@ function AddListingTabButton({
       accessibilityState={accessibilityState}
       accessibilityLabel="إضافة إعلان"
       onPress={() => router.push('/create/listing')}
-      style={[style, styles.addTabWrap]}
+      style={({ pressed }) => [
+        style,
+        styles.addTabWrap,
+        pressed && styles.addTabPressed,
+      ]}
     >
       <LinearGradient
         colors={scheme === 'light' ? gradients.electric : gradients.royal}
@@ -77,13 +91,21 @@ export default function TabsLayout() {
           </Text>
         ),
         tabBarStyle: {
-          backgroundColor: colors.bgPrimary,
-          borderTopColor: colors.borderSoft,
-          borderTopWidth: 1,
-          height: 58 + tabBarBottom,
-          paddingTop: 8,
+          backgroundColor: colors.bgGlassStrong,
+          borderTopColor: colors.borderHairline,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          height: layout.tabBarHeight + tabBarBottom,
+          paddingTop: 6,
           paddingBottom: tabBarBottom,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -5 },
+          shadowOpacity: scheme === 'light' ? 0.06 : 0.22,
+          shadowRadius: 16,
+          elevation: 12,
           ...rtlDirection,
+        },
+        tabBarItemStyle: {
+          paddingTop: 2,
         },
         tabBarLabelStyle: {
           fontSize: 10,
@@ -160,12 +182,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addTabBtn: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: 58,
+    height: 58,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    marginTop: -10,
+    marginTop: -12,
+    shadowColor: '#006B3C',
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 9,
+  },
+  addTabPressed: { transform: [{ scale: 0.94 }], opacity: 0.9 },
+  iconWrap: {
+    width: 42,
+    height: 32,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  activeDot: {
+    position: 'absolute',
+    bottom: 2,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
   },
 });

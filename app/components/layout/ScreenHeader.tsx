@@ -2,7 +2,7 @@
 import { AppIcon } from '@/components/ui/FlaticonIcon';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { spacing, typography, type ThemeColors } from '@/constants/theme';
+import { controls, layout, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { rtlBackIcon, rtlDirection, rtlRow } from '@/lib/rtl';
 
@@ -35,11 +35,23 @@ export function ScreenHeader({
     <View style={[styles.container, rtlDirection]}>
       <View style={styles.side}>
         {showBack ? (
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.iconBtn}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="رجوع"
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
+          >
             <AppIcon name={rtlBackIcon} size={24} color={colors.textPrimary} />
           </Pressable>
         ) : showSidebar ? (
-          <Pressable onPress={onSidebar} hitSlop={12} style={styles.iconBtn}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="فتح القائمة"
+            onPress={onSidebar}
+            hitSlop={12}
+            style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
+          >
             <AppIcon name="menu-burger" size={24} color={colors.textPrimary} />
           </Pressable>
         ) : null}
@@ -52,7 +64,12 @@ export function ScreenHeader({
 
       <View style={[styles.side, { alignItems: 'flex-end' }]}>
         {rightIcon ? (
-          <Pressable onPress={onRightPress} hitSlop={12} style={styles.iconBtn}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onRightPress}
+            hitSlop={12}
+            style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
+          >
             <AppIcon name={rightIcon} size={22} color={colors.textPrimary} />
           </Pressable>
         ) : null}
@@ -67,13 +84,13 @@ function createStyles(colors: ThemeColors) {
       ...rtlRow,
       alignItems: 'center',
       paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.md,
-      backgroundColor: colors.bgDeep,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.borderSoft,
+      minHeight: layout.headerHeight,
+      backgroundColor: colors.bgGlassStrong,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.borderHairline,
     },
     side: {
-      width: 40,
+      width: controls.iconButton,
     },
     titleWrap: {
       flex: 1,
@@ -82,20 +99,27 @@ function createStyles(colors: ThemeColors) {
     title: {
       ...typography.h3,
       color: colors.textPrimary,
+      lineHeight: 24,
     },
     arabic: {
       ...typography.micro,
-      color: colors.textBrand,
+      color: colors.textMuted,
+      marginTop: 1,
     },
     iconBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: controls.iconButton,
+      height: controls.iconButton,
+      borderRadius: radius.md,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.bgGlass,
-      borderWidth: 1,
+      backgroundColor: colors.bgSurface,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.borderSoft,
+    },
+    iconBtnPressed: {
+      transform: [{ scale: 0.94 }],
+      backgroundColor: colors.bgElevated,
+      opacity: 0.82,
     },
   });
 }

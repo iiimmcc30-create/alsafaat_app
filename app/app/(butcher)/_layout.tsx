@@ -2,11 +2,12 @@
 // SAFAT — Butcher Tabs Layout
 import { AppIcon } from '@/components/ui/FlaticonIcon';
 import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { rtlDirection } from '@/lib/rtl';
 import type { FlaticonStyle } from '@/constants/flaticon-glyphs';
+import { layout, radius } from '@/constants/theme';
 
 function TabBarIcon({
   name,
@@ -20,7 +21,12 @@ function TabBarIcon({
   focused?: boolean;
 }) {
   const variant: FlaticonStyle = focused ? 'sr' : 'rr';
-  return <AppIcon name={name} variant={variant} size={size} color={color} />;
+  return (
+    <View style={[styles.iconWrap, focused && { backgroundColor: `${color}14` }]}>
+      <AppIcon name={name} variant={variant} size={focused ? size + 1 : size} color={color} />
+      {focused ? <View style={[styles.activeDot, { backgroundColor: color }]} /> : null}
+    </View>
+  );
 }
 
 export default function ButcherTabsLayout() {
@@ -48,14 +54,20 @@ export default function ButcherTabsLayout() {
           </Text>
         ),
         tabBarStyle: {
-          backgroundColor: colors.bgPrimary,
-          borderTopColor: colors.borderSoft,
-          borderTopWidth: 1,
-          height: 58 + tabBarBottom,
-          paddingTop: 8,
+          backgroundColor: colors.bgGlassStrong,
+          borderTopColor: colors.borderHairline,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          height: layout.tabBarHeight + tabBarBottom,
+          paddingTop: 6,
           paddingBottom: tabBarBottom,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -5 },
+          shadowOpacity: scheme === 'light' ? 0.06 : 0.22,
+          shadowRadius: 16,
+          elevation: 12,
           ...rtlDirection,
         },
+        tabBarItemStyle: { paddingTop: 2 },
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '600',
@@ -102,3 +114,21 @@ export default function ButcherTabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconWrap: {
+    width: 42,
+    height: 32,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  activeDot: {
+    position: 'absolute',
+    bottom: 2,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+});

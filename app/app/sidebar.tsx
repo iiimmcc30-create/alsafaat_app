@@ -41,11 +41,25 @@ function SidebarMenuRow({
       style={({ pressed }) => [
         rowStyles.row,
         showDivider && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderHairline },
-        pressed && { opacity: 0.72 },
+        pressed && rowStyles.rowPressed,
       ]}
     >
       <View style={rowStyles.leading}>
-        <AppIcon name={item.icon} size={22} color={colors.textPrimary} />
+        <View
+          style={[
+            rowStyles.iconBubble,
+            {
+              backgroundColor: item.danger ? `${colors.rose}12` : colors.bgGlass,
+              borderColor: item.danger ? `${colors.rose}28` : colors.borderSoft,
+            },
+          ]}
+        >
+          <AppIcon
+            name={item.icon}
+            size={19}
+            color={item.danger ? colors.rose : colors.textBrandStrong}
+          />
+        </View>
         <View style={rowStyles.textWrap}>
           <Text style={[rowStyles.label, { color: item.danger ? colors.rose : colors.textPrimary }]}>
             {item.label}
@@ -67,15 +81,27 @@ const rowStyles = StyleSheet.create({
     ...rtlRow,
     alignItems: 'center',
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  rowPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.985 }],
   },
   leading: {
     ...rtlRow,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-start',
-    gap: spacing.sm,
+    gap: spacing.md,
     minWidth: 0,
+  },
+  iconBubble: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   textWrap: {
     flexShrink: 1,
@@ -246,12 +272,15 @@ function createSidebarStyles(colors: ThemeColors, scheme: 'light' | 'dark') {
       flex: 1,
     },
     panel: {
-      width: '88%',
-      maxWidth: 360,
+      width: '86%',
+      maxWidth: 380,
       alignSelf: 'stretch',
       backgroundColor: panelBg,
       borderLeftWidth: StyleSheet.hairlineWidth,
       borderLeftColor: colors.borderMid,
+      borderTopLeftRadius: 28,
+      borderBottomLeftRadius: 28,
+      overflow: 'hidden',
       shadowColor: '#000',
       shadowOffset: { width: scheme === 'dark' ? -4 : -2, height: 0 },
       shadowOpacity: scheme === 'dark' ? 0.35 : 0.12,
@@ -268,8 +297,12 @@ function createSidebarStyles(colors: ThemeColors, scheme: 'light' | 'dark') {
     profileRow: {
       ...rtlRow,
       alignItems: 'center',
-      paddingHorizontal: spacing.xl,
-      paddingVertical: spacing.xl,
+      margin: spacing.md,
+      padding: spacing.lg,
+      borderRadius: 20,
+      backgroundColor: colors.bgGlass,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
     },
     profileLeading: {
       ...rtlRow,
@@ -283,7 +316,7 @@ function createSidebarStyles(colors: ThemeColors, scheme: 'light' | 'dark') {
       width: 52,
       height: 52,
       borderRadius: 26,
-      borderWidth: 2,
+      borderWidth: 2.5,
       borderColor: colors.electric,
     },
     profileText: { flexShrink: 1, gap: 2 },
