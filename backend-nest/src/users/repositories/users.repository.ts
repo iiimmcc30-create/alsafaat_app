@@ -163,9 +163,11 @@ export class UsersRepository {
     });
   }
 
-  createFollow(followerId: string, followingId: string) {
-    return this.prisma.follow.create({
-      data: { followerId, followingId },
+  upsertFollow(followerId: string, followingId: string) {
+    return this.prisma.follow.upsert({
+      where: { followerId_followingId: { followerId, followingId } },
+      update: {},
+      create: { followerId, followingId },
     });
   }
 

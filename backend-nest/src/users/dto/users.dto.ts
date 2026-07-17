@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -87,4 +88,9 @@ export class RateUserDto {
   @Min(1)
   @Max(5)
   rating: number;
+}
+
+export class SetFollowDto {
+  @IsBoolean()
+  following: boolean;
 }

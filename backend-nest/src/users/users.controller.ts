@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -23,6 +24,7 @@ import {
   ConnectionsQueryDto,
   ListUsersQueryDto,
   RateUserDto,
+  SetFollowDto,
   UpdateUserDto,
 } from './dto/users.dto';
 
@@ -42,6 +44,7 @@ export class UsersController {
   @OptionalAuth()
   @RateLimit('api')
   @Get(':id')
+  @Header('Cache-Control', 'private, no-store')
   @HttpCode(HttpStatus.OK)
   async getById(@Param('id') id: string, @CurrentUser() viewer?: JwtPayload) {
     return successResponse(await this.users.getUser(id, viewer));
@@ -68,8 +71,14 @@ export class UsersController {
   @RateLimit('api')
   @Post(':id/follow')
   @HttpCode(HttpStatus.OK)
-  async follow(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return successResponse(await this.users.toggleFollow(id, user.userId));
+  async follow(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: SetFollowDto,
+  ) {
+    return successResponse(
+      await this.users.setFollow(id, user.userId, dto.following),
+    );
   }
 
   @RateLimit('api')
@@ -89,6 +98,7 @@ export class UsersController {
   @OptionalAuth()
   @RateLimit('api')
   @Get(':id/connections')
+  @Header('Cache-Control', 'private, no-store')
   @HttpCode(HttpStatus.OK)
   async connections(
     @Param('id') id: string,

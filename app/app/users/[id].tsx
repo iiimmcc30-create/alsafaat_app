@@ -26,7 +26,7 @@ import { rtlBackIcon } from '@/lib/rtl';
 import { useApp } from '@/hooks/useApp';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCountryInfo } from '@/services/types';
-import { fetchUserProfile, rateUser, toggleFollowUser, type PublicUserProfile } from '@/services/users';
+import { fetchUserProfile, rateUser, setFollowUser, type PublicUserProfile } from '@/services/users';
 import { promptReport } from '@/services/reports';
 import { ListingCard } from '@/components/feature/ListingCard';
 import { PostItem } from '@/components/feature/PostItem';
@@ -54,9 +54,8 @@ export default function UserProfileScreen() {
     toggleBookmark,
     deletePost,
     addComment,
-    setFollowState,
   } = useApp();
-  const { accessToken, isAuthenticated } = useAuth();
+  const { accessToken, isAuthenticated, isLoading: authLoading } = useAuth();
   const { gradients, colors: themeColors } = useTheme();
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
 
@@ -76,24 +75,43 @@ export default function UserProfileScreen() {
 
   const isOwnProfile = !id || id === me.id;
 
-  const loadProfile = useCallback(async () => {
+  const fetchAuthoritativeProfile = useCallback(async () => {
+    if (!isAuthenticated || !accessToken) return null;
     const targetId = id || me.id;
-    setLoading(true);
     const data = await fetchUserProfile(targetId);
     setProfile(data);
-    if (data) setFollowState(data.id, data.isFollowing);
-    setLoading(false);
-  }, [id, me.id, setFollowState]);
+    if (__DEV__) {
+      console.debug('[Follow] profile state loaded from server', {
+        viewerId: me.id,
+        profileUserId: targetId,
+        isFollowing: data?.isFollowing ?? null,
+      });
+    }
+    return data;
+  }, [accessToken, id, isAuthenticated, me.id]);
+
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    try {
+      await fetchAuthoritativeProfile();
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchAuthoritativeProfile]);
 
   // Always read the authoritative follow state when returning to this screen.
   useFocusEffect(
     useCallback(() => {
+      // Session restoration is asynchronous after a cold app start. Do not
+      // issue an anonymous profile request that would correctly return false
+      // and then remain on screen after the token is restored.
+      if (authLoading || !isAuthenticated || !accessToken) return;
       if (isOwnProfile) {
         router.replace('/(tabs)/profile');
         return;
       }
       void loadProfile();
-    }, [isOwnProfile, loadProfile, router]),
+    }, [accessToken, authLoading, isAuthenticated, isOwnProfile, loadProfile, router]),
   );
 
   const onRefresh = useCallback(async () => {
@@ -114,44 +132,25 @@ export default function UserProfileScreen() {
       Alert.alert('تسجيل الدخول', 'يجب تسجيل الدخول للمتابعة');
       return;
     }
-    const wasFollowing = profile.isFollowing;
-    const previousCount = profile.followersCount;
-
-    // Optimistic UI; reconcile with the server response below.
-    setProfile((prev) =>
-      prev
-        ? {
-            ...prev,
-            isFollowing: !wasFollowing,
-            followersCount: Math.max(0, previousCount + (wasFollowing ? -1 : 1)),
-          }
-        : prev,
-    );
     setFollowLoading(true);
     try {
-      const result = await toggleFollowUser(profile.id);
+      const result = await setFollowUser(profile.id, !profile.isFollowing);
       if (!result) throw new Error('follow_failed');
 
-      setFollowState(profile.id, result.following);
-      setProfile((prev) =>
-        prev
-          ? {
-              ...prev,
-              isFollowing: result.following,
-              followersCount: Math.max(
-                0,
-                previousCount + (result.following ? 1 : 0) - (wasFollowing ? 1 : 0),
-              ),
-            }
-          : prev,
-      );
-    } catch {
-      setFollowState(profile.id, wasFollowing);
-      setProfile((prev) =>
-        prev
-          ? { ...prev, isFollowing: wasFollowing, followersCount: previousCount }
-          : prev,
-      );
+      // Never trust local/optimistic state. Read the relationship back from
+      // PostgreSQL through the authenticated profile endpoint.
+      const refreshed = await fetchAuthoritativeProfile();
+      if (!refreshed) throw new Error('profile_refetch_failed');
+      if (__DEV__ && refreshed.isFollowing !== result.following) {
+        console.warn('[Follow] mutation/profile mismatch', {
+          profileUserId: profile.id,
+          mutationFollowing: result.following,
+          profileFollowing: refreshed.isFollowing,
+        });
+      }
+    } catch (error) {
+      if (__DEV__) console.warn('[Follow] profile mutation failed', error);
+      await fetchAuthoritativeProfile();
       Alert.alert('خطأ', 'تعذّرت المتابعة، حاول مجدداً');
     } finally {
       setFollowLoading(false);

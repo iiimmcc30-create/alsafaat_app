@@ -24,7 +24,7 @@ import { rtlBackIcon } from '@/lib/rtl';
 import { openUserProfile } from '@/lib/openUserProfile';
 import {
   fetchUserConnections,
-  toggleFollowUser,
+  setFollowUser,
   type ConnectionUser,
 } from '@/services/users';
 
@@ -32,8 +32,8 @@ type ConnectionsTab = 'followers' | 'following';
 
 export default function ProfileConnectionsScreen() {
   const router = useRouter();
-  const { me, setFollowState } = useApp();
-  const { accessToken } = useAuth();
+  const { me } = useApp();
+  const { accessToken, isAuthenticated, isLoading: authLoading } = useAuth();
   const { colors } = useTheme();
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const params = useLocalSearchParams<{
@@ -68,8 +68,9 @@ export default function ProfileConnectionsScreen() {
   // Refresh when returning from a user profile so buttons never show stale state.
   useFocusEffect(
     useCallback(() => {
+      if (authLoading || !isAuthenticated || !accessToken) return;
       void loadConnections();
-    }, [loadConnections]),
+    }, [accessToken, authLoading, isAuthenticated, loadConnections]),
   );
 
   const handleFollowToggle = async (user: ConnectionUser) => {
@@ -79,25 +80,26 @@ export default function ProfileConnectionsScreen() {
     }
     if (user.id === me.id) return;
 
-    const wasFollowing = user.isFollowing;
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === user.id ? { ...u, isFollowing: !wasFollowing } : u,
-      ),
-    );
     setFollowLoadingId(user.id);
     try {
-      const result = await toggleFollowUser(user.id);
+      const result = await setFollowUser(user.id, !user.isFollowing);
       if (!result) throw new Error('follow_failed');
-      setFollowState(user.id, result.following);
-      setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, isFollowing: result.following } : u)),
-      );
-    } catch {
-      setFollowState(user.id, wasFollowing);
-      setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, isFollowing: wasFollowing } : u)),
-      );
+
+      // The list endpoint resolves every row from PostgreSQL for the current
+      // authenticated viewer. Never keep a local follow value after mutation.
+      await loadConnections();
+      if (__DEV__) {
+        console.debug('[Follow] connections refetched after mutation', {
+          viewerId: me.id,
+          profileUserId: targetUserId,
+          targetUserId: user.id,
+          following: result.following,
+          connectionType: activeTab,
+        });
+      }
+    } catch (error) {
+      if (__DEV__) console.warn('[Follow] connection mutation failed', error);
+      await loadConnections();
       Alert.alert('خطأ', 'تعذّرت المتابعة');
     } finally {
       setFollowLoadingId(null);

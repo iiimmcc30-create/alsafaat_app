@@ -9,7 +9,7 @@ import { useApp } from '@/hooks/useApp';
 import { type Listing } from '@/services/types';
 import { openLiveCreateIfAllowed } from '@/lib/liveStreamAccess';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchUserProfile, toggleFollowUser } from '@/services/users';
+import { fetchUserProfile, setFollowUser } from '@/services/users';
 import { openUserProfile } from '@/lib/openUserProfile';
 import { BRAND_VERIFIED_AR, BRAND_VERIFIED_EN } from '@/constants/brandCopy';
 import { API_BASE } from '@/services/api';
@@ -22,7 +22,7 @@ import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { ImageViewerModal } from '@/components/ui/ImageViewerModal';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ListingDetailScreen() {
@@ -35,7 +35,7 @@ export default function ListingDetailScreen() {
   const cached = listings.find((l) => l.id === id);
   const [listing, setListing] = useState<Listing | null>(cached ?? null);
   const [loading, setLoading] = useState(!cached);
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowing, setIsFollowing] = useState<boolean | null>(null);
   const [followLoading, setFollowLoading] = useState(false);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [imageViewerIndex, setImageViewerIndex] = useState(0);
@@ -177,12 +177,31 @@ export default function ListingDetailScreen() {
     };
   }, [id, accessToken, cached]);
 
+  const refreshSellerFollowState = useCallback(async () => {
+    if (
+      !listing ||
+      listing.seller.id === me.id ||
+      !isAuthenticated ||
+      !accessToken
+    ) {
+      setIsFollowing(null);
+      return null;
+    }
+    const profile = await fetchUserProfile(listing.seller.id);
+    setIsFollowing(profile?.isFollowing ?? null);
+    if (__DEV__) {
+      console.debug('[Follow] listing seller state loaded from server', {
+        viewerId: me.id,
+        sellerId: listing.seller.id,
+        isFollowing: profile?.isFollowing ?? null,
+      });
+    }
+    return profile;
+  }, [accessToken, isAuthenticated, listing, me.id]);
+
   useEffect(() => {
-    if (!listing || listing.seller.id === me.id) return;
-    fetchUserProfile(listing.seller.id).then((profile) => {
-      if (profile) setIsFollowing(profile.isFollowing);
-    });
-  }, [listing?.seller.id, me.id]);
+    void refreshSellerFollowState();
+  }, [refreshSellerFollowState]);
 
   const openSellerChat = () => {
     if (!listing) return;
@@ -199,15 +218,30 @@ export default function ListingDetailScreen() {
   };
 
   const handleFollowSeller = async () => {
-    if (!listing || !accessToken) {
+    if (!listing || !accessToken || isFollowing === null) {
       Alert.alert('تسجيل الدخول', 'يجب تسجيل الدخول للمتابعة');
       return;
     }
     setFollowLoading(true);
-    const result = await toggleFollowUser(listing.seller.id);
-    if (result) setIsFollowing(result.following);
-    else Alert.alert('خطأ', 'تعذّرت المتابعة');
-    setFollowLoading(false);
+    try {
+      const result = await setFollowUser(listing.seller.id, !isFollowing);
+      if (!result) throw new Error('follow_failed');
+      const refreshed = await refreshSellerFollowState();
+      if (!refreshed) throw new Error('profile_refetch_failed');
+      if (__DEV__ && refreshed.isFollowing !== result.following) {
+        console.warn('[Follow] listing seller mutation/profile mismatch', {
+          sellerId: listing.seller.id,
+          mutationFollowing: result.following,
+          profileFollowing: refreshed.isFollowing,
+        });
+      }
+    } catch (error) {
+      if (__DEV__) console.warn('[Follow] listing seller mutation failed', error);
+      await refreshSellerFollowState();
+      Alert.alert('خطأ', 'تعذّرت المتابعة');
+    } finally {
+      setFollowLoading(false);
+    }
   };
 
   if (loading && !listing) {
@@ -340,12 +374,21 @@ export default function ListingDetailScreen() {
             <View style={[styles.sellerActions, rtlRow]}>
               <Pressable
                 onPress={handleFollowSeller}
-                disabled={followLoading}
-                style={[styles.followPill, isFollowing && styles.followingPill]}
+                disabled={followLoading || isFollowing === null}
+                style={[styles.followPill, isFollowing === true && styles.followingPill]}
               >
-                <Text style={[styles.followPillText, isFollowing && styles.followingPillText]}>
-                  {isFollowing ? 'متابَع' : 'متابعة'}
-                </Text>
+                {isFollowing === null ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text
+                    style={[
+                      styles.followPillText,
+                      isFollowing && styles.followingPillText,
+                    ]}
+                  >
+                    {isFollowing ? 'متابَع' : 'متابعة'}
+                  </Text>
+                )}
               </Pressable>
               <Pressable
                 onPress={() => openUserProfile(router, listing.seller.id)}

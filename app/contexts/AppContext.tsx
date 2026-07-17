@@ -49,9 +49,6 @@ interface AppContextValue {
   addComment: (postId: string, content: string) => Promise<boolean>;
   removeListing: (listingId: string) => Promise<ActionResult>;
   refetchData: () => Promise<void>;
-  /** Locally-tracked follow states — persist across navigation */
-  followedUserIds: Set<string>;
-  setFollowState: (userId: string, following: boolean) => void;
 }
 
 export const AppContext = createContext<AppContextValue | null>(null);
@@ -64,7 +61,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [repostedPosts, setRepostedPosts] = useState<Set<string>>(new Set());
   const [bookmarkedPosts, setBookmarkedPosts] = useState<Set<string>>(new Set());
-  const [followedUserIds, setFollowedUserIds] = useState<Set<string>>(new Set());
 
   // Bookmarks are device-local (no backend model yet) — restore on mount
   useEffect(() => {
@@ -84,15 +80,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (next.has(postId)) next.delete(postId);
       else next.add(postId);
       AsyncStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify([...next])).catch(() => {});
-      return next;
-    });
-  }, []);
-
-  const setFollowState = useCallback((userId: string, following: boolean) => {
-    setFollowedUserIds((prev) => {
-      const next = new Set(prev);
-      if (following) next.add(userId);
-      else next.delete(userId);
       return next;
     });
   }, []);
@@ -583,8 +570,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addComment,
         removeListing,
         refetchData,
-        followedUserIds,
-        setFollowState,
       }}
     >
       {children}

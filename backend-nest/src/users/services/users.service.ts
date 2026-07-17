@@ -70,6 +70,25 @@ export class UsersService {
       ]);
       isFollowing = !!follow;
       myRating = review?.rating ?? null;
+      this.logger.debug(
+        {
+          viewerId: viewer.userId,
+          profileUserId: id,
+          isFollowing,
+          followRecordId: follow?.id ?? null,
+        },
+        'Profile follow state resolved from database',
+      );
+    } else {
+      this.logger.debug(
+        {
+          viewerId: viewer?.userId ?? null,
+          profileUserId: id,
+          isFollowing: false,
+          reason: viewer?.userId === id ? 'self_profile' : 'anonymous_viewer',
+        },
+        'Profile follow state resolved without relationship lookup',
+      );
     }
 
     return { ...base, isFollowing, myRating };
@@ -136,7 +155,7 @@ export class UsersService {
     return { deleted: true };
   }
 
-  async toggleFollow(targetId: string, followerId: string) {
+  async setFollow(targetId: string, followerId: string, following: boolean) {
     if (targetId === followerId) {
       throwApi(400, 'invalid_action', 'لا يمكنك متابعة نفسك');
     }
@@ -148,31 +167,63 @@ export class UsersService {
     if (!target) throwApi(404, 'not_found', 'المستخدم غير موجود');
 
     const existing = await this.repo.findFollow(followerId, targetId);
-    if (existing) {
-      await this.repo.deleteFollow(followerId, targetId);
-      await this.redis.cacheDel(`user:${targetId}`, `user:${targetId}:base`);
-      this.logger.info({ followerId, targetId }, 'User unfollowed');
+    if (!following) {
+      if (existing) {
+        await this.repo.deleteFollow(followerId, targetId);
+      }
+      await this.invalidateFollowProfiles(followerId, targetId);
+      this.logger.info(
+        {
+          followerId,
+          targetId,
+          following: false,
+          deletedFollowId: existing?.id ?? null,
+          changed: !!existing,
+        },
+        'User follow state persisted and profile caches invalidated',
+      );
       return { following: false };
     }
 
-    await this.repo.createFollow(followerId, targetId);
+    const created = await this.repo.upsertFollow(followerId, targetId);
 
-    const follower = await this.repo.findUserById(followerId, {
-      arabicName: true,
-      avatar: true,
-    });
+    // Only send a notification when a relationship was newly created.
+    if (!existing) {
+      const follower = await this.repo.findUserById(followerId, {
+        arabicName: true,
+        avatar: true,
+      });
 
-    void this.notifications.notifyUser({
-      userId: targetId,
-      type: 'follow',
-      titleAr: 'متابع جديد',
-      bodyAr: `${follower?.arabicName || 'مستخدم'} بدأ متابعتك`,
-      data: { actorId: followerId, actorAvatar: follower?.avatar },
-    });
+      void this.notifications.notifyUser({
+        userId: targetId,
+        type: 'follow',
+        titleAr: 'متابع جديد',
+        bodyAr: `${follower?.arabicName || 'مستخدم'} بدأ متابعتك`,
+        data: { actorId: followerId, actorAvatar: follower?.avatar },
+      });
+    }
 
-    await this.redis.cacheDel(`user:${targetId}`, `user:${targetId}:base`);
-    this.logger.info({ followerId, targetId }, 'User followed');
+    await this.invalidateFollowProfiles(followerId, targetId);
+    this.logger.info(
+      {
+        followerId,
+        targetId,
+        following: true,
+        followRecordId: created.id,
+        changed: !existing,
+      },
+      'User follow state persisted and profile caches invalidated',
+    );
     return { following: true };
+  }
+
+  private invalidateFollowProfiles(followerId: string, targetId: string) {
+    return this.redis.cacheDel(
+      `user:${followerId}`,
+      `user:${followerId}:base`,
+      `user:${targetId}`,
+      `user:${targetId}:base`,
+    );
   }
 
   async getConnections(
@@ -208,6 +259,17 @@ export class UsersService {
       followingSet = new Set(myFollows.map((f) => f.followingId));
     }
 
+    this.logger.debug(
+      {
+        profileUserId: id,
+        viewerId: viewer?.userId ?? null,
+        connectionType: type,
+        resultCount: users.length,
+        viewerFollowingCount: followingSet.size,
+      },
+      'Connection follow states resolved from database',
+    );
+
     return {
       type,
       users: users.map((u) => ({
@@ -217,7 +279,9 @@ export class UsersService {
     };
   }
 
-  private resolveAccountType(user: ProfileUser): 'USER' | 'BUTCHER' | 'LIVESTOCK_TRADER' {
+  private resolveAccountType(
+    user: ProfileUser,
+  ): 'USER' | 'BUTCHER' | 'LIVESTOCK_TRADER' {
     if (user.role === 'BUTCHER' || user.butcherProfile) return 'BUTCHER';
     if (user._count.listings > 0) return 'LIVESTOCK_TRADER';
     return 'USER';

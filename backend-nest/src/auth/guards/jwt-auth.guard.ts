@@ -30,12 +30,15 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (isPublic) return true;
-
     const optional = this.reflector.getAllAndOverride<boolean>(
       OPTIONAL_AUTH_KEY,
       [context.getHandler(), context.getClass()],
     );
+
+    // Purely public routes skip authentication. Public + OptionalAuth routes
+    // must still parse a supplied Bearer token so viewer-specific fields such
+    // as `isFollowing` are resolved from PostgreSQL.
+    if (isPublic && !optional) return true;
 
     const req = context
       .switchToHttp()
@@ -43,7 +46,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const authHeader = req.headers.authorization;
 
     if (!authHeader?.startsWith('Bearer ')) {
-      if (optional) return true;
+      if (optional || isPublic) return true;
       throw new UnauthorizedException({
         success: false,
         error: 'unauthorized',
@@ -97,7 +100,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
           messageAr: 'انتهت صلاحية الجلسة',
         });
       }
-      if (optional) return true;
       throw new UnauthorizedException({
         success: false,
         error: 'invalid_token',
