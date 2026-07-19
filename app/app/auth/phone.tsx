@@ -28,7 +28,6 @@ import { BRAND_LOGIN_SUBTITLE_AR, BRAND_LOGIN_WELCOME_AR, BRAND_TERMS_SHORT_AR }
 
 const COUNTRY_CODES = [
   { flag: '🇸🇦', code: '+966', label: 'السعودية' },
-  { flag: '🇪🇬', code: '+20', label: 'مصر' },
 ];
 
 export default function PhoneScreen() {

@@ -48,6 +48,7 @@ export default function MarketScreen() {
   // منطق الفلترة — لم يتغير
   // ──────────────────────────────────────────────────────
   const filtered = listings.filter((l) => {
+    if (l.country === 'EG') return false;
     if (activeCategory !== 'all' && l.category !== activeCategory) return false;
     if (activeCountry !== 'ALL' && l.country !== activeCountry) return false;
     if (showFeaturedOnly && !l.featured) return false;

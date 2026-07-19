@@ -51,7 +51,6 @@ const CATEGORIES: { id: Category; ar: string; icon: string }[] = [
 
 const GCC_COUNTRIES: { code: Country; ar: string; flag: string; currency: string }[] = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦', currency: 'SAR' },
-  { code: 'EG', ar: 'مصر', flag: '🇪🇬', currency: 'EGP' },
 ];
 
 const STEPS = ['النوع', 'التفاصيل', 'السعر', 'المراجعة'];

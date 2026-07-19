@@ -48,7 +48,8 @@ export const LEGACY_PLAN_SLUG_MAP: Record<string, string> = {
 export const FREE_PLAN_SLUG = 'free';
 
 export function normalizePlanSlug(slug: string): string {
-  return LEGACY_PLAN_SLUG_MAP[slug] ?? slug;
+  const canonical = slug.trim().toLowerCase().replace(/[\s_]+/g, '-');
+  return LEGACY_PLAN_SLUG_MAP[canonical] ?? canonical;
 }
 
 export function parseFeatureValue(

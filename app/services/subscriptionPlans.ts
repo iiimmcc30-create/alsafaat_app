@@ -73,7 +73,8 @@ export const LEGACY_SLUG_MAP: Record<string, string> = {
 };
 
 export function normalizeSlug(slug: string): string {
-  return LEGACY_SLUG_MAP[slug] ?? slug;
+  const canonical = slug.trim().toLowerCase().replace(/[\s_]+/g, '-');
+  return LEGACY_SLUG_MAP[canonical] ?? canonical;
 }
 
 export function planIcon(slug: string): string {

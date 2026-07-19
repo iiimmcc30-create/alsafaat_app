@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "safat",
-    "owner": "zeinabmostafa",
+    "owner": "alsafa00",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
@@ -21,12 +21,12 @@
       "package": "com.safat.app",
       "googleServicesFile": "./google-services.json",
       "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "CAMERA",
-        "RECORD_AUDIO",
-        "WAKE_LOCK",
-        "POST_NOTIFICATIONS"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.WAKE_LOCK",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -87,6 +87,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fc410a8a-09ab-49bb-ba66-53c86471e9aa"
+      }
     }
   }
 }

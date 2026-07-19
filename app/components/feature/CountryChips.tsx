@@ -10,7 +10,7 @@ interface CountryChipsProps {
   onChange: (c: Country | 'ALL') => void;
 }
 
-const order: (Country | 'ALL')[] = ['ALL', 'SA', 'EG'];
+const order: (Country | 'ALL')[] = ['ALL', 'SA'];
 
 export function CountryChips({ value, onChange }: CountryChipsProps) {
   const styles = useThemedStyles(({ colors }) => createStyles(colors));

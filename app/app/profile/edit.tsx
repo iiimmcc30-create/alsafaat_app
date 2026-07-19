@@ -28,7 +28,6 @@ import { Country, countries } from '@/services/types';
 
 const GCC_COUNTRIES: { code: Country; ar: string; flag: string }[] = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦' },
-  { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
 ];
 
 export default function EditProfileScreen() {

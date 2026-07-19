@@ -26,7 +26,6 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const COUNTRY_CODES = [
   { flag: '🇸🇦', code: '+966', label: 'السعودية' },
-  { flag: '🇪🇬', code: '+20', label: 'مصر' },
 ];
 
 type Step = 'phone' | 'otp' | 'password' | 'done';

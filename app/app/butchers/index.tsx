@@ -195,7 +195,6 @@ function ButcherCard({ butcher, onPress }: { butcher: ButcherProfile; onPress: (
 
 const GCC_COUNTRIES: { code: Country; label: string; flag: string }[] = [
   { code: 'SA', label: 'السعودية', flag: '🇸🇦' },
-  { code: 'EG', label: 'مصر',     flag: '🇪🇬' },
 ];
 
 export default function ButchersScreen() {
@@ -251,7 +250,9 @@ export default function ButchersScreen() {
         if (res.ok) {
           const json = await res.json();
           if (json.success && json.data?.butchers) {
-            const mapped = json.data.butchers.map((b: any) => ({
+            const mapped = json.data.butchers
+              .filter((b: any) => (b.country || 'SA') !== 'EG')
+              .map((b: any) => ({
               id: b.id,
               name: b.nameAr || b.nameEn,
               nameAr: b.nameAr,
@@ -284,7 +285,7 @@ export default function ButchersScreen() {
               activityScore: b.activityScore ?? 50,
               totalOrders: b.totalOrders ?? 0,
               joinedAt: b.createdAt || new Date().toISOString(),
-            }));
+              }));
             setButchersList(mapped);
           }
         }

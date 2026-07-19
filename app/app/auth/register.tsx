@@ -32,7 +32,6 @@ import {
 
 const COUNTRY_CODES = [
   { flag: '🇸🇦', code: '+966', label: 'السعودية', dbCode: 'SA' },
-  { flag: '🇪🇬', code: '+20', label: 'مصر', dbCode: 'EG' },
 ];
 
 export default function RegisterScreen() {

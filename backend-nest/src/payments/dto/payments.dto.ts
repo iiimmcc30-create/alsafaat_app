@@ -62,7 +62,9 @@ export class InitiatePaymentDto {
   @IsOptional()
   @IsString()
   @MaxLength(80)
-  @Matches(/^[a-z0-9-]+$/)
+  @Matches(/^[a-z0-9-]+$/, {
+    message: 'معرّف الباقة يجب أن يحتوي على أحرف إنجليزية صغيرة وأرقام وشرطات فقط',
+  })
   planId?: string;
 
   @IsOptional()

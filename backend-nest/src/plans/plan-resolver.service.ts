@@ -33,9 +33,10 @@ export class PlanResolverService implements OnModuleInit {
 
     const next = new Map<string, ResolvedPlan>();
     for (const plan of plans) {
+      const normalizedSlug = normalizePlanSlug(plan.slug);
       const resolved: ResolvedPlan = {
         id: plan.id,
-        slug: plan.slug,
+        slug: normalizedSlug,
         name: plan.name,
         description: plan.description,
         audience: plan.audience,
@@ -52,7 +53,7 @@ export class PlanResolverService implements OnModuleInit {
           valueType: f.valueType,
         })),
       };
-      next.set(this.cacheKey(plan.slug, plan.audience), resolved);
+      next.set(this.cacheKey(normalizedSlug, plan.audience), resolved);
     }
     this.cache = next;
   }
@@ -74,7 +75,7 @@ export class PlanResolverService implements OnModuleInit {
 
     const resolved: ResolvedPlan = {
       id: plan.id,
-      slug: plan.slug,
+      slug: normalizePlanSlug(plan.slug),
       name: plan.name,
       description: plan.description,
       audience: plan.audience,
@@ -91,7 +92,7 @@ export class PlanResolverService implements OnModuleInit {
         valueType: f.valueType,
       })),
     };
-    this.cache.set(this.cacheKey(plan.slug, plan.audience), resolved);
+    this.cache.set(this.cacheKey(resolved.slug, plan.audience), resolved);
     return resolved;
   }
 

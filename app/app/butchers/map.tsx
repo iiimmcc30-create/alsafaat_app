@@ -237,7 +237,9 @@ export default function ButchersMapScreen() {
         if (res.ok) {
           const json = await res.json();
           if (json.success && json.data?.butchers) {
-            const mapped = json.data.butchers.map((b: any) => ({
+            const mapped = json.data.butchers
+              .filter((b: any) => (b.country || 'SA') !== 'EG')
+              .map((b: any) => ({
               id: b.id,
               name: b.nameAr || b.nameEn,
               nameAr: b.nameAr,
@@ -270,7 +272,7 @@ export default function ButchersMapScreen() {
               activityScore: b.activityScore ?? 50,
               totalOrders: b.totalOrders ?? 0,
               joinedAt: b.createdAt || new Date().toISOString(),
-            }));
+              }));
             setButchersList(mapped);
           }
         }
@@ -322,7 +324,6 @@ export default function ButchersMapScreen() {
   const GCC: { code: Country | 'all'; flag: string; label: string }[] = [
     { code: 'all', flag: '🌍', label: 'الكل' },
     { code: 'SA',  flag: '🇸🇦', label: 'السعودية' },
-    { code: 'EG',  flag: '🇪🇬', label: 'مصر'       },
   ];
 
   return (

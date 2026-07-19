@@ -173,7 +173,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!res.ok) return [] as Listing[];
         const json = await res.json();
         if (json.success && Array.isArray(json.data?.listings)) {
-          return json.data.listings.map(mapBackendListing) as Listing[];
+          return json.data.listings
+            .map(mapBackendListing)
+            .filter((listing: Listing) => listing.country !== 'EG');
         }
         return [] as Listing[];
       };
