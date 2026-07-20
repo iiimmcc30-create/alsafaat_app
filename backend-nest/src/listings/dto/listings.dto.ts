@@ -10,6 +10,7 @@ import {
   IsString,
   IsUrl,
   Length,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -141,6 +142,23 @@ export class CreateListingDto {
   @IsEnum(SUPPORTED_COUNTRIES)
   country!: (typeof SUPPORTED_COUNTRIES)[number];
 
+  @IsOptional()
+  @IsString()
+  @Matches(/^\+?[0-9]{8,15}$/, {
+    message: 'رقم التواصل غير صالح',
+  })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.replace(/[\s()-]/g, '') : value,
+  )
+  contactPhone?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(50_000)
+  @Type(() => Number)
+  weightKg?: number;
+
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(8)
@@ -218,4 +236,21 @@ export class UpdateListingDto {
   @MaxLength(100)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   arabicLocation?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\+?[0-9]{8,15}$/, {
+    message: 'رقم التواصل غير صالح',
+  })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.replace(/[\s()-]/g, '') : value,
+  )
+  contactPhone?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(50_000)
+  @Type(() => Number)
+  weightKg?: number;
 }

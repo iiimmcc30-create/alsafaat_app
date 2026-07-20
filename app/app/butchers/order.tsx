@@ -229,16 +229,13 @@ export default function ButcherOrderScreen() {
         devMode?: boolean;
       };
 
-      if (devMode && paymentId) {
-        const simRes = await fetch(`${API_BASE}/api/payments/${paymentId}/dev-complete`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        const simJson = await simRes.json().catch(() => ({}));
-        if (simRes.ok && simJson.success) {
-          goSuccess(orderId, orderNumber, 'paid');
-          return;
-        }
+      if (devMode) {
+        Alert.alert(
+          'الدفع غير متاح حالياً',
+          'بوابة الدفع في وضع التطوير، لذلك تم إيقاف أي نجاح وهمي للطلب. يمكنك إنشاء الطلب وإكمال الدفع لاحقاً عند تفعيل البوابة الحقيقية.',
+          [{ text: 'متابعة', onPress: () => goSuccess(orderId, orderNumber, 'unpaid') }],
+        );
+        return;
       }
 
       if (checkoutUrl) {

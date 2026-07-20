@@ -29,6 +29,7 @@ import {
   applicationDisplayName,
   formatApplicationDate,
 } from '@/lib/butcherApplicationLabels';
+import { confirmDestructive } from '@/lib/actionSheet';
 import { rtlBackIcon } from '@/lib/rtl';
 import type { ApplicationSummary } from '@/services/butcherApplicationTypes';
 
@@ -104,25 +105,22 @@ export default function MyButcherApplicationScreen() {
     router.push({ pathname: '/butchers/application/edit/[id]', params: { id } });
   };
 
-  const confirmWithdraw = () => {
+  const confirmWithdraw = async () => {
     if (!current) return;
-    Alert.alert('سحب الطلب', 'هل أنت متأكد من سحب طلب التسجيل؟', [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'سحب الطلب',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await withdraw(current.id, withdrawReason.trim() ? { reason: withdrawReason.trim() } : {});
-            setWithdrawReason('');
-            setShowWithdrawInput(false);
-            await fetchApplications();
-          } catch {
-            // hook.error
-          }
-        },
-      },
-    ]);
+    const confirmed = await confirmDestructive(
+      'سحب الطلب',
+      'هل أنت متأكد من سحب طلب التسجيل؟',
+      'سحب الطلب',
+    );
+    if (!confirmed) return;
+    try {
+      await withdraw(current.id, withdrawReason.trim() ? { reason: withdrawReason.trim() } : {});
+      setWithdrawReason('');
+      setShowWithdrawInput(false);
+      await fetchApplications();
+    } catch {
+      // hook.error
+    }
   };
 
   const renderActions = () => {

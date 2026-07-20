@@ -212,21 +212,6 @@ export default function SidebarScreen() {
 
           <View style={styles.divider} />
 
-          {/* الإعدادات والخصوصية */}
-          <SidebarMenuRow
-            item={{
-              key: 'settings',
-              icon: 'cog-outline',
-              label: 'الإعدادات والخصوصية',
-              subtitle: 'الحساب، المعلومات، الدعم',
-            }}
-            colors={colors}
-            showDivider={false}
-            onPress={() => handleNav('/settings')}
-          />
-
-          <View style={styles.divider} />
-
           {/* Theme toggle */}
           <SidebarMenuRow
             item={{

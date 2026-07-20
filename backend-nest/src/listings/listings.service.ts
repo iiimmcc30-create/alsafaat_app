@@ -16,6 +16,7 @@ import { ListingsRepository } from './repositories/listings.repository';
 import { SubscriptionEntitlementService } from '../subscriptions/services/subscription-entitlement.service';
 import { PlanResolverService } from '../plans/plan-resolver.service';
 import { notDeleted } from '../common/utils/soft-delete.util';
+import { isLivestockCategory } from './listing-categories';
 
 const PAGE_SIZE = 20;
 
@@ -30,6 +31,22 @@ export class ListingsService {
     private readonly entitlements: SubscriptionEntitlementService,
     private readonly planResolver: PlanResolverService,
   ) {}
+
+  private assertWeightForCategory(category: string, weightKg?: number | null) {
+    if (isLivestockCategory(category)) {
+      if (weightKg == null || weightKg <= 0) {
+        throwApi(
+          400,
+          'weight_required',
+          'الوزن مطلوب للمواشي الحية ويجب أن يكون بالكيلوغرام',
+        );
+      }
+      return;
+    }
+    if (weightKg != null && weightKg <= 0) {
+      throwApi(400, 'invalid_weight', 'قيمة الوزن غير صالحة');
+    }
+  }
 
   async list(query: ListListingsQueryDto) {
     const { cursor, category, country, search, featured, sellerId, minPrice, maxPrice } = query;
@@ -146,6 +163,8 @@ export class ListingsService {
       permissions,
     );
 
+    this.assertWeightForCategory(dto.category, dto.weightKg);
+
     try {
       const listing = await this.repo.createListingWithFee({
         userId: user.userId,
@@ -164,6 +183,8 @@ export class ListingsService {
           location: dto.location,
           arabicLocation: dto.arabicLocation,
           country: dto.country,
+          contactPhone: dto.contactPhone,
+          weightKg: isLivestockCategory(dto.category) ? dto.weightKg : null,
           images: dto.images,
           featured,
         },
@@ -222,7 +243,17 @@ export class ListingsService {
       throwApi(403, 'forbidden', 'غير مسموح');
     }
 
-    const updated = await this.repo.update(id, dto);
+    const category = dto.category ?? listing.category;
+    const weightKg =
+      dto.weightKg !== undefined ? dto.weightKg : listing.weightKg ?? undefined;
+    this.assertWeightForCategory(category, weightKg);
+
+    const payload: UpdateListingDto = { ...dto };
+    if (!isLivestockCategory(category)) {
+      payload.weightKg = undefined;
+    }
+
+    const updated = await this.repo.update(id, payload);
     await this.cache.del(`listing:${id}`);
     await this.cache.delPattern('listings:v2:*');
     return updated;

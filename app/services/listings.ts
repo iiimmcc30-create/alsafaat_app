@@ -1,5 +1,5 @@
 import { API_BASE } from './api';
-import type { Listing } from './types';
+import { countries, type Listing, type Country } from './types';
 
 export type ListingSearchParams = {
   search?: string;
@@ -22,6 +22,8 @@ type BackendListing = {
   location: string;
   arabicLocation: string;
   country: Listing['country'];
+  contactPhone?: string;
+  weightKg?: number;
   images?: string[];
   description: string;
   arabicDescription: string;
@@ -40,6 +42,11 @@ type BackendListing = {
 };
 
 function mapListing(l: BackendListing): Listing {
+  const sellerCountry: Country =
+    l.seller.country && l.seller.country in countries
+      ? (l.seller.country as Country)
+      : 'SA';
+
   return {
     id: l.id,
     title: l.title,
@@ -52,6 +59,8 @@ function mapListing(l: BackendListing): Listing {
     location: l.location,
     arabicLocation: l.arabicLocation,
     country: l.country,
+    contactPhone: l.contactPhone,
+    weightKg: l.weightKg,
     images: l.images?.length ? l.images : [],
     description: l.description,
     arabicDescription: l.arabicDescription,
@@ -66,7 +75,7 @@ function mapListing(l: BackendListing): Listing {
       following: 0,
       rating: null,
       reviewCount: 0,
-      country: l.seller.country || 'SA',
+      country: sellerCountry,
       bio: '',
     },
     featured: l.featured ?? false,

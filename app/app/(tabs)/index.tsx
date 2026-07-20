@@ -5,12 +5,11 @@ import { AppIcon } from '@/components/ui/FlaticonIcon';
 import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useCallback, useState, useRef } from 'react';
+import { useCallback, useMemo, useState, useRef } from 'react';
 import {
   FlatList,
   ListRenderItemInfo,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -33,6 +32,8 @@ import { NotificationBellButton } from '@/components/notifications/NotificationB
 import { BRAND_DISPLAY_NAME } from '@/constants/brandCopy';
 import type { Listing } from '@/services/types';
 
+const HOME_REFRESH_TTL_MS = 60_000;
+
 export default function HomeScreen() {
   const router = useRouter();
   const { scheme } = useTheme();
@@ -45,34 +46,44 @@ export default function HomeScreen() {
   const [myStories, setMyStories] = useState<StoryGroup | null>(null);
   const [storiesLoading, setStoriesLoading] = useState(false);
   const [canShowLive, setCanShowLive] = useState(false);
+  const lastStoriesAt = useRef(0);
+  const lastLiveAt = useRef(0);
 
-  const refreshLiveAccess = useCallback(async () => {
+  const refreshLiveAccess = useCallback(async (force = false) => {
     if (!accessToken || !isAuthenticated) {
       setCanShowLive(false);
       return;
     }
+    const now = Date.now();
+    if (!force && now - lastLiveAt.current < HOME_REFRESH_TTL_MS) return;
+    lastLiveAt.current = now;
     const { canStream } = await fetchLiveStreamEligibility(accessToken);
     setCanShowLive(canStream);
   }, [accessToken, isAuthenticated]);
 
   useFocusEffect(
     useCallback(() => {
-      refreshLiveAccess();
+      void refreshLiveAccess();
     }, [refreshLiveAccess]),
   );
 
-  const fetchStories = useCallback(async () => {
+  const fetchStories = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastStoriesAt.current < HOME_REFRESH_TTL_MS && storiesFeed.length > 0) {
+      return;
+    }
     setStoriesLoading(true);
     try {
       const data = await fetchStoriesFeed(accessToken);
       setStoriesFeed(data.items ?? []);
       setMyStories(data.myStories ?? null);
+      lastStoriesAt.current = Date.now();
     } catch (err) {
       console.warn('[HomeScreen] Failed to fetch stories:', err);
     } finally {
       setStoriesLoading(false);
     }
-  }, [accessToken]);
+  }, [accessToken, storiesFeed.length]);
 
   useFocusEffect(
     useCallback(() => {
@@ -80,16 +91,14 @@ export default function HomeScreen() {
     }, [fetchStories]),
   );
 
-  // ─── الإعلانات مرتّبة: مميزة أولاً، مفلترة بالفئة ───
-  const displayedListings = (
-    activeCategory !== 'all'
-      ? listings.filter((l) => l.category === activeCategory)
-      : listings
-  )
-    .slice()
-    .sort((a, b) => Number(b.featured) - Number(a.featured));
+  const displayedListings = useMemo(() => {
+    const filtered =
+      activeCategory !== 'all'
+        ? listings.filter((l) => l.category === activeCategory)
+        : listings;
+    return filtered.slice().sort((a, b) => Number(b.featured) - Number(a.featured));
+  }, [listings, activeCategory]);
 
-  // ─── FlatList ───
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<Listing>) => (
       <ListingCard
@@ -103,52 +112,65 @@ export default function HomeScreen() {
 
   const keyExtractor = useCallback((item: Listing) => item.id, []);
 
-  const ItemSeparator = useCallback(() => null, []);
+  const renderListHeader = useCallback(
+    () => (
+      <View>
+        <StoriesBar
+          feed={storiesFeed}
+          myStories={myStories}
+          myAvatar={me.avatar}
+          currentUserId={me.id}
+          accessToken={accessToken}
+          loading={storiesLoading}
+          onAddStory={() => {
+            if (!requireAuth(isAuthenticated, 'نشر قصة')) return;
+            router.push('/create/story');
+          }}
+          onRefresh={() => void fetchStories(true)}
+        />
 
-  const ListHeader = (
-    <View>
-      {/* Stories */}
-      <StoriesBar
-        feed={storiesFeed}
-        myStories={myStories}
-        myAvatar={me.avatar}
-        currentUserId={me.id}
-        accessToken={accessToken}
-        loading={storiesLoading}
-        onAddStory={() => {
-          if (!requireAuth(isAuthenticated, 'نشر قصة')) return;
-          router.push('/create/story');
-        }}
-        onRefresh={fetchStories}
-      />
+        <CategoryChips value={activeCategory} onChange={setActiveCategory} />
 
-      {/* Category chips */}
-      <CategoryChips value={activeCategory} onChange={setActiveCategory} />
+        <ButcherMiniSection showStories limit={5} />
 
-      {/* Butcher mini section */}
-      <ButcherMiniSection showStories limit={5} />
-
-      {/* رأس قائمة الإعلانات */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>الإعلانات</Text>
-        <Pressable onPress={() => router.push('/(tabs)/market')} hitSlop={8}>
-          <Text style={styles.sectionLink}>السوق</Text>
-        </Pressable>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>الإعلانات</Text>
+          <Pressable onPress={() => router.push('/(tabs)/market')} hitSlop={8}>
+            <Text style={styles.sectionLink}>السوق</Text>
+          </Pressable>
+        </View>
       </View>
-    </View>
+    ),
+    [
+      storiesFeed,
+      myStories,
+      me.avatar,
+      me.id,
+      accessToken,
+      storiesLoading,
+      isAuthenticated,
+      router,
+      fetchStories,
+      activeCategory,
+      styles.sectionHeader,
+      styles.sectionTitle,
+      styles.sectionLink,
+    ],
   );
 
-  const ListEmpty = (
-    <View style={styles.empty}>
-      <Text style={styles.emptyIcon}>🛒</Text>
-      <Text style={styles.emptyText}>لا توجد إعلانات بعد</Text>
-    </View>
+  const ListEmpty = useMemo(
+    () => (
+      <View style={styles.empty}>
+        <Text style={styles.emptyIcon}>🛒</Text>
+        <Text style={styles.emptyText}>لا توجد إعلانات بعد</Text>
+      </View>
+    ),
+    [styles.empty, styles.emptyIcon, styles.emptyText],
   );
 
   return (
     <View style={styles.root}>
       <SafeAreaView style={styles.container} edges={['top']}>
-        {/* Header */}
         <LinearGradient colors={headerFade} style={styles.headerGradient} pointerEvents="none" />
         <View style={styles.header}>
           <Pressable
@@ -187,18 +209,16 @@ export default function HomeScreen() {
           data={displayedListings}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          ItemSeparatorComponent={ItemSeparator}
-          ListHeaderComponent={ListHeader}
+          ListHeaderComponent={renderListHeader}
           ListEmptyComponent={ListEmpty}
           ListFooterComponent={<View style={{ height: 100 }} />}
           showsVerticalScrollIndicator={false}
           removeClippedSubviews
-          initialNumToRender={12}
-          maxToRenderPerBatch={10}
-          windowSize={8}
+          initialNumToRender={10}
+          maxToRenderPerBatch={8}
+          windowSize={7}
         />
       </SafeAreaView>
-
     </View>
   );
 }
@@ -263,11 +283,6 @@ function createHomeStyles(colors: ThemeColors) {
     },
     sectionTitle: { ...typography.h3, color: colors.textPrimary },
     sectionLink: { ...typography.caption, color: colors.textBrandStrong, fontWeight: '600' },
-    separator: {
-      height: 1,
-      backgroundColor: colors.borderHairline,
-      marginHorizontal: spacing.md,
-    },
     empty: { alignItems: 'center', paddingVertical: spacing.xxxl, gap: spacing.md },
     emptyIcon: { fontSize: 40 },
     emptyText: { ...typography.body, color: colors.textMuted },

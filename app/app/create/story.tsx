@@ -28,6 +28,7 @@ import {
 import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
+import { alertMessage } from '@/lib/actionSheet';
 import { rtlBackIcon } from '@/lib/rtl';
 import {
   resolveStoryThumbnailUri,
@@ -227,9 +228,8 @@ export default function CreateStoryScreen() {
         return;
       }
 
-      Alert.alert('تم النشر', 'قصتك متاحة الآن لمدة ٢٤ ساعة', [
-        { text: 'حسناً', onPress: () => router.back() },
-      ]);
+      await alertMessage('تم النشر', 'قصتك متاحة الآن لمدة ٢٤ ساعة');
+      router.back();
     } catch (err: any) {
       Alert.alert('خطأ', err?.message || 'تعذّر نشر القصة');
     } finally {

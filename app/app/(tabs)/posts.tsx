@@ -2,12 +2,13 @@
 // SAFAT — Posts Tab (المنشورات) — X-style For you / Following
 
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
+  ListRenderItemInfo,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -22,6 +23,7 @@ import { PostItem } from '@/components/feature/PostItem';
 import { PostCommentsModal } from '@/components/feature/PostCommentsModal';
 import { CreatePostFab } from '@/components/feature/CreatePostFab';
 import { requireAuth, sharePost, showPostMenu } from '@/lib/postInteractions';
+import type { Post } from '@/services/types';
 
 type FeedTab = 'for_you' | 'following';
 
@@ -51,28 +53,40 @@ export default function PostsScreen() {
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
+  const loadedTabs = useRef<Set<FeedTab>>(new Set());
 
   const loadFeed = useCallback(
     async (tab: FeedTab, opts?: { refresh?: boolean }) => {
       if (opts?.refresh) setRefreshing(true);
-      else setLoadingFeed(true);
+      else if (!loadedTabs.current.has(tab) && posts.length === 0) setLoadingFeed(true);
       try {
         if (tab === 'following' && !isAuthenticated) {
           await fetchPosts('for_you');
+          loadedTabs.current.add('for_you');
           return;
         }
         await fetchPosts(tab);
+        loadedTabs.current.add(tab);
       } finally {
         setLoadingFeed(false);
         setRefreshing(false);
       }
     },
-    [fetchPosts, isAuthenticated],
+    [fetchPosts, isAuthenticated, posts.length],
   );
 
   useEffect(() => {
+    // Use AppContext cache for "for you" on first paint; only fetch if empty or tab switch
+    if (feedTab === 'for_you' && posts.length > 0 && loadedTabs.current.has('for_you')) {
+      return;
+    }
+    if (feedTab === 'for_you' && posts.length > 0 && !loadedTabs.current.has('for_you')) {
+      loadedTabs.current.add('for_you');
+      return;
+    }
     void loadFeed(feedTab);
-  }, [feedTab, loadFeed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when tab changes
+  }, [feedTab]);
 
   useEffect(() => {
     if (!postId) return;
@@ -88,6 +102,63 @@ export default function PostsScreen() {
     }
     setFeedTab(tab);
   };
+
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<Post>) => (
+      <PostItem
+        post={{
+          ...item,
+          liked: likedPosts.has(item.id),
+          reposted: repostedPosts.has(item.id),
+          bookmarked: bookmarkedPosts.has(item.id),
+        }}
+        onLike={() => requireAuth(isAuthenticated, 'الإعجاب') && toggleLike(item.id)}
+        onComment={() =>
+          requireAuth(isAuthenticated, 'التعليق') && setCommentsPostId(item.id)
+        }
+        onRepost={() =>
+          requireAuth(isAuthenticated, 'إعادة النشر') && toggleRepost(item.id)
+        }
+        onBookmark={() =>
+          requireAuth(isAuthenticated, 'الحفظ') && toggleBookmark(item.id)
+        }
+        onShare={() => sharePost(item)}
+        onMenu={() => showPostMenu(item, me, router, deletePost, isAuthenticated)}
+      />
+    ),
+    [
+      likedPosts,
+      repostedPosts,
+      bookmarkedPosts,
+      isAuthenticated,
+      toggleLike,
+      toggleRepost,
+      toggleBookmark,
+      deletePost,
+      me,
+      router,
+    ],
+  );
+
+  const keyExtractor = useCallback((item: Post) => item.id, []);
+
+  const ListEmpty = (
+    <View style={styles.empty}>
+      <Text style={styles.emptyIcon}>
+        {feedTab === 'following' ? '👥' : '📝'}
+      </Text>
+      <Text style={styles.emptyText}>
+        {feedTab === 'following'
+          ? 'لا منشورات من حسابات تتابعها بعد'
+          : 'لا توجد منشورات بعد'}
+      </Text>
+      {feedTab === 'for_you' ? (
+        <Pressable style={styles.emptyBtn} onPress={() => router.push('/create/post')}>
+          <Text style={styles.emptyBtnText}>+ أنشئ أول منشور</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
 
   return (
     <View style={styles.root}>
@@ -125,9 +196,14 @@ export default function PostsScreen() {
             <ActivityIndicator color={colors.electricBright} />
           </View>
         ) : (
-          <ScrollView
-            showsVerticalScrollIndicator={false}
+          <FlatList
+            data={posts}
+            renderItem={renderItem}
+            keyExtractor={keyExtractor}
             contentContainerStyle={styles.scroll}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={ListEmpty}
+            ListFooterComponent={<View style={{ height: 100 }} />}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -135,50 +211,11 @@ export default function PostsScreen() {
                 tintColor={colors.electricBright}
               />
             }
-          >
-            {posts.length === 0 ? (
-              <View style={styles.empty}>
-                <Text style={styles.emptyIcon}>
-                  {feedTab === 'following' ? '👥' : '📝'}
-                </Text>
-                <Text style={styles.emptyText}>
-                  {feedTab === 'following'
-                    ? 'لا منشورات من حسابات تتابعها بعد'
-                    : 'لا توجد منشورات بعد'}
-                </Text>
-                {feedTab === 'for_you' ? (
-                  <Pressable style={styles.emptyBtn} onPress={() => router.push('/create/post')}>
-                    <Text style={styles.emptyBtnText}>+ أنشئ أول منشور</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : (
-              posts.map((post) => (
-                <PostItem
-                  key={post.id}
-                  post={{
-                    ...post,
-                    liked: likedPosts.has(post.id),
-                    reposted: repostedPosts.has(post.id),
-                    bookmarked: bookmarkedPosts.has(post.id),
-                  }}
-                  onLike={() => requireAuth(isAuthenticated, 'الإعجاب') && toggleLike(post.id)}
-                  onComment={() =>
-                    requireAuth(isAuthenticated, 'التعليق') && setCommentsPostId(post.id)
-                  }
-                  onRepost={() =>
-                    requireAuth(isAuthenticated, 'إعادة النشر') && toggleRepost(post.id)
-                  }
-                  onBookmark={() =>
-                    requireAuth(isAuthenticated, 'الحفظ') && toggleBookmark(post.id)
-                  }
-                  onShare={() => sharePost(post)}
-                  onMenu={() => showPostMenu(post, me, router, deletePost, isAuthenticated)}
-                />
-              ))
-            )}
-            <View style={{ height: 100 }} />
-          </ScrollView>
+            removeClippedSubviews
+            initialNumToRender={6}
+            maxToRenderPerBatch={4}
+            windowSize={7}
+          />
         )}
       </SafeAreaView>
 
@@ -246,7 +283,7 @@ function createPostsStyles(colors: ThemeColors) {
       borderRadius: radius.pill,
       backgroundColor: colors.electric,
     },
-    scroll: { paddingBottom: spacing.md },
+    scroll: { paddingBottom: spacing.md, flexGrow: 1 },
     empty: {
       alignItems: 'center',
       paddingVertical: spacing.xxxl,

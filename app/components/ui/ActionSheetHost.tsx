@@ -7,8 +7,11 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppIcon } from '@/components/ui/FlaticonIcon';
+import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import {
   closeActionSheet,
   getActionSheetState,
@@ -18,6 +21,7 @@ import {
 /** Global host — mount once in root layout so action sheets work on web + native. */
 export function ActionSheetHost() {
   const insets = useSafeAreaInsets();
+  const { gradients } = useTheme();
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const [tick, setTick] = useState(0);
 
@@ -25,52 +29,99 @@ export function ActionSheetHost() {
 
   const state = getActionSheetState();
   const visible = !!state;
-  // keep tick referenced so re-renders stay intentional
   void tick;
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="fade"
       statusBarTranslucent
       onRequestClose={() => closeActionSheet(null)}
     >
       <Pressable style={styles.backdrop} onPress={() => closeActionSheet(null)}>
         <Pressable
-          style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}
+          style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}
           onPress={(e) => e.stopPropagation?.()}
         >
-          <View style={styles.handle} />
-          <Text style={styles.title}>{state?.title}</Text>
-          {state?.message ? (
-            <Text style={styles.message}>{state.message}</Text>
-          ) : null}
+          <LinearGradient
+            colors={gradients.card}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.sheetInner}
+          >
+            <LinearGradient
+              colors={gradients.rim}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.rim}
+            />
 
-          <View style={styles.list}>
-            {(state?.items ?? []).map((item) => (
-              <Pressable
-                key={item.key}
-                style={({ pressed }) => [
-                  styles.item,
-                  item.destructive && styles.itemDanger,
-                  item.cancel && styles.itemCancel,
-                  pressed && styles.itemPressed,
-                ]}
-                onPress={() => closeActionSheet(item.cancel ? null : item.key)}
-              >
-                <Text
-                  style={[
-                    styles.itemText,
-                    item.destructive && styles.itemTextDanger,
-                    item.cancel && styles.itemTextCancel,
+            <View style={styles.handle} />
+
+            {state?.title ? (
+              <View style={styles.header}>
+                <Text style={styles.title}>{state.title}</Text>
+                {state.message ? <Text style={styles.message}>{state.message}</Text> : null}
+              </View>
+            ) : null}
+
+            <View style={styles.list}>
+              {(state?.items ?? []).map((item) => (
+                <Pressable
+                  key={item.key}
+                  style={({ pressed }) => [
+                    styles.item,
+                    item.destructive && styles.itemDanger,
+                    item.cancel && styles.itemCancel,
+                    pressed && styles.itemPressed,
                   ]}
+                  onPress={() => closeActionSheet(item.cancel ? null : item.key)}
                 >
-                  {item.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+                  {item.icon ? (
+                    <View
+                      style={[
+                        styles.itemIconWrap,
+                        item.destructive && styles.itemIconWrapDanger,
+                        item.cancel && styles.itemIconWrapMuted,
+                      ]}
+                    >
+                      <AppIcon
+                        name={item.icon}
+                        size={18}
+                        color={
+                          item.destructive
+                            ? styles.itemTextDanger.color
+                            : item.cancel
+                              ? styles.itemTextCancel.color
+                              : styles.itemText.color
+                        }
+                      />
+                    </View>
+                  ) : null}
+
+                  <View style={styles.itemTextWrap}>
+                    <Text
+                      style={[
+                        styles.itemText,
+                        item.destructive && styles.itemTextDanger,
+                        item.cancel && styles.itemTextCancel,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                    {item.subtitle ? (
+                      <Text style={styles.itemSubtitle}>{item.subtitle}</Text>
+                    ) : null}
+                  </View>
+
+                  {!item.cancel ? (
+                    <AppIcon name="chevron-back" size={16} color={styles.itemChevron.color} />
+                  ) : null}
+                </Pressable>
+              ))}
+            </View>
+          </LinearGradient>
         </Pressable>
       </Pressable>
     </Modal>
@@ -85,22 +136,37 @@ function createStyles(colors: ThemeColors) {
       justifyContent: 'flex-end',
     },
     sheet: {
-      backgroundColor: colors.bgGlassStrong,
       borderTopLeftRadius: radius.xxl,
       borderTopRightRadius: radius.xxl,
-      paddingTop: spacing.sm,
-      paddingHorizontal: spacing.lg,
+      overflow: 'hidden',
       borderTopWidth: StyleSheet.hairlineWidth,
       borderColor: colors.borderSoft,
+    },
+    sheetInner: {
+      paddingTop: spacing.sm,
+      paddingHorizontal: spacing.lg,
       gap: spacing.sm,
+      position: 'relative',
+    },
+    rim: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 1,
     },
     handle: {
-      width: 40,
+      width: 44,
       height: 4,
       borderRadius: radius.pill,
       backgroundColor: colors.borderStrong,
       alignSelf: 'center',
       marginBottom: spacing.sm,
+    },
+    header: {
+      alignItems: 'center',
+      gap: spacing.xs,
+      paddingBottom: spacing.xs,
     },
     title: {
       ...typography.h3,
@@ -111,36 +177,68 @@ function createStyles(colors: ThemeColors) {
       ...typography.body,
       color: colors.textSecondary,
       textAlign: 'center',
-      marginBottom: spacing.sm,
     },
     list: { gap: spacing.sm, marginTop: spacing.sm },
     item: {
-      minHeight: 52,
-      paddingHorizontal: spacing.lg,
+      minHeight: 58,
+      paddingHorizontal: spacing.md,
       borderRadius: radius.lg,
       backgroundColor: colors.bgElevated,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.borderSoft,
+      flexDirection: 'row-reverse',
       alignItems: 'center',
-      justifyContent: 'center',
+      gap: spacing.md,
     },
     itemDanger: {
-      backgroundColor: 'rgba(239,68,68,0.12)',
-      borderColor: 'rgba(239,68,68,0.35)',
+      backgroundColor: 'rgba(239,68,68,0.1)',
+      borderColor: 'rgba(239,68,68,0.28)',
     },
     itemCancel: {
       backgroundColor: colors.bgSurface,
+      justifyContent: 'center',
       marginTop: spacing.xs,
     },
     itemPressed: {
-      opacity: 0.82,
-      transform: [{ scale: 0.985 }],
+      opacity: 0.86,
+      transform: [{ scale: 0.99 }],
+    },
+    itemIconWrap: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.bgGlass,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
+    },
+    itemIconWrapDanger: {
+      backgroundColor: 'rgba(239,68,68,0.14)',
+      borderColor: 'rgba(239,68,68,0.28)',
+    },
+    itemIconWrapMuted: {
+      backgroundColor: colors.bgSurface,
+    },
+    itemTextWrap: {
+      flex: 1,
+      alignItems: 'flex-end',
+      gap: 2,
     },
     itemText: {
       ...typography.bodyStrong,
       color: colors.textPrimary,
+      textAlign: 'right',
     },
     itemTextDanger: { color: colors.rose },
     itemTextCancel: { color: colors.textMuted },
+    itemSubtitle: {
+      ...typography.micro,
+      color: colors.textMuted,
+      textAlign: 'right',
+    },
+    itemChevron: {
+      color: colors.textSubtle,
+    },
   });
 }

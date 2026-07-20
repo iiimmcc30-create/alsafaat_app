@@ -60,7 +60,7 @@ export class ListingsRepository {
   findOwnerMeta(id: string) {
     return this.prisma.listing.findUnique({
       where: { id },
-      select: { sellerId: true, category: true, country: true },
+      select: { sellerId: true, category: true, country: true, weightKg: true },
     });
   }
 

@@ -2,7 +2,7 @@
 // SAFAT — Live Tab (البث المباشر)
 import { AppIcon } from '@/components/ui/FlaticonIcon';
 
-import { Image } from '@/components/ui/AppImage';
+import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -111,7 +111,7 @@ export default function LiveScreen() {
         {filtered.length > 0 && (
           <Pressable style={styles.featured} onPress={() => router.push({ pathname: '/live/watch/[id]', params: { id: filtered[0].id } } as any)}>
             <Image
-              source={filtered[0].thumbnail ? { uri: filtered[0].thumbnail } : undefined}
+              source={uriSource(filtered[0].thumbnail)}
               style={styles.featuredImg}
               contentFit="cover"
               transition={300}
@@ -126,7 +126,7 @@ export default function LiveScreen() {
             </View>
             <View style={styles.featuredContent}>
               <UserProfileLink userId={filtered[0].host?.id} style={styles.hostRow}>
-                <Image source={filtered[0].host?.avatar ? { uri: filtered[0].host.avatar } : undefined} style={styles.hostAvatar} contentFit="cover" />
+                <Image source={uriSource(filtered[0].host?.avatar)} style={styles.hostAvatar} contentFit="cover" />
                 <View>
                   <Text style={styles.hostName}>{filtered[0].host?.arabicName || 'مستخدم سرح'}</Text>
                   <Text style={styles.hostHandle}>@{filtered[0].host?.username || 'user'}</Text>
@@ -136,11 +136,11 @@ export default function LiveScreen() {
               <View style={styles.statsRow}>
                 <View style={styles.stat}>
                   <AppIcon name="eye" size={14} color={colors.textMuted} />
-                  <Text style={styles.statText}>{filtered[0].viewers.toLocaleString()}</Text>
+                  <Text style={styles.statText}>{(filtered[0].viewers ?? 0).toLocaleString()}</Text>
                 </View>
                 <View style={styles.stat}>
                   <AppIcon name="heart" size={14} color={colors.rose} />
-                  <Text style={styles.statText}>{filtered[0].likes.toLocaleString()}</Text>
+                  <Text style={styles.statText}>{(filtered[0].likes ?? 0).toLocaleString()}</Text>
                 </View>
                 <View style={styles.catBadge}>
                   <Text style={styles.catBadgeText}>{filtered[0].category}</Text>

@@ -1,9 +1,10 @@
 import { AppIcon } from '@/components/ui/FlaticonIcon';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
+import { confirmDestructive } from '@/lib/actionSheet';
 import {
   DOCUMENT_STATUS_LABELS,
   DOCUMENT_TYPE_LABELS,
@@ -67,11 +68,13 @@ export function ApplicationDocumentCard({
   const icon = DOC_ICONS[type];
   const maxLabel = maxBytesLabelForDocumentType(type);
 
-  const confirmDelete = () => {
-    Alert.alert('حذف المستند', `هل تريد حذف ${DOCUMENT_TYPE_LABELS[type]}؟`, [
-      { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: onDelete },
-    ]);
+  const confirmDelete = async () => {
+    const confirmed = await confirmDestructive(
+      'حذف المستند',
+      `هل تريد حذف ${DOCUMENT_TYPE_LABELS[type]}؟`,
+      'حذف المستند',
+    );
+    if (confirmed) onDelete();
   };
 
   const progressLabel =

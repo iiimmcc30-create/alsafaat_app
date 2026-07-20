@@ -73,7 +73,6 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      key={scheme}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.electricBright,

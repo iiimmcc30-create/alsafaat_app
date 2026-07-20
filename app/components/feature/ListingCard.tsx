@@ -8,7 +8,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
 import { formatRelativeTimeAr } from '@/lib/formatRelativeTime';
 import { inlineStart, rtlDirection, rtlRow } from '@/lib/rtl';
-import { Listing, countries } from '@/services/types';
+import { Listing, getCountryInfo } from '@/services/types';
 import { UserProfileLink } from '@/components/feature/UserProfileLink';
 
 interface ListingCardProps {
@@ -58,7 +58,7 @@ function formatCount(n: number): string {
 }
 
 export function ListingCard({ listing, onPress, variant = 'grid', compact = false }: ListingCardProps) {
-  const country = countries[listing.country];
+  const country = getCountryInfo(listing.country);
   const thumbUri = listingImageUri(listing);
   const { scheme } = useTheme();
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
@@ -68,8 +68,10 @@ export function ListingCard({ listing, onPress, variant = 'grid', compact = fals
   const timeLabel = listingTimeLabel(listing);
   const title = listing.arabicTitle || listing.title;
   const location = listing.arabicLocation || listing.location;
+  const seller = listing.seller;
   const sellerName =
-    listing.seller.arabicName || listing.seller.displayName || listing.seller.username;
+    seller?.arabicName || seller?.displayName || seller?.username || 'بائع';
+  const sellerId = seller?.id;
 
   if (variant === 'list') {
     const showNew = isNewListing(listing);
@@ -87,6 +89,12 @@ export function ListingCard({ listing, onPress, variant = 'grid', compact = fals
             {title}
           </Text>
 
+          {listing.price > 0 ? (
+            <Text style={styles.listPrice}>
+              {listing.price.toLocaleString('ar-SA')} {listing.currency}
+            </Text>
+          ) : null}
+
           <View style={[styles.listMetaRow, rtlRow]}>
             <View style={[styles.listMetaItem, rtlRow]}>
               <AppIcon name="map-marker-outline" size={12} color={colors.textMuted} />
@@ -102,12 +110,12 @@ export function ListingCard({ listing, onPress, variant = 'grid', compact = fals
           </View>
 
           <View style={[styles.listBottomRow, rtlRow]}>
-            <UserProfileLink userId={listing.seller.id} style={[styles.listSeller, rtlRow]}>
-              <Image source={uriSource(listing.seller.avatar)} style={styles.listAvatar} />
+            <UserProfileLink userId={sellerId} style={[styles.listSeller, rtlRow]}>
+              <Image source={uriSource(seller?.avatar)} style={styles.listAvatar} />
               <Text style={styles.listSellerName} numberOfLines={1}>
                 {sellerName}
               </Text>
-              {listing.seller.verified ? (
+              {seller?.verified ? (
                 <AppIcon name="shield-checkmark" size={12} color={colors.electricBright} />
               ) : null}
             </UserProfileLink>
@@ -131,7 +139,7 @@ export function ListingCard({ listing, onPress, variant = 'grid', compact = fals
 
         <View style={styles.listThumbWrap}>
           {thumbUri ? (
-            <Image source={{ uri: thumbUri }} style={styles.listThumb} contentFit="cover" transition={200} />
+            <Image source={uriSource(thumbUri)} style={styles.listThumb} contentFit="cover" transition={200} />
           ) : (
             <View style={styles.listThumbPlaceholder}>
               <Text style={styles.listThumbIcon}>{CATEGORY_ICONS[listing.category] || '📦'}</Text>
@@ -154,7 +162,7 @@ export function ListingCard({ listing, onPress, variant = 'grid', compact = fals
         style={({ pressed }) => [styles.profileCard, rtlDirection, pressed && styles.pressed]}
       >
         {thumbUri ? (
-          <Image source={{ uri: thumbUri }} style={styles.profileImg} contentFit="cover" transition={250} />
+          <Image source={uriSource(thumbUri)} style={styles.profileImg} contentFit="cover" transition={250} />
         ) : (
           <View style={styles.profilePlaceholder}>
             <Text style={styles.profilePlaceholderIcon}>{CATEGORY_ICONS[listing.category] || '📦'}</Text>
@@ -190,7 +198,7 @@ export function ListingCard({ listing, onPress, variant = 'grid', compact = fals
           pressed && styles.pressed,
         ]}
       >
-        <Image source={thumbUri ? { uri: thumbUri } : undefined} style={styles.featureImg} contentFit="cover" transition={250} />
+        <Image source={uriSource(thumbUri)} style={styles.featureImg} contentFit="cover" transition={250} />
         <LinearGradient
           colors={cardOverlayStrong}
           style={StyleSheet.absoluteFill}
@@ -243,12 +251,12 @@ export function ListingCard({ listing, onPress, variant = 'grid', compact = fals
       </View>
 
       <View style={[styles.harajSellerRow, rtlRow]}>
-        <UserProfileLink userId={listing.seller.id} style={[styles.harajSellerInfo, rtlRow]}>
-          <Image source={uriSource(listing.seller.avatar)} style={styles.harajAvatar} />
+        <UserProfileLink userId={sellerId} style={[styles.harajSellerInfo, rtlRow]}>
+          <Image source={uriSource(seller?.avatar)} style={styles.harajAvatar} />
           <Text style={styles.harajSellerName} numberOfLines={1}>
             {sellerName}
           </Text>
-          {listing.seller.verified ? (
+          {seller?.verified ? (
             <AppIcon name="shield-checkmark" size={13} color={colors.electricBright} />
           ) : null}
         </UserProfileLink>
@@ -274,7 +282,7 @@ export function ListingCard({ listing, onPress, variant = 'grid', compact = fals
 
       <View style={styles.harajImgWrap}>
         {thumbUri ? (
-          <Image source={{ uri: thumbUri }} style={styles.harajImg} contentFit="cover" transition={250} />
+          <Image source={uriSource(thumbUri)} style={styles.harajImg} contentFit="cover" transition={250} />
         ) : (
           <View style={styles.harajImgPlaceholder}>
             <Text style={styles.harajImgPlaceholderIcon}>
@@ -319,8 +327,16 @@ function createStyles(colors: ThemeColors) {
     ...typography.bodyStrong,
     fontSize: 15,
     lineHeight: 22,
-    color: colors.cyan,
+    color: colors.textBrandStrong,
     fontWeight: '700',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  listPrice: {
+    ...typography.bodyStrong,
+    fontSize: 16,
+    color: colors.textPrimary,
+    fontWeight: '800',
     textAlign: 'right',
     writingDirection: 'rtl',
   },
@@ -583,7 +599,7 @@ function createStyles(colors: ThemeColors) {
   },
   harajTitle: {
     ...typography.h3,
-    color: colors.cyan,
+    color: colors.textBrandStrong,
     fontWeight: '700',
     textAlign: 'right',
     writingDirection: 'rtl',
@@ -654,7 +670,8 @@ function createStyles(colors: ThemeColors) {
   },
   harajPrice: {
     ...typography.bodyStrong,
-    color: colors.gold,
+    color: colors.textPrimary,
+    fontWeight: '800',
     textAlign: 'right',
     writingDirection: 'rtl',
   },

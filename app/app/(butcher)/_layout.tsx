@@ -36,7 +36,6 @@ export default function ButcherTabsLayout() {
 
   return (
     <Tabs
-      key={scheme}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.electricBright,

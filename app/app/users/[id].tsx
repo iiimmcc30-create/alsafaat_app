@@ -6,14 +6,14 @@ import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -33,6 +33,7 @@ import { PostItem } from '@/components/feature/PostItem';
 import { PostCommentsModal } from '@/components/feature/PostCommentsModal';
 import { RatingModal } from '@/components/feature/RatingModal';
 import { requireAuth, sharePost, showPostMenu } from '@/lib/postInteractions';
+import { presentActionSheet } from '@/lib/actionSheet';
 import { buildProfileTimeline } from '@/lib/profileTimeline';
 
 const COVER_HEIGHT = 130;
@@ -65,13 +66,6 @@ export default function UserProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const [ratingModalVisible, setRatingModalVisible] = useState(false);
-
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const coverOpacity = scrollY.interpolate({
-    inputRange: [0, COVER_HEIGHT * 0.65],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  });
 
   const isOwnProfile = !id || id === me.id;
 
@@ -119,13 +113,6 @@ export default function UserProfileScreen() {
     await loadProfile();
     setRefreshing(false);
   }, [loadProfile]);
-
-  const onScroll = useCallback(
-    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
-      scrollY.setValue(e.nativeEvent.contentOffset.y);
-    },
-    [scrollY],
-  );
 
   const handleFollow = async () => {
     if (!profile || !accessToken || followLoading) {
@@ -231,13 +218,41 @@ export default function UserProfileScreen() {
     } as never);
   };
 
+  const handleShareProfile = () => {
+    Share.share({
+      message: `تفقّد بروفايل ${profile.arabicName || profile.displayName} في تطبيق سرح 🐪\nhttps://alsfat.com/u/${profile.username}`,
+      title: 'سرح — المنصة الوطنية للثروة الحيوانية',
+    });
+  };
+
+  const handleCoverMenu = async () => {
+    const key = await presentActionSheet({
+      title: 'خيارات',
+      message: profile.arabicName || profile.displayName,
+      items: [
+        {
+          key: 'share',
+          label: 'مشاركة الملف',
+          icon: 'share-social-outline',
+        },
+        {
+          key: 'report',
+          label: 'إبلاغ',
+          icon: 'flag-outline',
+          destructive: true,
+        },
+        { key: 'cancel', label: 'إلغاء', cancel: true },
+      ],
+    });
+    if (key === 'share') handleShareProfile();
+    if (key === 'report') promptReport('user', profile.id, !!accessToken);
+  };
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={[1]}
-        scrollEventThrottle={16}
-        onScroll={onScroll}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -252,41 +267,50 @@ export default function UserProfileScreen() {
         {/* ═══════════════ HEADER ═══════════════ */}
         <View style={styles.headerBlock}>
           <View style={styles.cover}>
-            <Animated.View style={[StyleSheet.absoluteFill, { opacity: coverOpacity }]}>
-              {profile.coverImage ? (
-                <Image
-                  source={{ uri: profile.coverImage }}
-                  style={StyleSheet.absoluteFill}
-                  contentFit="cover"
-                />
-              ) : (
-                <LinearGradient
-                  colors={gradients.royal}
-                  style={StyleSheet.absoluteFill}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                />
-              )}
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.4)']}
-                style={StyleSheet.absoluteFill}
-              />
-            </Animated.View>
-
+            <LinearGradient
+              colors={gradients.royal}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+            <Pressable onPress={handleCoverMenu} hitSlop={10} style={styles.coverMenuBtn}>
+              <AppIcon name="menu" size={22} color="#fff" />
+            </Pressable>
             <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
               <AppIcon name={rtlBackIcon} size={20} color="#fff" />
+            </Pressable>
+            <Pressable
+              style={styles.coverRating}
+              onPress={() => setRatingModalVisible(true)}
+              hitSlop={6}
+            >
+              <AppIcon name="star" size={12} color={themeColors.gold} />
+              <Text style={styles.coverRatingText}>
+                {ratingLabel ?? '—'}
+                {hasRating ? ` (${profile.reviewCount.toLocaleString('ar-SA')})` : ''}
+              </Text>
+              {profile.myRating ? (
+                <AppIcon name="create-outline" size={11} color="rgba(255,255,255,0.75)" />
+              ) : null}
             </Pressable>
           </View>
 
           <View style={styles.avatarOverlap}>
             <View style={styles.avatarOuter}>
-              <View style={styles.avatarRing}>
-                <Image
-                  source={uriSource(profile.avatar)}
-                  style={styles.avatarImg}
-                  contentFit="cover"
-                />
-              </View>
+              <LinearGradient
+                colors={[themeColors.borderSoft, themeColors.borderSoft]}
+                style={styles.avatarRing}
+                start={{ x: 0, y: 1 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <View style={styles.avatarClip}>
+                  <Image
+                    source={uriSource(profile.avatar)}
+                    style={styles.avatarImg}
+                    contentFit="cover"
+                  />
+                </View>
+              </LinearGradient>
               {profile.verified ? (
                 <View style={styles.verifiedDot}>
                   <AppIcon name="checkmark-circle" size={16} color={themeColors.electricBright} />
@@ -298,36 +322,19 @@ export default function UserProfileScreen() {
           <View style={styles.info}>
             <View style={styles.nameRow}>
               <Text style={styles.displayName} numberOfLines={1}>
-                {profile.arabicName || profile.displayName}
+                {profile.arabicName || profile.displayName || profile.username}
               </Text>
               {profile.verified ? (
                 <AppIcon name="checkmark-circle" size={15} color={themeColors.electricBright} />
               ) : null}
             </View>
+            <Text style={styles.username}>@{profile.username}</Text>
 
-            <View style={styles.handleRatingRow}>
-              <Text style={styles.handle}>@{profile.username}</Text>
-              <Pressable
-                style={styles.ratingChip}
-                onPress={() => setRatingModalVisible(true)}
-                hitSlop={6}
-              >
-                <AppIcon name="star" size={12} color={themeColors.gold} />
-                <Text style={styles.ratingText}>
-                  {ratingLabel ?? '—'}
-                  {hasRating ? ` (${profile.reviewCount.toLocaleString('ar-SA')})` : ''}
-                </Text>
-                {profile.myRating ? (
-                  <AppIcon name="create-outline" size={11} color={themeColors.textMuted} />
-                ) : null}
-              </Pressable>
-            </View>
-
-            {!!profile.bio && (
+            {!!profile.bio ? (
               <Text style={styles.bio} numberOfLines={3}>
                 {profile.bio}
               </Text>
-            )}
+            ) : null}
             <View style={styles.metaRow}>
               <View style={styles.metaItem}>
                 <AppIcon name="map-marker-outline" size={12} color={themeColors.textMuted} />
@@ -338,16 +345,12 @@ export default function UserProfileScreen() {
             </View>
           </View>
 
-          <View style={styles.stats}>
-            <View style={styles.stat}>
-              <Text style={styles.statNum}>{timeline.length}</Text>
-              <Text style={styles.statLbl}>منشورات</Text>
-            </View>
-            <Pressable style={styles.stat} onPress={() => openConnections('followers')}>
+          <View style={styles.statsRow}>
+            <Pressable style={styles.statCard} onPress={() => openConnections('followers')}>
               <Text style={styles.statNum}>{profile.followersCount.toLocaleString('ar-SA')}</Text>
               <Text style={styles.statLbl}>متابعون</Text>
             </Pressable>
-            <Pressable style={styles.stat} onPress={() => openConnections('following')}>
+            <Pressable style={styles.statCard} onPress={() => openConnections('following')}>
               <Text style={styles.statNum}>{profile.followingCount.toLocaleString('ar-SA')}</Text>
               <Text style={styles.statLbl}>متابَعون</Text>
             </Pressable>
@@ -476,6 +479,41 @@ function createStyles(colors: ThemeColors) {
       height: COVER_HEIGHT,
       backgroundColor: colors.bgElevated,
       overflow: 'hidden',
+      position: 'relative',
+    },
+    coverMenuBtn: {
+      position: 'absolute',
+      top: 10,
+      left: 12,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: 'rgba(0,0,0,0.38)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: 'rgba(255,255,255,0.22)',
+      zIndex: 2,
+    },
+    coverRating: {
+      position: 'absolute',
+      bottom: 10,
+      right: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: radius.pill,
+      backgroundColor: 'rgba(0,0,0,0.42)',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: 'rgba(255,255,255,0.18)',
+      zIndex: 2,
+    },
+    coverRatingText: {
+      ...typography.caption,
+      color: '#fff',
+      fontWeight: '700',
     },
     backBtn: {
       position: 'absolute',
@@ -494,14 +532,19 @@ function createStyles(colors: ThemeColors) {
 
     avatarOverlap: {
       marginTop: -(AVATAR_SIZE / 2),
-      paddingHorizontal: spacing.lg,
+      alignItems: 'center',
       zIndex: 2,
     },
     avatarOuter: {
-      alignSelf: 'flex-start',
       position: 'relative',
     },
     avatarRing: {
+      width: AVATAR_SIZE + 4,
+      height: AVATAR_SIZE + 4,
+      borderRadius: (AVATAR_SIZE + 4) / 2,
+      padding: 2,
+    },
+    avatarClip: {
       width: AVATAR_SIZE,
       height: AVATAR_SIZE,
       borderRadius: AVATAR_SIZE / 2,
@@ -522,10 +565,12 @@ function createStyles(colors: ThemeColors) {
     info: {
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.sm,
+      alignItems: 'center',
     },
     nameRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'center',
       gap: 5,
     },
     displayName: {
@@ -533,43 +578,27 @@ function createStyles(colors: ThemeColors) {
       fontSize: 20,
       fontWeight: '800',
       color: colors.textPrimary,
+      textAlign: 'center',
     },
-    handleRatingRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginTop: 2,
-    },
-    handle: {
+    username: {
       ...typography.caption,
       color: colors.textMuted,
-    },
-    ratingChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 3,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: radius.pill,
-      backgroundColor: colors.bgSurface,
-    },
-    ratingText: {
-      ...typography.caption,
-      color: colors.gold,
-      fontWeight: '700',
-      fontSize: 12,
+      marginTop: 4,
+      textAlign: 'center',
     },
     bio: {
       ...typography.body,
       color: colors.textSecondary,
       lineHeight: 20,
       marginTop: 6,
+      textAlign: 'center',
     },
     metaRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 12,
       marginTop: 6,
+      justifyContent: 'center',
     },
     metaItem: {
       flexDirection: 'row',
@@ -582,28 +611,36 @@ function createStyles(colors: ThemeColors) {
       fontSize: 12,
     },
 
-    stats: {
+    statsRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 18,
+      justifyContent: 'center',
+      gap: spacing.sm,
       paddingHorizontal: spacing.lg,
-      paddingTop: 12,
+      paddingTop: spacing.sm,
     },
-    stat: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      gap: 4,
+    statCard: {
+      minWidth: 96,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 2,
+      paddingVertical: 6,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: colors.bgElevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
     },
     statNum: {
       ...typography.bodyStrong,
+      fontSize: 15,
       color: colors.textPrimary,
       fontWeight: '800',
-      fontSize: 14,
     },
     statLbl: {
-      ...typography.caption,
+      ...typography.micro,
       color: colors.textMuted,
-      fontSize: 13,
+      fontSize: 11,
     },
 
     actions: {

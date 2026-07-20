@@ -1,6 +1,8 @@
 export type ActionSheetItem = {
   key: string;
   label: string;
+  subtitle?: string;
+  icon?: string;
   destructive?: boolean;
   cancel?: boolean;
 };

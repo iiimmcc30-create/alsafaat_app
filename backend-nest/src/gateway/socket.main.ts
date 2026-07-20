@@ -5,11 +5,12 @@ import { GatewayModule } from './gateway.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(GatewayModule, { logger: false });
-  await app.init();
+  const socketPort = parseInt(process.env.SOCKET_PORT || '3002', 10);
+  const httpPort = parseInt(process.env.SOCKET_HTTP_PORT || '3003', 10);
+  await app.listen(httpPort, '0.0.0.0');
 
-  const port = parseInt(process.env.SOCKET_PORT || '3002', 10);
   const logger = app.get(LoggerService);
-  logger.info({ port }, '🔌 Socket.IO server running');
+  logger.info({ socketPort, httpPort }, '🔌 Socket.IO server running');
 }
 
 bootstrap().catch((err) => {

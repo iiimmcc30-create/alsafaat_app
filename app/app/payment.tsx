@@ -276,37 +276,11 @@ export default function PaymentScreen() {
       if (res.ok && json.success && json.data?.checkoutUrl) {
         const { checkoutUrl, paymentId, devMode } = json.data as { checkoutUrl: string; paymentId?: string; devMode?: boolean };
 
-        if (devMode && paymentId) {
+        if (devMode) {
+          setStep('method');
           Alert.alert(
-            '🧪 وضع التطوير',
-            'مفاتيح NI غير مفعّلة. اضغط "محاكاة نجاح" للاختبار.',
-            [
-              {
-                text: '✅ محاكاة نجاح الدفع',
-                onPress: async () => {
-                  const simRes = await fetch(`${API_BASE}/api/payments/${paymentId}/dev-complete`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${accessToken}` },
-                  });
-                  const simJson = await simRes.json().catch(() => ({}));
-                  if (simRes.ok && simJson.success) {
-                    setTransactionId(paymentId);
-                    setStep('success');
-                    await refetchSubscription();
-                  } else {
-                    setStep('method');
-                    Alert.alert('فشل', simJson.messageAr || 'تعذرت محاكاة الدفع');
-                  }
-                },
-              },
-              {
-                text: '🌐 فتح رابط الدفع',
-                onPress: async () => {
-                  await openPaymentCheckout(checkoutUrl, paymentId);
-                },
-              },
-              { text: 'إلغاء', style: 'cancel', onPress: () => setStep('method') },
-            ],
+            'الدفع غير متاح حالياً',
+            'بوابة الدفع تعمل حالياً في وضع التطوير، لذلك تم إيقاف أي نجاح وهمي. لن يتم اعتماد أي عملية حتى يتم ربط مفاتيح الدفع الحقيقية أو بطاقات الاختبار الرسمية من Network International.',
           );
           return;
         }

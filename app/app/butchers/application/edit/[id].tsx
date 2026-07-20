@@ -30,6 +30,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useButcherApplication } from '@/hooks/useButcherApplication';
+import { presentActionSheet } from '@/lib/actionSheet';
 import {
   applicationDisplayName,
   countryLabel,
@@ -331,31 +332,46 @@ export default function ButcherApplicationEditScreen() {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       if (!dirtyRef.current || savingRef.current) return;
       e.preventDefault();
-      Alert.alert('تغييرات غير محفوظة', 'هل تريد حفظ التغييرات قبل المغادرة؟', [
-        { text: 'البقاء', style: 'cancel' },
-        {
-          text: 'تجاهل',
-          style: 'destructive',
-          onPress: () => {
+      void (async () => {
+        const key = await presentActionSheet({
+          title: 'تغييرات غير محفوظة',
+          message: 'هل تريد حفظ التغييرات قبل المغادرة؟',
+          items: [
+            {
+              key: 'save-exit',
+              label: 'حفظ والمغادرة',
+              subtitle: 'سيتم حفظ التغييرات الحالية قبل الخروج',
+              icon: 'checkmark-done-outline',
+            },
+            {
+              key: 'discard',
+              label: 'تجاهل',
+              subtitle: 'الخروج بدون حفظ التغييرات',
+              icon: 'trash-outline',
+              destructive: true,
+            },
+            { key: 'stay', label: 'البقاء', cancel: true },
+          ],
+        });
+
+        if (key === 'discard') {
+          setDirty(false);
+          dirtyRef.current = false;
+          navigation.dispatch(e.data.action);
+          return;
+        }
+
+        if (key === 'save-exit') {
+          try {
+            await saveCurrentStep();
             setDirty(false);
             dirtyRef.current = false;
             navigation.dispatch(e.data.action);
-          },
-        },
-        {
-          text: 'حفظ والمغادرة',
-          onPress: async () => {
-            try {
-              await saveCurrentStep();
-              setDirty(false);
-              dirtyRef.current = false;
-              navigation.dispatch(e.data.action);
-            } catch {
-              Alert.alert('خطأ', 'تعذّر حفظ التغييرات');
-            }
-          },
-        },
-      ]);
+          } catch {
+            Alert.alert('خطأ', 'تعذّر حفظ التغييرات');
+          }
+        }
+      })();
     });
     return unsubscribe;
   }, [navigation, saveCurrentStep]);
@@ -417,25 +433,36 @@ export default function ButcherApplicationEditScreen() {
   const goBack = async () => {
     if (step === 0) {
       if (dirty) {
-        Alert.alert('تغييرات غير محفوظة', 'هل تريد حفظ التغييرات؟', [
-          { text: 'إلغاء', style: 'cancel' },
-          {
-            text: 'تجاهل',
-            style: 'destructive',
-            onPress: () => router.back(),
-          },
-          {
-            text: 'حفظ',
-            onPress: async () => {
-              try {
-                await saveCurrentStep();
-                router.back();
-              } catch {
-                Alert.alert('خطأ', 'تعذّر حفظ التغييرات');
-              }
+        const key = await presentActionSheet({
+          title: 'تغييرات غير محفوظة',
+          message: 'هل تريد حفظ التغييرات؟',
+          items: [
+            {
+              key: 'save',
+              label: 'حفظ',
+              subtitle: 'حفظ التعديلات ثم الرجوع',
+              icon: 'checkmark-done-outline',
             },
-          },
-        ]);
+            {
+              key: 'discard',
+              label: 'تجاهل',
+              subtitle: 'الرجوع بدون حفظ',
+              icon: 'trash-outline',
+              destructive: true,
+            },
+            { key: 'cancel', label: 'إلغاء', cancel: true },
+          ],
+        });
+        if (key === 'discard') {
+          router.back();
+        } else if (key === 'save') {
+          try {
+            await saveCurrentStep();
+            router.back();
+          } catch {
+            Alert.alert('خطأ', 'تعذّر حفظ التغييرات');
+          }
+        }
       } else {
         router.back();
       }

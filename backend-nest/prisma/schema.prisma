@@ -204,6 +204,8 @@ model Listing {
   location          String
   arabicLocation    String
   country           Country
+  contactPhone      String?
+  weightKg          Float?
   images            String[]
   featured          Boolean         @default(false)
   pinned            Boolean         @default(false)

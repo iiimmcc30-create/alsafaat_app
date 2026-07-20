@@ -1,13 +1,14 @@
 // Powered by OnSpace.AI
 // SAFAT — App Context (current user + global state)
 
-import { createContext, ReactNode, useState, useEffect, useCallback } from 'react';
+import { createContext, ReactNode, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, Post, Listing } from '@/services/types';
 import { useAuth } from './AuthContext';
 import { API_BASE } from '@/services/api';
 import { parseApiError } from '@/services/apiError';
 import { authFetch } from '@/services/authFetch';
+import { fetchWithTimeout } from '@/services/fetchWithTimeout';
 import { needsUpload } from '@/services/mediaUri';
 import { uploadImageFromUri } from '@/services/upload';
 
@@ -86,9 +87,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Helper mapping functions
   const mapBackendUser = useCallback((u: any): User => {
+    if (!u || typeof u !== 'object') return { ...DEFAULT_USER };
     return {
-      id: u.id,
-      username: u.username,
+      id: String(u.id ?? ''),
+      username: u.username || '',
       displayName: u.displayName || '',
       arabicName: u.arabicName || '',
       avatar: u.avatar || undefined,
@@ -104,7 +106,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const mapBackendPost = useCallback((p: any): Post => {
+  const mapBackendPost = useCallback((p: any): Post | null => {
+    if (!p?.id) return null;
     return {
       id: p.id,
       author: mapBackendUser(p.author),
@@ -124,7 +127,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [mapBackendUser]);
 
-  const mapBackendListing = useCallback((l: any): Listing => {
+  const mapBackendListing = useCallback((l: any): Listing | null => {
+    if (!l?.id) return null;
     return {
       id: l.id,
       title: l.title,
@@ -137,6 +141,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       location: l.location,
       arabicLocation: l.arabicLocation,
       country: l.country,
+      contactPhone: l.contactPhone || undefined,
+      weightKg: typeof l.weightKg === 'number' ? l.weightKg : undefined,
       images: l.images && l.images.length > 0 ? l.images : [],
       description: l.description,
       arabicDescription: l.arabicDescription,
@@ -169,24 +175,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const fetchList = async (url: string) => {
         const res = await (accessToken
           ? authFetch(url, { headers })
-          : fetch(url, { headers }));
+          : fetchWithTimeout(url, { headers }));
         if (!res.ok) return [] as Listing[];
         const json = await res.json();
         if (json.success && Array.isArray(json.data?.listings)) {
           return json.data.listings
             .map(mapBackendListing)
-            .filter((listing: Listing) => listing.country !== 'EG');
+            .filter((listing: Listing | null): listing is Listing =>
+              Boolean(listing && listing.country !== 'EG'),
+            );
         }
         return [] as Listing[];
       };
 
-      const market = await fetchList(`${API_BASE}/api/listings`);
-      let mine: Listing[] = [];
-      if (accessToken && user?.id) {
-        mine = await fetchList(
-          `${API_BASE}/api/listings?sellerId=${encodeURIComponent(user.id)}`,
-        );
-      }
+      const marketPromise = fetchList(`${API_BASE}/api/listings`);
+      const minePromise =
+        accessToken && user?.id
+          ? fetchList(`${API_BASE}/api/listings?sellerId=${encodeURIComponent(user.id)}`)
+          : Promise.resolve([] as Listing[]);
+
+      const [market, mine] = await Promise.all([marketPromise, minePromise]);
 
       const byId = new Map<string, Listing>();
       for (const l of [...mine, ...market]) byId.set(l.id, l);
@@ -220,13 +228,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const headers: HeadersInit = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
       const res = await (accessToken
         ? authFetch(`${API_BASE}/api/posts${qs}`, { headers })
-        : fetch(`${API_BASE}/api/posts${qs}`, { headers }));
+        : fetchWithTimeout(`${API_BASE}/api/posts${qs}`, { headers }));
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data?.posts) {
-          const fetchedPosts = json.data.posts.map(mapBackendPost);
+          const fetchedPosts = (json.data.posts as unknown[])
+            .map(mapBackendPost)
+            .filter((p: Post | null): p is Post => Boolean(p?.id));
           setPosts(fetchedPosts);
-          
+
           // Initialize liked / reposted sets
           const liked = new Set<string>();
           const reposted = new Set<string>();
@@ -247,12 +257,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await Promise.all([fetchUserData(), fetchListings(), fetchPosts()]);
   }, [fetchUserData, fetchListings, fetchPosts]);
 
-  // Trigger loading when auth state updates
-  useEffect(() => {
-    refetchData();
-  }, [refetchData, isAuthenticated, accessToken]);
+  const lastBootstrapKey = useRef<string | null>(null);
 
-  const updateMe = async (updates: Partial<User>): Promise<ActionResult> => {
+  // Load once per auth session (token + user id), not on every callback identity change
+  useEffect(() => {
+    if (!isAuthenticated || !accessToken) {
+      lastBootstrapKey.current = null;
+      if (!isAuthenticated) {
+        setPosts([]);
+        setListingsState([]);
+        setLikedPosts(new Set());
+        setRepostedPosts(new Set());
+      }
+      return;
+    }
+    const key = `${accessToken}:${user?.id ?? ''}`;
+    if (lastBootstrapKey.current === key) return;
+    lastBootstrapKey.current = key;
+    void refetchData();
+  }, [isAuthenticated, accessToken, user?.id, refetchData]);
+
+  const updateMe = useCallback(async (updates: Partial<User>): Promise<ActionResult> => {
     if (!isAuthenticated || !accessToken || !user) {
       return { ok: false, error: 'يجب تسجيل الدخول أولاً' };
     }
@@ -316,9 +341,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         error: err instanceof Error ? err.message : 'فشل حفظ التغييرات',
       };
     }
-  };
+  }, [isAuthenticated, accessToken, user, mapBackendUser]);
 
-  const addPost = async (postData: Omit<Post, 'id' | 'author' | 'likes' | 'reposts' | 'comments' | 'postedAt' | 'liked'>): Promise<boolean> => {
+  const addPost = useCallback(async (postData: Omit<Post, 'id' | 'author' | 'likes' | 'reposts' | 'comments' | 'postedAt' | 'liked'>): Promise<boolean> => {
     if (!isAuthenticated || !accessToken) return false;
     try {
       const res = await authFetch(`${API_BASE}/api/posts`, {
@@ -329,17 +354,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
-          setPosts((prev) => [mapBackendPost(json.data), ...prev]);
-          return true;
+          const mapped = mapBackendPost(json.data);
+          if (mapped) setPosts((prev) => [mapped, ...prev]);
+          return Boolean(mapped);
         }
       }
     } catch (err) {
       console.warn('[AppContext] Add post failed:', err);
     }
     return false;
-  };
+  }, [isAuthenticated, accessToken, mapBackendPost]);
 
-  const addListing = async (listingData: any): Promise<ActionResult> => {
+  const addListing = useCallback(async (listingData: any): Promise<ActionResult> => {
     if (!isAuthenticated || !accessToken) {
       return { ok: false, error: 'يجب تسجيل الدخول أولاً' };
     }
@@ -352,8 +378,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
-          setListingsState((prev) => [mapBackendListing(json.data), ...prev]);
-          return { ok: true };
+          const mapped = mapBackendListing(json.data);
+          if (mapped) setListingsState((prev) => [mapped, ...prev]);
+          return mapped ? { ok: true } : { ok: false, error: 'استجابة غير صالحة' };
         }
       }
       return { ok: false, error: await parseApiError(res) };
@@ -364,9 +391,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         error: err instanceof Error ? err.message : 'فشل نشر الإعلان',
       };
     }
-  };
+  }, [isAuthenticated, accessToken, mapBackendListing]);
 
-  const removeListing = async (listingId: string): Promise<ActionResult> => {
+  const removeListing = useCallback(async (listingId: string): Promise<ActionResult> => {
     if (!isAuthenticated || !accessToken) {
       return { ok: false, error: 'يجب تسجيل الدخول أولاً' };
     }
@@ -386,9 +413,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         error: err instanceof Error ? err.message : 'فشل حذف الإعلان',
       };
     }
-  };
+  }, [isAuthenticated, accessToken]);
 
-  const toggleLike = async (postId: string) => {
+  const toggleLike = useCallback(async (postId: string) => {
     if (!isAuthenticated || !accessToken) return;
     try {
       const res = await authFetch(`${API_BASE}/api/posts/${postId}/like`, {
@@ -397,7 +424,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const json = await res.json();
         if (json.success) {
-          const isLikedNow = json.data.liked;
+          const isLikedNow = Boolean(json.data?.liked);
           setLikedPosts((prev) => {
             const next = new Set(prev);
             if (isLikedNow) {
@@ -407,8 +434,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
             return next;
           });
-          
-          // Update post likes count in state
+
           setPosts((prev) =>
             prev.map((p) => {
               if (p.id === postId) {
@@ -419,16 +445,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 };
               }
               return p;
-            })
+            }),
           );
         }
       }
     } catch (err) {
       console.warn('[AppContext] Toggle like failed:', err);
     }
-  };
+  }, [isAuthenticated, accessToken]);
 
-  const toggleRepost = async (postId: string) => {
+  const toggleRepost = useCallback(async (postId: string) => {
     if (!isAuthenticated || !accessToken) return;
     try {
       const res = await authFetch(`${API_BASE}/api/posts/${postId}/repost`, {
@@ -437,7 +463,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const json = await res.json();
         if (json.success) {
-          const isRepostedNow = json.data.reposted;
+          const isRepostedNow = Boolean(json.data?.reposted);
           setRepostedPosts((prev) => {
             const next = new Set(prev);
             if (isRepostedNow) next.add(postId);
@@ -459,9 +485,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.warn('[AppContext] Toggle repost failed:', err);
     }
-  };
+  }, [isAuthenticated, accessToken]);
 
-  const addComment = async (postId: string, content: string): Promise<boolean> => {
+  const addComment = useCallback(async (postId: string, content: string): Promise<boolean> => {
     if (!isAuthenticated || !accessToken || !content.trim()) return false;
     try {
       const res = await authFetch(`${API_BASE}/api/posts/${postId}/comments`, {
@@ -482,9 +508,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.warn('[AppContext] Add comment failed:', err);
     }
     return false;
-  };
+  }, [isAuthenticated, accessToken]);
 
-  const updatePost = async (
+  const updatePost = useCallback(async (
     postId: string,
     data: { content: string; arabicContent: string; image?: string | null },
   ): Promise<boolean> => {
@@ -517,9 +543,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.warn('[AppContext] Update post failed:', err);
     }
     return false;
-  };
+  }, [isAuthenticated, accessToken]);
 
-  const deletePost = async (postId: string): Promise<ActionResult> => {
+  const deletePost = useCallback(async (postId: string): Promise<ActionResult> => {
     if (!isAuthenticated || !accessToken) {
       return { ok: false, error: 'يجب تسجيل الدخول أولاً' };
     }
@@ -549,32 +575,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
         error: err instanceof Error ? err.message : 'فشل حذف المنشور',
       };
     }
-  };
+  }, [isAuthenticated, accessToken]);
 
-  return (
-    <AppContext.Provider
-      value={{
-        me,
-        updateMe,
-        posts,
-        fetchPosts,
-        addPost,
-        updatePost,
-        deletePost,
-        listings: listingsState,
-        addListing,
-        likedPosts,
-        repostedPosts,
-        bookmarkedPosts,
-        toggleLike,
-        toggleRepost,
-        toggleBookmark,
-        addComment,
-        removeListing,
-        refetchData,
-      }}
-    >
-      {children}
-    </AppContext.Provider>
+  const value = useMemo<AppContextValue>(
+    () => ({
+      me,
+      updateMe,
+      posts,
+      fetchPosts,
+      addPost,
+      updatePost,
+      deletePost,
+      listings: listingsState,
+      addListing,
+      likedPosts,
+      repostedPosts,
+      bookmarkedPosts,
+      toggleLike,
+      toggleRepost,
+      toggleBookmark,
+      addComment,
+      removeListing,
+      refetchData,
+    }),
+    [
+      me,
+      updateMe,
+      posts,
+      fetchPosts,
+      addPost,
+      updatePost,
+      deletePost,
+      listingsState,
+      addListing,
+      likedPosts,
+      repostedPosts,
+      bookmarkedPosts,
+      toggleLike,
+      toggleRepost,
+      toggleBookmark,
+      addComment,
+      removeListing,
+      refetchData,
+    ],
   );
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

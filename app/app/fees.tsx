@@ -190,20 +190,13 @@ export default function FeesScreen() {
           devMode?: boolean;
         };
 
-        if (devMode && paymentId) {
-          const simRes = await fetch(`${API_BASE}/api/payments/${paymentId}/dev-complete`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${accessToken}` },
-          });
-          const simJson = await simRes.json().catch(() => ({}));
-          if (simRes.ok && simJson.success) {
-            setSelectedFees(new Set());
-            setShowPayModal(false);
-            Alert.alert('تم السداد', 'تم سداد الرسوم بنجاح (وضع التطوير).', [
-              { text: 'حسناً', onPress: () => fetchFees() },
-            ]);
-            return;
-          }
+        if (devMode) {
+          setShowPayModal(false);
+          Alert.alert(
+            'الدفع غير متاح حالياً',
+            'الرسوم لن تُسدد بشكل حقيقي لأن بوابة الدفع في وضع التطوير، وتم إيقاف أي سداد وهمي.',
+          );
+          return;
         }
 
         if (checkoutUrl) {
@@ -262,19 +255,12 @@ export default function FeesScreen() {
           devMode?: boolean;
         };
 
-        if (devMode && paymentId) {
-          const simRes = await fetch(`${API_BASE}/api/payments/${paymentId}/dev-complete`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${accessToken}` },
-          });
-          const simJson = await simRes.json().catch(() => ({}));
-          if (simRes.ok && simJson.success) {
-            setCommissionAmount('');
-            setShowFeePayModal(false);
-            Alert.alert('✅ شكراً لك', `تم سداد رسوم سرح بمبلغ ${amount} ريال. جزاك الله خيراً!`);
-          } else {
-            Alert.alert('خطأ', simJson.messageAr ?? 'فشل محاكاة الدفع');
-          }
+        if (devMode) {
+          setShowFeePayModal(false);
+          Alert.alert(
+            'الدفع غير متاح حالياً',
+            'تم إيقاف محاكاة نجاح الدفع. لن يتم تسجيل أي مبلغ مدفوع حتى تعمل بوابة الدفع الحقيقية.',
+          );
           return;
         }
 

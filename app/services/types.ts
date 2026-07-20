@@ -70,6 +70,9 @@ export interface Listing {
   location: string;
   arabicLocation: string;
   country: Country;
+  contactPhone?: string;
+  /** Weight in kg — required for live livestock categories */
+  weightKg?: number;
   images: string[];
   description: string;
   arabicDescription: string;

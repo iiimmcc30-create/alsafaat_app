@@ -20,6 +20,8 @@ type SettingsMenuScreenProps = {
   description: string;
   heroIcon: string;
   items: SettingsMenuItem[];
+  /** Return true to skip default navigation */
+  onItemPress?: (item: SettingsMenuItem) => boolean;
 };
 
 export function SettingsMenuScreen({
@@ -27,6 +29,7 @@ export function SettingsMenuScreen({
   description,
   heroIcon,
   items,
+  onItemPress,
 }: SettingsMenuScreenProps) {
   const router = useRouter();
   const { colors } = useTheme();
@@ -52,7 +55,10 @@ export function SettingsMenuScreen({
             <Pressable
               key={`${item.route}-${index}`}
               accessibilityRole="button"
-              onPress={() => router.push(item.route as any)}
+              onPress={() => {
+                if (onItemPress?.(item)) return;
+                router.push(item.route as any);
+              }}
               style={({ pressed }) => [
                 styles.row,
                 index < items.length - 1 && styles.rowDivider,

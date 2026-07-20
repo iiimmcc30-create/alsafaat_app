@@ -1,6 +1,7 @@
 // Powered by OnSpace.AI
 // SAFAT — Create Listing Screen (إنشاء إعلان)
 import { AppIcon } from '@/components/ui/FlaticonIcon';
+import { PublishSuccessModal } from '@/components/ui/PublishSuccessModal';
 
 import { Image } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
@@ -35,6 +36,7 @@ import { uploadImageFromUri } from '@/services/upload';
 import { LocationMapPreview } from '@/components/feature/LocationMapPreview';
 import * as Location from 'expo-location';
 import { hasValidCoords } from '@/lib/butcherLocation';
+import { isLivestockCategory } from '@/lib/listingCategories';
 
 type Category = 'camels' | 'sheep' | 'goats' | 'cows' | 'horses' | 'birds' | 'feed' | 'equipment';
 
@@ -61,6 +63,16 @@ const CAT_GAP = spacing.md;
 const CAT_CARD_SIZE =
   (SCREEN_WIDTH - spacing.lg * 2 - CAT_GAP * (CAT_COLS - 1)) / CAT_COLS;
 
+function normalizeContactPhone(value: string, country: Country): string {
+  let digits = value.replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (country === 'SA') {
+    if (digits.startsWith('0')) digits = `966${digits.slice(1)}`;
+    else if (digits.length === 9 && digits.startsWith('5')) digits = `966${digits}`;
+  }
+  return digits ? `+${digits}` : '';
+}
+
 export default function CreateListingScreen() {
   const { colors, gradients } = useTheme();
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
@@ -78,6 +90,8 @@ export default function CreateListingScreen() {
   const [price, setPrice] = useState('');
   const [country, setCountry] = useState<Country>('SA');
   const [location, setLocation] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [weightKg, setWeightKg] = useState('');
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [locating, setLocating] = useState(false);
@@ -86,6 +100,7 @@ export default function CreateListingScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [showPledge, setShowPledge] = useState(false);
   const [pledgeChecked, setPledgeChecked] = useState(false);
+  const [showPublishSuccess, setShowPublishSuccess] = useState(false);
 
   const selectedCountry = GCC_COUNTRIES.find((c) => c.code === country)!;
 
@@ -146,9 +161,23 @@ export default function CreateListingScreen() {
   const canContinue = () => {
     if (step === 0) return !!category;
     if (step === 1) {
-      return titleAr.trim().length >= 3 && descAr.trim().length >= 10 && imageUris.length > 0;
+      const needsWeight = category ? isLivestockCategory(category) : false;
+      const weightValid =
+        !needsWeight ||
+        (/^\d+(\.\d{1,2})?$/.test(weightKg.trim()) && Number(weightKg) > 0);
+      return (
+        titleAr.trim().length >= 3 &&
+        descAr.trim().length >= 10 &&
+        imageUris.length > 0 &&
+        weightValid
+      );
     }
-    if (step === 2) return price.trim().length > 0 && location.trim().length > 0;
+    if (step === 2) {
+      const normalizedPhone = normalizeContactPhone(contactPhone, country);
+      const phoneValid =
+        !contactPhone.trim() || /^\+[0-9]{8,15}$/.test(normalizedPhone);
+      return price.trim().length > 0 && location.trim().length > 0 && phoneValid;
+    }
     return true;
   };
 
@@ -207,15 +236,19 @@ export default function CreateListingScreen() {
         location: location.trim(),
         arabicLocation: location.trim(),
         country,
+        contactPhone: contactPhone.trim()
+          ? normalizeContactPhone(contactPhone, country)
+          : undefined,
+        weightKg:
+          category && isLivestockCategory(category)
+            ? Number(weightKg)
+            : undefined,
         images: uploadedUrls,
         featured,
       });
 
       if (result.ok) {
-        Alert.alert('تم النشر! 🎉', 'تم نشر إعلانك بنجاح في السوق.', [
-          { text: 'عرض السوق', onPress: () => router.replace('/(tabs)/market') },
-          { text: 'حسابي', onPress: () => router.replace('/(tabs)/profile') },
-        ]);
+        setShowPublishSuccess(true);
       } else {
         Alert.alert(
           'خطأ',
@@ -371,6 +404,26 @@ export default function CreateListingScreen() {
                 </View>
               </View>
 
+              {category && isLivestockCategory(category) ? (
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>الوزن (كجم) *</Text>
+                  <View style={styles.inputWrap}>
+                    <TextInput
+                      value={weightKg}
+                      onChangeText={(v) => setWeightKg(v.replace(/[^\d.]/g, ''))}
+                      placeholder="مثال: 450"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="decimal-pad"
+                      style={[styles.input, { textAlign: 'right' }]}
+                    />
+                    <Text style={styles.currencyLabel}>كجم</Text>
+                  </View>
+                  <Text style={styles.fieldHint}>
+                    إلزامي للمواشي الحية وفق متطلبات وزارة البيئة والمياه والزراعة
+                  </Text>
+                </View>
+              ) : null}
+
               {/* Images */}
               <View style={styles.fieldGroup}>
                 <Text style={styles.fieldLabel}>الصور * (صورة واحدة على الأقل)</Text>
@@ -500,6 +553,27 @@ export default function CreateListingScreen() {
                 )}
               </View>
 
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>رقم التواصل عبر واتساب (اختياري)</Text>
+                <View style={styles.inputWrap}>
+                  <AppIcon name="whatsapp" size={18} color="#25D366" />
+                  <TextInput
+                    value={contactPhone}
+                    onChangeText={(text) =>
+                      setContactPhone(text.replace(/[^0-9+\s()-]/g, ''))
+                    }
+                    placeholder="مثال: +9665XXXXXXXX"
+                    placeholderTextColor={colors.textMuted}
+                    style={[styles.input, { flex: 1, textAlign: 'right' }]}
+                    keyboardType="phone-pad"
+                    maxLength={20}
+                  />
+                </View>
+                <Text style={styles.mapHint}>
+                  سيظهر زر واتساب في تفاصيل الإعلان عند إضافة الرقم
+                </Text>
+              </View>
+
               {/* Featured toggle */}
               <Pressable
                 style={styles.featuredToggle}
@@ -541,6 +615,10 @@ export default function CreateListingScreen() {
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>الموقع</Text>
                   <Text style={styles.reviewValue}>{location || '—'} {selectedCountry.flag}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>واتساب</Text>
+                  <Text style={styles.reviewValue}>{contactPhone.trim() || 'غير مضاف'}</Text>
                 </View>
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>الصور</Text>
@@ -730,6 +808,27 @@ export default function CreateListingScreen() {
             </View>
           </View>
         </Modal>
+
+        <PublishSuccessModal
+          visible={showPublishSuccess}
+          primaryAction={{
+            label: 'عرض السوق',
+            icon: 'storefront-outline',
+            onPress: () => {
+              setShowPublishSuccess(false);
+              router.replace('/(tabs)/market');
+            },
+          }}
+          secondaryAction={{
+            label: 'حسابي',
+            icon: 'person-outline',
+            onPress: () => {
+              setShowPublishSuccess(false);
+              router.replace('/(tabs)/profile');
+            },
+          }}
+          onRequestClose={() => setShowPublishSuccess(false)}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

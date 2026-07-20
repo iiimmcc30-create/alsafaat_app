@@ -53,13 +53,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 function RootNavigator() {
-  const { scheme, isDark, colors: themeColors } = useTheme();
+  const { isDark, colors: themeColors } = useTheme();
 
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack
-        key={scheme}
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: themeColors.bgDeep, ...rtlDirection },

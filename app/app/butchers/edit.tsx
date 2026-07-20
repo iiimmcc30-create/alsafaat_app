@@ -24,6 +24,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
+import { alertMessage } from '@/lib/actionSheet';
 import { rtlBackIcon } from '@/lib/rtl';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
@@ -270,9 +271,8 @@ export default function EditButcherScreen() {
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok && json.success) {
-        Alert.alert('تم', 'تم حفظ بيانات الملحمة بنجاح', [
-          { text: 'حسناً', onPress: () => router.back() },
-        ]);
+        await alertMessage('تم الحفظ', 'تم حفظ بيانات الملحمة بنجاح');
+        router.back();
       } else {
         Alert.alert('خطأ', formatValidationError(json));
       }

@@ -23,6 +23,7 @@ import { colors, gradients, radius, spacing, typography, type ThemeColors } from
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
+import { confirmDestructive } from '@/lib/actionSheet';
 import { API_BASE } from '@/services/api';
 import { uploadImageFromUri } from '@/services/upload';
 import {
@@ -795,58 +796,44 @@ export default function ButcherManageScreen() {
     };
   }, [accessToken]);
 
-  const deleteOffer = (offerId: string) => {
-    Alert.alert('حذف العرض', 'هل تريد حذف هذا العرض؟', [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'حذف',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const res = await fetch(`${API_BASE}/api/butchers/offers/${offerId}`, {
-              method: 'DELETE',
-              headers: { Authorization: `Bearer ${accessToken}` },
-            });
-            const json = await res.json().catch(() => ({}));
-            if (res.ok && json.success) {
-              setRefreshTrigger((prev) => prev + 1);
-            } else {
-              Alert.alert('خطأ', json.messageAr || json.message || 'فشل حذف العرض');
-            }
-          } catch (err) {
-            console.error(err);
-            Alert.alert('خطأ', 'تعذر الاتصال بالخادم');
-          }
-        },
-      },
-    ]);
+  const deleteOffer = async (offerId: string) => {
+    const confirmed = await confirmDestructive('حذف العرض', 'هل تريد حذف هذا العرض؟', 'حذف العرض');
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/butchers/offers/${offerId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) {
+        setRefreshTrigger((prev) => prev + 1);
+      } else {
+        Alert.alert('خطأ', json.messageAr || json.message || 'فشل حذف العرض');
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('خطأ', 'تعذر الاتصال بالخادم');
+    }
   };
 
-  const deleteProduct = (productId: string) => {
-    Alert.alert('حذف المنتج', 'هل تريد حذف هذا المنتج؟', [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'حذف',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const res = await fetch(`${API_BASE}/api/butchers/products/${productId}`, {
-              method: 'DELETE',
-              headers: { Authorization: `Bearer ${accessToken}` },
-            });
-            const json = await res.json().catch(() => ({}));
-            if (res.ok && json.success) {
-              setRefreshTrigger((prev) => prev + 1);
-            } else {
-              Alert.alert('خطأ', json.messageAr || json.message || 'فشل حذف المنتج');
-            }
-          } catch (err) {
-            console.error(err);
-            Alert.alert('خطأ', 'تعذر الاتصال بالخادم');
-          }
-        },
-      },
-    ]);
+  const deleteProduct = async (productId: string) => {
+    const confirmed = await confirmDestructive('حذف المنتج', 'هل تريد حذف هذا المنتج؟', 'حذف المنتج');
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/butchers/products/${productId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) {
+        setRefreshTrigger((prev) => prev + 1);
+      } else {
+        Alert.alert('خطأ', json.messageAr || json.message || 'فشل حذف المنتج');
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('خطأ', 'تعذر الاتصال بالخادم');
+    }
   };
 
   const openProductForm = (product?: any) => {
@@ -869,31 +856,24 @@ export default function ButcherManageScreen() {
     setEditingOffer(null);
   };
 
-  const deleteStory = (storyId: string) => {
-    Alert.alert('حذف القصة', 'هل تريد حذف هذه القصة؟', [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'حذف',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const res = await fetch(`${API_BASE}/api/butchers/stories/${storyId}`, {
-              method: 'DELETE',
-              headers: { Authorization: `Bearer ${accessToken}` },
-            });
-            const json = await res.json().catch(() => ({}));
-            if (res.ok && json.success) {
-              setButcherStories((prev) => prev.filter((s) => s.id !== storyId));
-            } else {
-              Alert.alert('خطأ', json.messageAr || json.message || 'فشل حذف القصة');
-            }
-          } catch (err) {
-            console.error(err);
-            Alert.alert('خطأ', 'تعذر الاتصال بالخادم');
-          }
-        },
-      },
-    ]);
+  const deleteStory = async (storyId: string) => {
+    const confirmed = await confirmDestructive('حذف القصة', 'هل تريد حذف هذه القصة؟', 'حذف القصة');
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/butchers/stories/${storyId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) {
+        setButcherStories((prev) => prev.filter((s) => s.id !== storyId));
+      } else {
+        Alert.alert('خطأ', json.messageAr || json.message || 'فشل حذف القصة');
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('خطأ', 'تعذر الاتصال بالخادم');
+    }
   };
 
   if (loading) {

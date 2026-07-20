@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwakeAsync } from 'expo-keep-awake';
 import { AgoraVideoView } from '@/components/live/AgoraVideoView';
 import { VideoSourceType } from '@/lib/agora';
+import { alertMessage, confirmDestructive, presentActionSheet } from '@/lib/actionSheet';
 import { useLiveStream } from '@/hooks/useLiveStream';
 import { useLiveSocket } from '@/hooks/useLiveSocket';
 import { colors, radius, spacing } from '@/constants/theme';
@@ -188,17 +189,17 @@ export default function BroadcastScreen() {
       }
       setPhase('ended');
       setEnding(false);
-      Alert.alert('انتهى البث', summary || 'تم إنهاء البث', [
-        { text: 'حسناً', onPress: () => router.back() },
-      ]);
+      void alertMessage('انتهى البث', summary || 'تم إنهاء البث').then(() => router.back());
     }
   }, [params.streamId, leave, stopPublishing, router, accessToken]);
 
-  const endStream = useCallback(() => {
-    Alert.alert('إنهاء البث', 'هل أنت متأكد من إنهاء البث المباشر؟', [
-      { text: 'إلغاء', style: 'cancel' },
-      { text: 'إنهاء', style: 'destructive', onPress: performEndStream },
-    ]);
+  const endStream = useCallback(async () => {
+    const confirmed = await confirmDestructive(
+      'إنهاء البث',
+      'هل أنت متأكد من إنهاء البث المباشر؟',
+      'إنهاء البث',
+    );
+    if (confirmed) void performEndStream();
   }, [performEndStream]);
 
   const flipCamera = useCallback(() => switchCamera(), [switchCamera]);
@@ -233,11 +234,21 @@ export default function BroadcastScreen() {
     }
   }, [streamTitle]);
 
-  const showMenu = useCallback(() => {
-    Alert.alert('خيارات البث', streamTitle, [
-      { text: 'قلب الكاميرا', onPress: flipCamera },
-      { text: 'إلغاء', style: 'cancel' },
-    ]);
+  const showMenu = useCallback(async () => {
+    const key = await presentActionSheet({
+      title: 'خيارات البث',
+      message: streamTitle,
+      items: [
+        {
+          key: 'flip-camera',
+          label: 'قلب الكاميرا',
+          subtitle: 'التبديل بين الكاميرا الأمامية والخلفية',
+          icon: 'camera-outline',
+        },
+        { key: 'cancel', label: 'إلغاء', cancel: true },
+      ],
+    });
+    if (key === 'flip-camera') flipCamera();
   }, [streamTitle, flipCamera]);
 
   const isLive = phase === 'live';

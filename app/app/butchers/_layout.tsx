@@ -6,11 +6,10 @@ import { useTheme } from '@/hooks/useTheme';
 import { rtlDirection } from '@/lib/rtl';
 
 export default function ButchersLayout() {
-  const { colors, scheme } = useTheme();
+  const { colors } = useTheme();
 
   return (
     <Stack
-      key={scheme}
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.bgDeep, ...rtlDirection },

@@ -1,5 +1,7 @@
 // Authenticated fetch — attaches Bearer token and retries once after refresh on 401.
 
+import { fetchWithTimeout } from '@/services/fetchWithTimeout';
+
 type AuthFetchDeps = {
   getToken: () => string | null;
   refresh: () => Promise<boolean>;
@@ -7,16 +9,22 @@ type AuthFetchDeps = {
 
 let deps: AuthFetchDeps | null = null;
 
+const DEFAULT_TIMEOUT_MS = 30_000;
+
 export function registerAuthFetch(next: AuthFetchDeps) {
   deps = next;
 }
 
-export async function authFetch(input: string, init: RequestInit = {}): Promise<Response> {
+export async function authFetch(
+  input: string,
+  init: RequestInit = {},
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<Response> {
   const token = deps?.getToken() ?? null;
   const headers = new Headers(init.headers);
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
-  let res = await fetch(input, { ...init, headers });
+  let res = await fetchWithTimeout(input, { ...init, headers }, timeoutMs);
 
   if (res.status !== 401 || !deps) return res;
 
@@ -28,5 +36,5 @@ export async function authFetch(input: string, init: RequestInit = {}): Promise<
 
   const retryHeaders = new Headers(init.headers);
   retryHeaders.set('Authorization', `Bearer ${newToken}`);
-  return fetch(input, { ...init, headers: retryHeaders });
+  return fetchWithTimeout(input, { ...init, headers: retryHeaders }, timeoutMs);
 }

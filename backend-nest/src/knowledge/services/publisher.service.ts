@@ -82,6 +82,8 @@ export class PublisherService {
     });
 
     await this.cache.del('posts:feed:first').catch(() => undefined);
+    await this.cache.delPattern('posts:feed:*').catch(() => 0);
+    await this.cache.delPattern('posts:feed:following:*').catch(() => 0);
     this.logger.info(
       { articleId, postId: post.id },
       'Knowledge article published as post',

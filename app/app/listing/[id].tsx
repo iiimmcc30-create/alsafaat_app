@@ -7,7 +7,6 @@ import { formatRelativeTimeAr } from '@/lib/formatRelativeTime';
 import { rtlBackIcon, rtlDirection, rtlRow } from '@/lib/rtl';
 import { useApp } from '@/hooks/useApp';
 import { type Listing } from '@/services/types';
-import { openLiveCreateIfAllowed } from '@/lib/liveStreamAccess';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchUserProfile, setFollowUser } from '@/services/users';
 import { openUserProfile } from '@/lib/openUserProfile';
@@ -16,15 +15,40 @@ import { API_BASE } from '@/services/api';
 import { authFetch } from '@/services/authFetch';
 import { openPaymentCheckout } from '@/services/paymentCheckout';
 import { promptReport } from '@/services/reports';
-import { alertMessage, confirmDestructive } from '@/lib/actionSheet';
+import { alertMessage, confirmDestructive, presentActionSheet } from '@/lib/actionSheet';
 import { AppIcon } from '@/components/ui/FlaticonIcon';
-import { Image } from '@/components/ui/AppImage';
+import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { ImageViewerModal } from '@/components/ui/ImageViewerModal';
 import { useCallback, useEffect, useState } from 'react';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const CATEGORY_LABELS: Record<string, string> = {
+  camels: 'إبل',
+  sheep: 'أغنام',
+  goats: 'ماعز',
+  cows: 'أبقار',
+  horses: 'خيول',
+  birds: 'طيور',
+  feed: 'أعلاف',
+  equipment: 'معدات',
+};
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -33,6 +57,8 @@ export default function ListingDetailScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const { listings, me, removeListing } = useApp();
+  const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const cached = listings.find((l) => l.id === id);
   const [listing, setListing] = useState<Listing | null>(cached ?? null);
   const [loading, setLoading] = useState(!cached);
@@ -40,6 +66,7 @@ export default function ListingDetailScreen() {
   const [followLoading, setFollowLoading] = useState(false);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [imageViewerIndex, setImageViewerIndex] = useState(0);
+  const [activeImage, setActiveImage] = useState(0);
 
   // ─── Boost state ──────────────────────────────────────────────────────────
   const [boostModalVisible, setBoostModalVisible] = useState(false);
@@ -86,25 +113,18 @@ export default function ListingDetailScreen() {
         Alert.alert('فشل', json.messageAr ?? json.message ?? 'تعذّر إطلاق خدمة الترقية');
         return;
       }
-      const { checkoutUrl, boostId, paymentId, devMode } = json.data as {
+      const { checkoutUrl, paymentId, devMode } = json.data as {
         checkoutUrl?: string;
-        boostId?: string;
         paymentId?: string;
         devMode?: boolean;
       };
 
-      if (devMode && boostId) {
-        const simRes = await authFetch(`${API_BASE}/api/listings/boost/${boostId}/dev-complete`, { method: 'POST' });
-        const simJson = await simRes.json().catch(() => ({}));
-        if (simRes.ok && simJson.success) {
-          setBoostModalVisible(false);
-          Alert.alert(
-            boostType === 'featured' ? '⭐ تم التمييز' : '📌 تم التثبيت',
-            `إعلانك ${boostType === 'featured' ? 'مميز' : 'مثبّت'} لمدة ${boostDuration} يوماً (وضع التطوير).`,
-          );
-        } else {
-          Alert.alert('خطأ', simJson.messageAr ?? 'فشل محاكاة الدفع');
-        }
+      if (devMode) {
+        setBoostModalVisible(false);
+        Alert.alert(
+          'الدفع غير متاح حالياً',
+          'تم إيقاف أي ترقية وهمية للإعلان. لن يتم التمييز أو التثبيت حتى تعمل بوابة الدفع الحقيقية.',
+        );
         return;
       }
 
@@ -150,6 +170,7 @@ export default function ListingDetailScreen() {
           location: raw.location,
           arabicLocation: raw.arabicLocation,
           country: raw.country,
+          contactPhone: raw.contactPhone || undefined,
           images: raw.images?.length ? raw.images : [],
           description: raw.description,
           arabicDescription: raw.arabicDescription,
@@ -195,13 +216,6 @@ export default function ListingDetailScreen() {
     }
     const profile = await fetchUserProfile(listing.seller.id);
     setIsFollowing(profile?.isFollowing ?? null);
-    if (__DEV__) {
-      console.debug('[Follow] listing seller state loaded from server', {
-        viewerId: me.id,
-        sellerId: listing.seller.id,
-        isFollowing: profile?.isFollowing ?? null,
-      });
-    }
     return profile;
   }, [accessToken, isAuthenticated, listing, me.id]);
 
@@ -223,6 +237,25 @@ export default function ListingDetailScreen() {
     } as any);
   };
 
+  const openSellerWhatsApp = async () => {
+    if (!listing) return;
+    if (!listing.contactPhone) return;
+    const phone = listing.contactPhone.replace(/\D/g, '');
+    if (!phone) return;
+    const title = listing.arabicTitle || listing.title;
+    const message = encodeURIComponent(
+      `مرحباً، أتواصل بخصوص إعلان "${title}" في تطبيق سرح.\nhttps://alsfat.com/l/${listing.id}`,
+    );
+    const appUrl = `whatsapp://send?phone=${phone}&text=${message}`;
+    const webUrl = `https://wa.me/${phone}?text=${message}`;
+    try {
+      const canOpenApp = await Linking.canOpenURL(appUrl);
+      await Linking.openURL(canOpenApp ? appUrl : webUrl);
+    } catch {
+      Alert.alert('تعذّر فتح واتساب', 'تأكد من تثبيت واتساب أو صحة رقم التواصل.');
+    }
+  };
+
   const handleFollowSeller = async () => {
     if (!listing || !accessToken || isFollowing === null) {
       Alert.alert('تسجيل الدخول', 'يجب تسجيل الدخول للمتابعة');
@@ -234,15 +267,7 @@ export default function ListingDetailScreen() {
       if (!result) throw new Error('follow_failed');
       const refreshed = await refreshSellerFollowState();
       if (!refreshed) throw new Error('profile_refetch_failed');
-      if (__DEV__ && refreshed.isFollowing !== result.following) {
-        console.warn('[Follow] listing seller mutation/profile mismatch', {
-          sellerId: listing.seller.id,
-          mutationFollowing: result.following,
-          profileFollowing: refreshed.isFollowing,
-        });
-      }
     } catch (error) {
-      if (__DEV__) console.warn('[Follow] listing seller mutation failed', error);
       await refreshSellerFollowState();
       Alert.alert('خطأ', 'تعذّرت المتابعة');
     } finally {
@@ -271,22 +296,10 @@ export default function ListingDetailScreen() {
     ? formatRelativeTimeAr(listing.createdAt)
     : listing.postedAt;
   const images = (listing.images || []).filter((uri) => uri && uri.trim().length > 0);
+  const categoryLabel = CATEGORY_LABELS[listing.category] ?? '';
 
   const handleStartLive = () => {
-    Alert.alert(
-      'بث مباشر لهذا الإعلان',
-      `ستبدأ بثاً مباشراً مرتبطاً بـ "${listing.title}"`,
-      [
-        { text: 'إلغاء', style: 'cancel' },
-        {
-          text: 'ابدأ البث 🔴',
-          onPress: () => openLiveCreateIfAllowed(router, accessToken, {
-            listingId: listing.id,
-            listingTitle: listing.arabicTitle,
-          }),
-        },
-      ]
-    );
+    Alert.alert('البث المباشر', 'قريباً 🔴\nميزة البث المباشر للإعلانات ستتوفر قريباً.');
   };
 
   const handleEdit = () => {
@@ -310,110 +323,344 @@ export default function ListingDetailScreen() {
     }
   };
 
+  const onGalleryScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+    if (idx !== activeImage) setActiveImage(idx);
+  };
+
+  const heroHeight = Math.min(screenWidth * 0.85, 420);
+
+  // Owner management actions — single horizontal row
+  const ownerActions = [
+    {
+      key: 'live',
+      icon: 'signal-stream',
+      label: 'بث مباشر',
+      onPress: handleStartLive,
+      badge: 'قريباً',
+      danger: false,
+    },
+    {
+      key: 'edit',
+      icon: 'create-outline',
+      label: 'تعديل',
+      onPress: handleEdit,
+      danger: false,
+    },
+    {
+      key: 'feature',
+      icon: 'star',
+      label: listing.featured ? 'مميز ⭐' : 'تمييز',
+      onPress: () => { setBoostType('featured'); setBoostDuration(30); setBoostModalVisible(true); },
+      danger: false,
+    },
+    {
+      key: 'pin',
+      icon: 'pin',
+      label: 'تثبيت',
+      onPress: () => { setBoostType('pinned'); setBoostDuration(7); setBoostModalVisible(true); },
+      danger: false,
+    },
+    {
+      key: 'delete',
+      icon: 'trash-outline',
+      label: 'حذف',
+      onPress: handleDelete,
+      danger: true,
+    },
+  ];
+
+  const showOwnerMenu = async () => {
+    const key = await presentActionSheet({
+      title: 'إدارة الإعلان',
+      message: 'اختر الإجراء المطلوب',
+      items: [
+        { key: 'edit', label: 'تعديل الإعلان', icon: 'create-outline' },
+        { key: 'feature', label: listing.featured ? 'إدارة التمييز' : 'تمييز الإعلان', icon: 'star' },
+        { key: 'pin', label: 'تثبيت الإعلان', icon: 'pin' },
+        { key: 'delete', label: 'حذف الإعلان', icon: 'trash-outline', destructive: true },
+        { key: 'cancel', label: 'إلغاء', cancel: true },
+      ],
+    });
+    if (key === 'edit') handleEdit();
+    if (key === 'feature') {
+      setBoostType('featured');
+      setBoostDuration(30);
+      setBoostModalVisible(true);
+    }
+    if (key === 'pin') {
+      setBoostType('pinned');
+      setBoostDuration(7);
+      setBoostModalVisible(true);
+    }
+    if (key === 'delete') void handleDelete();
+  };
+
   return (
     <View style={[styles.screen, rtlDirection]}>
-      <SafeAreaView edges={['top']} style={styles.topBar}>
-        <Pressable onPress={() => router.back()} hitSlop={8} style={styles.iconBtn}>
-          <AppIcon name={rtlBackIcon} size={22} color={colors.textPrimary} />
-        </Pressable>
-        <View style={[styles.topActions, rtlRow]}>
-          {!isOwner ? (
-            <Pressable
-              hitSlop={8}
-              style={styles.iconBtn}
-              onPress={() => promptReport('listing', listing.id, isAuthenticated)}
-            >
-              <AppIcon name="flag-outline" size={20} color={colors.textPrimary} />
-            </Pressable>
-          ) : null}
-          <Pressable
-            hitSlop={8}
-            style={styles.iconBtn}
-            onPress={() => Alert.alert('تم الحفظ', 'تم حفظ الإعلان في المفضّلة ❤️')}
-          >
-            <AppIcon name="heart-outline" size={20} color={colors.textPrimary} />
-          </Pressable>
-          <Pressable
-            hitSlop={8}
-            style={styles.iconBtn}
-            onPress={() =>
-              Share.share({
-                message: `${listing.arabicTitle} — ${listing.price.toLocaleString()} ${listing.currency}\nhttps://alsfat.com/l/${listing.id}`,
-              })
-            }
-          >
-            <AppIcon name="share-outline" size={20} color={colors.textPrimary} />
-          </Pressable>
-        </View>
-      </SafeAreaView>
-
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.card}>
-          <Text style={styles.title}>{listing.arabicTitle || listing.title}</Text>
-
-          {listing.featured ? (
-            <View style={[styles.featured, rtlRow]}>
-              <AppIcon name="star" size={12} color="#1A1300" />
-              <Text style={styles.featuredText}>إعلان مميز</Text>
+        {/* ─── Hero gallery ─── */}
+        <View style={[styles.hero, { height: heroHeight }]}>
+          {images.length > 0 ? (
+            <>
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={onGalleryScroll}
+              >
+                {images.map((uri, index) => (
+                  <Pressable
+                    key={`${uri}-${index}`}
+                    onPress={() => { setImageViewerIndex(index); setImageViewerVisible(true); }}
+                  >
+                    <Image
+                      source={uriSource(uri)}
+                      style={{ width: screenWidth, height: heroHeight }}
+                      contentFit="cover"
+                      transition={250}
+                    />
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <LinearGradient
+                colors={['rgba(0,0,0,0.45)', 'transparent']}
+                style={styles.heroTopFade}
+                pointerEvents="none"
+              />
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.35)']}
+                style={styles.heroBottomFade}
+                pointerEvents="none"
+              />
+              {images.length > 1 ? (
+                <View style={styles.dotsRow} pointerEvents="none">
+                  {images.map((_, i) => (
+                    <View key={i} style={[styles.dot, i === activeImage && styles.dotActive]} />
+                  ))}
+                </View>
+              ) : null}
+              {images.length > 1 ? (
+                <View style={styles.imgCounter} pointerEvents="none">
+                  <AppIcon name="image" size={12} color="#fff" />
+                  <Text style={styles.imgCounterText}>
+                    {activeImage + 1}/{images.length}
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <View style={[styles.heroPlaceholder, { height: heroHeight }]}>
+              <Text style={{ fontSize: 56 }}>🐪</Text>
             </View>
-          ) : null}
+          )}
 
-          {/* Haraj detail meta: مدينة · الوقت · المعلن */}
-          <View style={[styles.metaRow, rtlRow]}>
-            <Text style={styles.metaText}>
-              {listing.arabicLocation || listing.location}
-            </Text>
-            <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.metaText}>{timeLabel || 'الآن'}</Text>
-            <Text style={styles.metaDot}>·</Text>
-            <Pressable onPress={() => openUserProfile(router, listing.seller.id)}>
-              <Text style={styles.metaUser}>
-                {listing.seller.arabicName || listing.seller.displayName || listing.seller.username}
-              </Text>
+          {/* Floating top bar */}
+          <View style={[styles.floatBar, { top: insets.top + 8 }]}>
+            <Pressable onPress={() => router.back()} hitSlop={8} style={styles.floatBtn}>
+              <AppIcon name={rtlBackIcon} size={20} color="#fff" />
             </Pressable>
-            {listing.seller.verified ? (
-              <AppIcon name="shield-checkmark" size={13} color={colors.electricBright} />
+            <View style={[styles.floatActions, rtlRow]}>
+              {isOwner ? (
+                <Pressable hitSlop={8} style={styles.floatBtn} onPress={showOwnerMenu}>
+                  <AppIcon name="ellipsis-horizontal" size={18} color="#fff" />
+                </Pressable>
+              ) : null}
+              {!isOwner ? (
+                <Pressable
+                  hitSlop={8}
+                  style={styles.floatBtn}
+                  onPress={() => promptReport('listing', listing.id, isAuthenticated)}
+                >
+                  <AppIcon name="flag-outline" size={18} color="#fff" />
+                </Pressable>
+              ) : null}
+              <Pressable
+                hitSlop={8}
+                style={styles.floatBtn}
+                onPress={() => Alert.alert('تم الحفظ', 'تم حفظ الإعلان في المفضّلة ❤️')}
+              >
+                <AppIcon name="heart-outline" size={18} color="#fff" />
+              </Pressable>
+              <Pressable
+                hitSlop={8}
+                style={styles.floatBtn}
+                onPress={() =>
+                  Share.share({
+                    message: `${listing.arabicTitle} — ${listing.price.toLocaleString()} ${listing.currency}\nhttps://alsfat.com/l/${listing.id}`,
+                  })
+                }
+              >
+                <AppIcon name="share-outline" size={18} color="#fff" />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        <ImageViewerModal
+          visible={imageViewerVisible}
+          images={images}
+          initialIndex={imageViewerIndex}
+          onClose={() => setImageViewerVisible(false)}
+        />
+
+        {/* ─── Content sheet ─── */}
+        <View style={styles.sheet}>
+          {/* Price + featured */}
+          <View style={[styles.priceHeader, rtlRow]}>
+            {listing.price > 0 ? (
+              <View style={[styles.priceRow, rtlRow]}>
+                <Text style={styles.price}>{listing.price.toLocaleString('ar-SA')}</Text>
+                <Text style={styles.currency}>{listing.currency}</Text>
+              </View>
+            ) : (
+              <Text style={styles.priceOnRequest}>السعر عند الطلب</Text>
+            )}
+            {listing.featured ? (
+              <View style={[styles.featured, rtlRow]}>
+                <AppIcon name="star" size={11} color="#1A1300" />
+                <Text style={styles.featuredText}>مميز</Text>
+              </View>
             ) : null}
           </View>
 
+          <Text style={styles.title}>{listing.arabicTitle || listing.title}</Text>
+
+          {/* Meta chips */}
+          <View style={[styles.chipsRow, rtlRow]}>
+            <View style={[styles.chip, rtlRow]}>
+              <AppIcon name="map-marker-outline" size={13} color={colors.textBrandStrong} />
+              <Text style={styles.chipText}>{listing.arabicLocation || listing.location}</Text>
+            </View>
+            <View style={[styles.chip, rtlRow]}>
+              <AppIcon name="time-outline" size={13} color={colors.textBrandStrong} />
+              <Text style={styles.chipText}>{timeLabel || 'الآن'}</Text>
+            </View>
+            {categoryLabel ? (
+              <View style={[styles.chip, rtlRow]}>
+                <AppIcon name="tag-outline" size={13} color={colors.textBrandStrong} />
+                <Text style={styles.chipText}>{categoryLabel}</Text>
+              </View>
+            ) : null}
+            {listing.breed ? (
+              <View style={[styles.chip, rtlRow]}>
+                <Text style={styles.chipText}>{listing.breed}</Text>
+              </View>
+            ) : null}
+            {listing.age ? (
+              <View style={[styles.chip, rtlRow]}>
+                <Text style={styles.chipText}>{listing.age}</Text>
+              </View>
+            ) : null}
+            {listing.weightKg ? (
+              <View style={[styles.chip, rtlRow]}>
+                <Text style={styles.chipText}>{listing.weightKg.toLocaleString('ar-SA')} كجم</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* ─── Owner management: single horizontal row ─── */}
+          {isOwner ? (
+            <View style={styles.ownerCard}>
+              <View style={[styles.ownerHeader, rtlRow]}>
+                <AppIcon name="settings-outline" size={15} color={colors.textBrandStrong} />
+                <Text style={styles.ownerLabel}>إدارة الإعلان</Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.ownerRow}
+              >
+                {ownerActions.map((a) => (
+                  <Pressable
+                    key={a.key}
+                    onPress={a.onPress}
+                    style={({ pressed }) => [
+                      styles.ownerAction,
+                      a.danger && styles.ownerActionDanger,
+                      pressed && styles.ownerActionPressed,
+                    ]}
+                  >
+                    {a.badge ? (
+                      <View style={styles.soonBadge}>
+                        <Text style={styles.soonBadgeText}>{a.badge}</Text>
+                      </View>
+                    ) : null}
+                    <View style={styles.ownerActionIcon}>
+                      <AppIcon
+                        name={a.icon}
+                        size={20}
+                        color={a.danger ? colors.rose : colors.textPrimary}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.ownerActionText,
+                        a.danger && styles.ownerActionTextDanger,
+                      ]}
+                    >
+                      {a.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {/* Seller card */}
           {!isOwner ? (
-            <View style={[styles.sellerActions, rtlRow]}>
+            <View style={[styles.sellerCard, rtlRow]}>
+              <Pressable
+                onPress={() => openUserProfile(router, listing.seller.id)}
+                style={[styles.sellerInfo, rtlRow]}
+              >
+                <Image
+                  source={uriSource(listing.seller.avatar)}
+                  style={styles.sellerAvatar}
+                  contentFit="cover"
+                />
+                <View style={styles.sellerNameCol}>
+                  <View style={[rtlRow, { alignItems: 'center', gap: 4 }]}>
+                    <Text style={styles.sellerChipName} numberOfLines={1}>
+                      {listing.seller.arabicName || listing.seller.displayName || listing.seller.username}
+                    </Text>
+                    {listing.seller.verified ? (
+                      <AppIcon name="shield-checkmark" size={14} color={colors.electricBright} />
+                    ) : null}
+                  </View>
+                  <Text style={styles.sellerFollowers}>
+                    {listing.seller.followers.toLocaleString('ar-SA')} متابع
+                  </Text>
+                </View>
+              </Pressable>
               <Pressable
                 onPress={handleFollowSeller}
                 disabled={followLoading || isFollowing === null}
                 style={[styles.followPill, isFollowing === true && styles.followingPill]}
               >
-                {isFollowing === null ? (
+                {isFollowing === null && isAuthenticated ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text
                     style={[
                       styles.followPillText,
-                      isFollowing && styles.followingPillText,
+                      isFollowing === true && styles.followingPillText,
                     ]}
                   >
                     {isFollowing ? 'متابَع' : 'متابعة'}
                   </Text>
                 )}
               </Pressable>
-              <Pressable
-                onPress={() => openUserProfile(router, listing.seller.id)}
-                style={[styles.sellerChip, rtlRow]}
-              >
-                <Image
-                  source={{ uri: listing.seller.avatar }}
-                  style={styles.sellerAvatar}
-                  contentFit="cover"
-                />
-                <Text style={styles.sellerChipName} numberOfLines={1}>
-                  {listing.seller.arabicName || listing.seller.displayName}
-                </Text>
-              </Pressable>
             </View>
           ) : null}
 
+          {/* Description */}
           {(listing.arabicDescription || listing.description) ? (
             <View style={styles.descBlock}>
+              <View style={[styles.sectionHeader, rtlRow]}>
+                <View style={styles.sectionBar} />
+                <Text style={styles.sectionTitle}>الوصف</Text>
+              </View>
               {listing.arabicDescription ? (
                 <Text style={styles.descArabic}>{listing.arabicDescription}</Text>
               ) : null}
@@ -423,124 +670,35 @@ export default function ListingDetailScreen() {
             </View>
           ) : null}
 
-          {listing.price > 0 ? (
-            <View style={[styles.priceRow, rtlRow]}>
-              <Text style={styles.price}>{listing.price.toLocaleString('ar-SA')}</Text>
-              <Text style={styles.currency}>{listing.currency}</Text>
+          {/* Trust card */}
+          <View style={[styles.trustCard, rtlRow]}>
+            <View style={styles.trustIconWrap}>
+              <AppIcon name="shield-check" size={20} color={colors.success} />
             </View>
-          ) : null}
-
-          {images.length > 0 ? (
-            <View style={styles.gallery}>
-              {images.map((uri, index) => (
-                <Pressable
-                  key={`${uri}-${index}`}
-                  onPress={() => { setImageViewerIndex(index); setImageViewerVisible(true); }}
-                >
-                  <Image
-                    source={{ uri }}
-                    style={[styles.galleryImg, index === 0 && styles.galleryImgMain]}
-                    contentFit="cover"
-                    transition={300}
-                  />
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          <ImageViewerModal
-            visible={imageViewerVisible}
-            images={images}
-            initialIndex={imageViewerIndex}
-            onClose={() => setImageViewerVisible(false)}
-          />
-
-          {isOwner ? (
-            <View style={styles.ownerActions}>
-              <Text style={styles.ownerLabel}>إدارة إعلانك</Text>
-              <View style={styles.ownerBtns}>
-                <Pressable onPress={handleStartLive} style={styles.liveBtn}>
-                  <LinearGradient
-                    colors={[colors.rose, '#DC2626']}
-                    style={styles.liveBtnGrad}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <View style={styles.liveDot} />
-                    <Text style={styles.liveBtnText}>بث مباشر</Text>
-                  </LinearGradient>
-                </Pressable>
-                <View style={styles.ownerSecondRow}>
-                  <Pressable onPress={handleEdit} style={styles.ownerSecBtn}>
-                    <AppIcon name="create-outline" size={18} color={colors.electricBright} />
-                    <Text style={styles.ownerSecBtnText}>تعديل</Text>
-                  </Pressable>
-                  <Pressable onPress={handleDelete} style={[styles.ownerSecBtn, styles.ownerSecBtnDanger]}>
-                    <AppIcon name="trash-outline" size={18} color={colors.rose} />
-                    <Text style={[styles.ownerSecBtnText, { color: colors.rose }]}>حذف</Text>
-                  </Pressable>
-                </View>
-
-                {/* ─── Boost CTA ─── */}
-                <View style={styles.boostRow}>
-                  <Pressable
-                    style={[styles.boostBtn, { backgroundColor: `${colors.gold}18`, borderColor: `${colors.gold}50` }]}
-                    onPress={() => { setBoostType('featured'); setBoostDuration(30); setBoostModalVisible(true); }}
-                  >
-                    <AppIcon name="star" size={16} color={colors.gold} />
-                    <Text style={[styles.boostBtnText, { color: colors.gold }]}>
-                      {listing.featured ? '⭐ مميز' : 'تمييز الإعلان'}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.boostBtn, { backgroundColor: `${colors.electricBright}18`, borderColor: `${colors.electricBright}50` }]}
-                    onPress={() => { setBoostType('pinned'); setBoostDuration(7); setBoostModalVisible(true); }}
-                  >
-                    <AppIcon name="pin" size={16} color={colors.electricBright} />
-                    <Text style={[styles.boostBtnText, { color: colors.electricBright }]}>
-                      تثبيت الإعلان
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          ) : null}
-
-          <View style={styles.trustCard}>
-            <AppIcon name="shield-check" size={22} color={colors.success} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.trustTitle}>{BRAND_VERIFIED_EN}</Text>
-              <Text style={styles.trustDesc}>Documents and ownership verified · {BRAND_VERIFIED_AR}</Text>
+              <Text style={styles.trustTitle}>{BRAND_VERIFIED_AR}</Text>
+              <Text style={styles.trustDesc}>{BRAND_VERIFIED_EN} · مستندات وملكية موثّقة</Text>
             </View>
           </View>
         </View>
       </ScrollView>
 
+      {/* Bottom CTA for buyers */}
       {!isOwner ? (
         <SafeAreaView edges={['bottom']} style={styles.ctaBar}>
           <Pressable
             onPress={openSellerChat}
             style={({ pressed }) => [styles.ctaIcon, pressed && { opacity: 0.7 }]}
           >
-            <AppIcon name="chatbubbles" size={22} color="#fff" />
+            <AppIcon name="chatbubbles" size={22} color={colors.textBrandStrong} />
           </Pressable>
           <Pressable
-            onPress={() => {
-              Alert.alert(
-                'تقديم عرض 💰',
-                `هل تريد إرسال عرض للبائع بسعر ${listing.price.toLocaleString()} ${listing.currency}؟`,
-                [
-                  { text: 'إلغاء', style: 'cancel' },
-                  {
-                    text: 'إرسال العرض',
-                    onPress: openSellerChat,
-                  },
-                ]
-              );
-            }}
+            onPress={listing.contactPhone ? openSellerWhatsApp : openSellerChat}
             style={{ flex: 1 }}
           >
-            <PrimaryButton title="قدّم عرضاً" />
+            <PrimaryButton
+              title={listing.contactPhone ? 'تواصل عبر واتساب' : 'مراسلة البائع'}
+            />
           </Pressable>
         </SafeAreaView>
       ) : null}
@@ -673,98 +831,251 @@ function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.bgDeep },
     notFound: { ...typography.body, color: colors.textMuted, textAlign: 'center', marginTop: 80 },
-    topBar: {
-      ...rtlRow,
+    scrollContent: { paddingBottom: 140 },
+
+    // ─── Hero gallery ─────────────────────────────────────────────────────
+    hero: {
+      width: '100%',
+      backgroundColor: colors.bgElevated,
+      overflow: 'hidden',
+    },
+    heroPlaceholder: {
+      width: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.bgElevated,
+    },
+    heroTopFade: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 110,
+    },
+    heroBottomFade: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: 70,
+    },
+    floatBar: {
+      position: 'absolute',
+      left: spacing.lg,
+      right: spacing.lg,
+      flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.sm,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.borderSoft,
-      backgroundColor: colors.bgDeep,
     },
-    topActions: {
-      ...rtlRow,
+    floatActions: {
       alignItems: 'center',
       gap: 8,
     },
-    iconBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.bgSurface,
+    floatBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: 'rgba(10,20,15,0.5)',
       alignItems: 'center',
       justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: colors.borderSoft,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: 'rgba(255,255,255,0.25)',
     },
-    scrollContent: { paddingBottom: 160, paddingHorizontal: spacing.md, paddingTop: spacing.md },
-    card: {
-      backgroundColor: colors.bgSurface,
-      borderRadius: radius.xl,
-      borderWidth: 1,
-      borderColor: colors.borderSoft,
-      padding: spacing.lg,
-      gap: spacing.md,
+    dotsRow: {
+      position: 'absolute',
+      bottom: 14,
+      left: 0,
+      right: 0,
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 6,
     },
-    title: {
-      ...typography.h1,
-      color: colors.cyan,
-      fontWeight: '700',
-      textAlign: 'right',
-      writingDirection: 'rtl',
-      lineHeight: 34,
+    dot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: 'rgba(255,255,255,0.45)',
     },
-    featured: {
-      ...rtlRow,
+    dotActive: {
+      width: 18,
+      backgroundColor: '#fff',
+    },
+    imgCounter: {
+      position: 'absolute',
+      bottom: 12,
+      right: 14,
+      flexDirection: 'row',
       alignItems: 'center',
-      alignSelf: 'flex-start',
       gap: 4,
-      backgroundColor: colors.gold,
-      paddingHorizontal: 10,
+      backgroundColor: 'rgba(10,20,15,0.55)',
+      paddingHorizontal: 8,
       paddingVertical: 4,
       borderRadius: radius.pill,
     },
-    featuredText: { ...typography.micro, color: '#1A1300', fontWeight: '700' },
-    metaRow: {
-      ...rtlRow,
+    imgCounterText: { fontSize: 11, color: '#fff', fontWeight: '700' },
+
+    // ─── Content sheet ────────────────────────────────────────────────────
+    sheet: {
+      marginTop: -18,
+      borderTopLeftRadius: radius.xxl,
+      borderTopRightRadius: radius.xxl,
+      backgroundColor: colors.bgDeep,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.xl,
+      gap: spacing.lg,
+    },
+    priceHeader: {
       alignItems: 'center',
-      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+    },
+    priceRow: {
+      alignItems: 'baseline',
       gap: 6,
     },
-    metaText: {
-      ...typography.caption,
-      color: colors.textMuted,
+    price: {
+      ...typography.h1,
+      color: colors.textBrandStrong,
+      fontWeight: '800',
+    },
+    currency: { ...typography.bodyStrong, color: colors.textBrandSoft },
+    priceOnRequest: { ...typography.h3, color: colors.textBrandStrong },
+    featured: {
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.gold,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: radius.pill,
+    },
+    featuredText: { ...typography.micro, color: '#1A1300', fontWeight: '800' },
+    title: {
+      ...typography.h2,
+      color: colors.textPrimary,
+      fontWeight: '700',
+      textAlign: 'right',
       writingDirection: 'rtl',
+      lineHeight: 32,
     },
-    metaDot: {
-      ...typography.caption,
-      color: colors.textSubtle,
+
+    // Meta chips
+    chipsRow: {
+      flexWrap: 'wrap',
+      gap: spacing.sm,
     },
-    metaUser: {
+    chip: {
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 6,
+      borderRadius: radius.pill,
+      backgroundColor: colors.bgSurface,
+      borderWidth: 1,
+      borderColor: colors.borderSoft,
+    },
+    chipText: {
       ...typography.caption,
       color: colors.textSecondary,
-      fontWeight: '600',
       writingDirection: 'rtl',
     },
-    sellerActions: {
-      ...rtlRow,
+
+    // ─── Owner management (horizontal row) ────────────────────────────────
+    ownerCard: {
+      borderRadius: radius.xl,
+      backgroundColor: colors.bgSurface,
+      borderWidth: 1,
+      borderColor: colors.borderSoft,
+      paddingVertical: spacing.md,
+      gap: spacing.sm,
+    },
+    ownerHeader: {
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: spacing.md,
+    },
+    ownerLabel: {
+      ...typography.caption,
+      color: colors.textBrandStrong,
+      fontWeight: '700',
+    },
+    ownerRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+    },
+    ownerAction: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      minWidth: 84,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
+      backgroundColor: colors.bgElevated,
+    },
+    ownerActionDanger: {
+      borderColor: `${colors.rose}35`,
+      backgroundColor: colors.bgSurface,
+    },
+    ownerActionPressed: {
+      opacity: 0.82,
+    },
+    ownerActionIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.bgSurface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
+    },
+    ownerActionText: {
+      ...typography.micro,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    ownerActionTextDanger: {
+      color: colors.rose,
+    },
+    soonBadge: {
+      position: 'absolute',
+      top: 6,
+      left: 6,
+      backgroundColor: colors.gold,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: radius.pill,
+      zIndex: 2,
+    },
+    soonBadgeText: { fontSize: 8, color: '#1A1300', fontWeight: '800' },
+
+    // ─── Seller card ──────────────────────────────────────────────────────
+    sellerCard: {
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: spacing.sm,
+      padding: spacing.md,
+      borderRadius: radius.xl,
+      backgroundColor: colors.bgSurface,
+      borderWidth: 1,
+      borderColor: colors.borderSoft,
     },
-    sellerChip: {
-      ...rtlRow,
+    sellerInfo: {
       alignItems: 'center',
-      gap: 8,
+      gap: 10,
       flex: 1,
       minWidth: 0,
     },
+    sellerNameCol: { flex: 1, minWidth: 0, gap: 2 },
     sellerAvatar: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: colors.bgElevated,
+      borderWidth: 2,
+      borderColor: colors.electric,
     },
     sellerChipName: {
       ...typography.bodyStrong,
@@ -773,11 +1084,17 @@ function createStyles(colors: ThemeColors) {
       textAlign: 'right',
       writingDirection: 'rtl',
     },
+    sellerFollowers: {
+      ...typography.micro,
+      color: colors.textMuted,
+      textAlign: 'right',
+      writingDirection: 'rtl',
+    },
     followPill: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: 8,
-      borderRadius: radius.md,
-      backgroundColor: '#1877F2',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 9,
+      borderRadius: radius.pill,
+      backgroundColor: colors.electricBright,
     },
     followingPill: {
       backgroundColor: 'transparent',
@@ -786,45 +1103,65 @@ function createStyles(colors: ThemeColors) {
     },
     followPillText: { ...typography.caption, color: '#fff', fontWeight: '700' },
     followingPillText: { color: colors.textMuted },
+
+    // Description
     descBlock: { gap: spacing.sm },
+    sectionHeader: {
+      alignItems: 'center',
+      gap: 8,
+    },
+    sectionBar: {
+      width: 4,
+      height: 16,
+      borderRadius: 2,
+      backgroundColor: colors.electricBright,
+    },
+    sectionTitle: {
+      ...typography.bodyStrong,
+      color: colors.textBrandStrong,
+      fontWeight: '700',
+    },
     desc: { ...typography.body, color: colors.textSecondary, lineHeight: 22 },
     descArabic: {
       ...typography.body,
-      color: colors.textPrimary,
+      color: colors.textSecondary,
       textAlign: 'right',
       writingDirection: 'rtl',
       lineHeight: 26,
     },
-    priceRow: {
-      ...rtlRow,
-      alignItems: 'baseline',
-      gap: 6,
-    },
-    price: { ...typography.h2, color: colors.gold },
-    currency: { ...typography.bodyStrong, color: colors.textMuted },
-    gallery: { gap: spacing.sm, marginTop: spacing.xs },
-    galleryImg: {
-      width: '100%',
-      aspectRatio: 16 / 10,
-      borderRadius: radius.md,
-      backgroundColor: colors.bgElevated,
-    },
-    galleryImgMain: {
-      aspectRatio: 4 / 3,
-    },
+
+    // Trust card
     trustCard: {
-      ...rtlRow,
       alignItems: 'center',
       gap: spacing.md,
       padding: spacing.md,
       borderRadius: radius.lg,
-      backgroundColor: 'rgba(16,185,129,0.1)',
+      backgroundColor: 'rgba(16,185,129,0.08)',
       borderWidth: 1,
-      borderColor: 'rgba(16,185,129,0.3)',
-      marginTop: spacing.sm,
+      borderColor: 'rgba(16,185,129,0.25)',
     },
-    trustTitle: { ...typography.bodyStrong, color: colors.textPrimary },
-    trustDesc: { ...typography.caption, color: colors.textSecondary },
+    trustIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(16,185,129,0.14)',
+    },
+    trustTitle: {
+      ...typography.bodyStrong,
+      color: colors.textPrimary,
+      textAlign: 'right',
+      writingDirection: 'rtl',
+    },
+    trustDesc: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      textAlign: 'right',
+      writingDirection: 'rtl',
+    },
+
+    // Bottom CTA
     ctaBar: {
       position: 'absolute',
       bottom: 0,
@@ -849,79 +1186,7 @@ function createStyles(colors: ThemeColors) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    ownerActions: {
-      marginTop: spacing.sm,
-      padding: spacing.md,
-      borderRadius: radius.xl,
-      backgroundColor: colors.bgElevated,
-      borderWidth: 1,
-      borderColor: colors.borderMid,
-      gap: spacing.md,
-    },
-    ownerLabel: {
-      ...typography.caption,
-      color: colors.textMuted,
-      textAlign: 'center',
-    },
-    ownerBtns: { gap: spacing.sm },
-    liveBtn: { borderRadius: radius.xl, overflow: 'hidden' },
-    liveBtnGrad: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      paddingVertical: 14,
-      borderRadius: radius.xl,
-    },
-    liveDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: '#fff',
-      opacity: 0.9,
-    },
-    liveBtnText: { ...typography.bodyStrong, color: '#fff', fontSize: 15 },
-    ownerSecondRow: { flexDirection: 'row', gap: spacing.sm },
-    ownerSecBtn: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-      paddingVertical: 10,
-      borderRadius: radius.lg,
-      backgroundColor: colors.bgGlass,
-      borderWidth: 1,
-      borderColor: colors.borderSoft,
-    },
-    ownerSecBtnDanger: {
-      borderColor: 'rgba(239,68,68,0.3)',
-      backgroundColor: 'rgba(239,68,68,0.08)',
-    },
-    ownerSecBtnText: {
-      ...typography.caption,
-      color: colors.textBrandStrong,
-      fontWeight: '600',
-    },
-    // ─── Boost row (in owner section) ───────────────────────────────────────
-    boostRow: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-    },
-    boostBtn: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-      paddingVertical: 10,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-    },
-    boostBtnText: {
-      ...typography.caption,
-      fontWeight: '700',
-    },
+
     // ─── Boost Modal ────────────────────────────────────────────────────────
     modalBackdrop: {
       flex: 1,

@@ -1,6 +1,6 @@
 // Powered by OnSpace.AI
 import { AppIcon } from '@/components/ui/FlaticonIcon';
-import { Image } from '@/components/ui/AppImage';
+import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -28,7 +28,7 @@ export function LiveStreamItem({ stream, height, onComment, onShare }: LiveStrea
   return (
     <View style={[styles.container, { height, width }]}>
       <Image
-        source={{ uri: stream.thumbnail }}
+        source={uriSource(stream.thumbnail)}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
         transition={300}
@@ -51,7 +51,7 @@ export function LiveStreamItem({ stream, height, onComment, onShare }: LiveStrea
         </View>
         <View style={styles.viewerBadge}>
           <AppIcon name="eye" size={14} color={colors.textPrimary} />
-          <Text style={styles.viewerText}>{(stream.viewers / 1000).toFixed(1)}K</Text>
+          <Text style={styles.viewerText}>{(((stream.viewers ?? 0) / 1000)).toFixed(1)}K</Text>
         </View>
         <View style={styles.categoryBadge}>
           <Text style={styles.categoryText}>{stream.category}</Text>
@@ -60,8 +60,8 @@ export function LiveStreamItem({ stream, height, onComment, onShare }: LiveStrea
 
       {/* Right side actions */}
       <View style={styles.actionsCol}>
-        <UserProfileLink userId={stream.host.id} style={styles.avatarWrap}>
-          <Image source={{ uri: stream.host.avatar }} style={styles.avatar} contentFit="cover" />
+        <UserProfileLink userId={stream.host?.id} style={styles.avatarWrap}>
+          <Image source={uriSource(stream.host?.avatar)} style={styles.avatar} contentFit="cover" />
           <Pressable
             onPress={() => setFollowing((f) => !f)}
             style={[styles.followBtn, following && styles.followingBtn]}
@@ -94,9 +94,9 @@ export function LiveStreamItem({ stream, height, onComment, onShare }: LiveStrea
       {/* Bottom: host info & comments */}
       <View style={styles.bottom}>
         <View style={styles.hostRow}>
-          <UserProfileLink userId={stream.host.id} style={styles.hostInfo}>
-            <Text style={styles.hostName}>{stream.host.arabicName}</Text>
-            {stream.host.verified ? (
+          <UserProfileLink userId={stream.host?.id} style={styles.hostInfo}>
+            <Text style={styles.hostName}>{stream.host?.arabicName || 'مستخدم سرح'}</Text>
+            {stream.host?.verified ? (
               <AppIcon name="checkmark-circle" size={16} color={colors.electricBright} style={marginStart(4)} />
             ) : null}
           </UserProfileLink>
@@ -111,7 +111,7 @@ export function LiveStreamItem({ stream, height, onComment, onShare }: LiveStrea
         <View style={styles.commentsArea}>
           {(stream.comments ?? []).slice(-3).map((c) => (
             <View key={c.id} style={styles.commentRow}>
-              <Image source={{ uri: c.avatar }} style={styles.commentAvatar} />
+              <Image source={uriSource(c.avatar)} style={styles.commentAvatar} />
               <View style={[styles.commentBubble, c.isOffer && styles.offerBubble]}>
                 <Text style={styles.commentUser}>{c.arabicUser}</Text>
                 <Text style={styles.commentMsg}>{c.message}</Text>
