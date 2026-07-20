@@ -207,6 +207,10 @@ export class UpdateListingDto {
   price?: number;
 
   @IsOptional()
+  @IsEnum(LISTING_CATEGORIES)
+  category?: (typeof LISTING_CATEGORIES)[number];
+
+  @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(8)
