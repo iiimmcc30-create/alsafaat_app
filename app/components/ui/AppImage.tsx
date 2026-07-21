@@ -13,6 +13,7 @@ export interface AppImageProps extends Omit<ExpoImageProps, 'source' | 'contentF
   source?: ImageSourcePropType | null;
   contentFit?: ContentFit;
   transition?: number;
+  priority?: 'low' | 'normal' | 'high';
 }
 
 export function uriSource(uri?: string | null): ImageSourcePropType | undefined {
@@ -32,6 +33,7 @@ function hasValidUri(source: ImageSourcePropType | null | undefined): boolean {
 export function Image({
   contentFit = 'cover',
   transition = 200,
+  priority = 'normal',
   style,
   source,
   ...props
@@ -47,6 +49,7 @@ export function Image({
       style={style as StyleProp<ImageStyle>}
       contentFit={contentFit}
       transition={transition}
+      priority={priority}
       cachePolicy="memory-disk"
       recyclingKey={
         typeof source === 'object' && source && !Array.isArray(source) && 'uri' in source

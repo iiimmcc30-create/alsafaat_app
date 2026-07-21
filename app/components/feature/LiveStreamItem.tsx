@@ -2,8 +2,8 @@
 import { AppIcon } from '@/components/ui/FlaticonIcon';
 import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { memo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
@@ -18,32 +18,27 @@ interface LiveStreamItemProps {
   onShare?: () => void;
 }
 
-export function LiveStreamItem({ stream, height, onComment, onShare }: LiveStreamItemProps) {
+function LiveStreamItemInner({ stream, height, onComment, onShare }: LiveStreamItemProps) {
   const [following, setFollowing] = useState(false);
-  const { width } = useWindowDimensions();
   const { colors, gradients } = useTheme();
   const styles = useThemedStyles(({ colors }) => createStyles(colors));
   const commentCount = stream.comments?.length ?? 0;
 
   return (
-    <View style={[styles.container, { height, width }]}>
+    <View style={[styles.container, { height }]}>
       <Image
         source={uriSource(stream.thumbnail)}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
-        transition={300}
+        transition={0}
+        priority="low"
       />
-      {/* Cinematic dark overlays */}
-      <LinearGradient
-        colors={gradients.liveOverlay}
-        style={StyleSheet.absoluteFill}
-      />
+      <LinearGradient colors={gradients.liveOverlay} style={StyleSheet.absoluteFill} />
       <LinearGradient
         colors={['rgba(6,9,26,0.6)', 'transparent']}
         style={[StyleSheet.absoluteFill, { height: 180 }]}
       />
 
-      {/* Top: Live badge & viewers */}
       <View style={styles.topRow}>
         <View style={styles.liveBadge}>
           <View style={styles.liveDot} />
@@ -58,10 +53,9 @@ export function LiveStreamItem({ stream, height, onComment, onShare }: LiveStrea
         </View>
       </View>
 
-      {/* Right side actions */}
       <View style={styles.actionsCol}>
         <UserProfileLink userId={stream.host?.id} style={styles.avatarWrap}>
-          <Image source={uriSource(stream.host?.avatar)} style={styles.avatar} contentFit="cover" />
+          <Image source={uriSource(stream.host?.avatar)} style={styles.avatar} contentFit="cover" transition={0} />
           <Pressable
             onPress={() => setFollowing((f) => !f)}
             style={[styles.followBtn, following && styles.followingBtn]}
@@ -91,7 +85,6 @@ export function LiveStreamItem({ stream, height, onComment, onShare }: LiveStrea
         </Pressable>
       </View>
 
-      {/* Bottom: host info & comments */}
       <View style={styles.bottom}>
         <View style={styles.hostRow}>
           <UserProfileLink userId={stream.host?.id} style={styles.hostInfo}>
@@ -107,11 +100,10 @@ export function LiveStreamItem({ stream, height, onComment, onShare }: LiveStrea
         </View>
         <Text style={styles.streamArabic} numberOfLines={2}>{stream.arabicTitle}</Text>
 
-        {/* Floating comments */}
         <View style={styles.commentsArea}>
           {(stream.comments ?? []).slice(-3).map((c) => (
             <View key={c.id} style={styles.commentRow}>
-              <Image source={uriSource(c.avatar)} style={styles.commentAvatar} />
+              <Image source={uriSource(c.avatar)} style={styles.commentAvatar} transition={0} />
               <View style={[styles.commentBubble, c.isOffer && styles.offerBubble]}>
                 <Text style={styles.commentUser}>{c.arabicUser}</Text>
                 <Text style={styles.commentMsg}>{c.message}</Text>
@@ -127,8 +119,11 @@ export function LiveStreamItem({ stream, height, onComment, onShare }: LiveStrea
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
   container: {
+    width: '100%',
     backgroundColor: colors.bgDeep,
     overflow: 'hidden',
+    borderRadius: radius.xl,
+    marginBottom: spacing.md,
   },
   topRow: {
     position: 'absolute',
@@ -265,11 +260,6 @@ function createStyles(colors: ThemeColors) {
     ...typography.micro,
     color: colors.textBrand,
   },
-  streamTitle: {
-    ...typography.h3,
-    color: '#fff',
-    marginBottom: 2,
-  },
   streamArabic: {
     ...typography.caption,
     color: colors.textSecondary,
@@ -312,5 +302,13 @@ function createStyles(colors: ThemeColors) {
   },
   });
 }
+
+export const LiveStreamItem = memo(LiveStreamItemInner, (prev, next) =>
+  prev.height === next.height &&
+  prev.stream.id === next.stream.id &&
+  prev.stream.viewers === next.stream.viewers &&
+  prev.stream.likes === next.stream.likes &&
+  prev.stream.thumbnail === next.stream.thumbnail,
+);
 
 export default LiveStreamItem;

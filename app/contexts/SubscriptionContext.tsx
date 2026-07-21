@@ -7,6 +7,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
 } from 'react';
 import {
   EMPTY_PLAN,
@@ -59,6 +60,26 @@ const defaultState: SubscriptionState = {
   loading: true,
 };
 
+const PLAN_CATALOG_TTL_MS = 5 * 60_000;
+const planCatalogCache = new Map<string, { plans: SubscriptionPlan[]; fetchedAt: number }>();
+
+async function fetchPlanCatalog(audience: 'USER' | 'BUTCHER'): Promise<SubscriptionPlan[]> {
+  const now = Date.now();
+  const cached = planCatalogCache.get(audience);
+  if (cached && now - cached.fetchedAt < PLAN_CATALOG_TTL_MS) {
+    return cached.plans;
+  }
+  const plansRes = await fetch(`${API_BASE}/api/plans?audience=${audience}`);
+  if (!plansRes.ok) return cached?.plans ?? [];
+  const plansJson = await plansRes.json();
+  if (!plansJson.success || !Array.isArray(plansJson.data?.plans)) {
+    return cached?.plans ?? [];
+  }
+  const plans = plansJson.data.plans.map((p: Record<string, unknown>) => mapApiPlan(p));
+  planCatalogCache.set(audience, { plans, fetchedAt: now });
+  return plans;
+}
+
 export const SubscriptionContext = createContext<SubscriptionContextValue | null>(
   null,
 );
@@ -84,18 +105,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
           const planAudience = (data.planAudience ?? 'USER') as 'USER' | 'BUTCHER';
           const planSlug = normalizeSlug(data.effectivePlanSlug ?? data.planId ?? 'free');
 
-          const plansRes = await fetch(
-            `${API_BASE}/api/plans?audience=${planAudience}`,
-          );
-          let planCatalog: SubscriptionPlan[] = [];
-          if (plansRes.ok) {
-            const plansJson = await plansRes.json();
-            if (plansJson.success && Array.isArray(plansJson.data?.plans)) {
-              planCatalog = plansJson.data.plans.map((p: Record<string, unknown>) =>
-                mapApiPlan(p),
-              );
-            }
-          }
+          const planCatalog = await fetchPlanCatalog(planAudience);
 
           const apiPlan = data.plan
             ? mapApiPlan(data.plan as Record<string, unknown>)
@@ -134,18 +144,21 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     fetchSubscription();
   }, [fetchSubscription]);
 
-  const upgradePlan = (_planSlug: string) => {
-    fetchSubscription();
-  };
+  const upgradePlan = useCallback((_planSlug: string) => {
+    void fetchSubscription();
+  }, [fetchSubscription]);
+
+  const subscriptionValue = useMemo(
+    () => ({
+      subscription,
+      upgradePlan,
+      refetchSubscription: fetchSubscription,
+    }),
+    [subscription, upgradePlan, fetchSubscription],
+  );
 
   return (
-    <SubscriptionContext.Provider
-      value={{
-        subscription,
-        upgradePlan,
-        refetchSubscription: fetchSubscription,
-      }}
-    >
+    <SubscriptionContext.Provider value={subscriptionValue}>
       {children}
     </SubscriptionContext.Provider>
   );

@@ -25,9 +25,9 @@ import {
   ButcherProfile,
   ButcherStory,
   Country,
-  gccCurrencies,
   rankButchers,
 } from '@/services/butcherData';
+import { ButcherCard } from '@/components/feature/ButcherCard';
 
 const STORY_CIRCLE = 62;
 
@@ -93,101 +93,6 @@ function StoriesRow({ stories, onStoryPress }: {
         );
       })}
     </ScrollView>
-  );
-}
-
-function ButcherCard({ butcher, onPress }: { butcher: ButcherProfile; onPress: () => void }) {
-  const { colors } = useTheme();
-  const bc = useThemedStyles(({ colors }) => createCardStyles(colors));
-  const currency = gccCurrencies[butcher.country];
-  const country = countries[butcher.country];
-
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [bc.card, pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }]}
-    >
-      {/* Cover */}
-      <View style={bc.coverWrap}>
-        <Image source={{ uri: butcher.cover }} style={bc.cover} contentFit="cover" />
-        <LinearGradient
-          colors={['transparent', 'rgba(6,9,26,0.88)']}
-          style={StyleSheet.flatten([StyleSheet.absoluteFillObject, { borderRadius: radius.xl }])}
-        />
-        {/* Verified badge */}
-        {butcher.subscriptionActive && (
-          <LinearGradient
-            colors={[colors.gold, '#F59E0B']}
-            style={bc.verifiedBadge}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <AppIcon name="shield-checkmark" size={11} color="#1A1300" />
-            <Text style={bc.verifiedText}>موثّق</Text>
-          </LinearGradient>
-        )}
-        {/* Country flag */}
-        <View style={bc.flagPill}>
-          <Text style={bc.flag}>{country.flag}</Text>
-        </View>
-        {/* Open/Closed */}
-        <View style={[bc.statusPill, { backgroundColor: butcher.workingHours.isOpen ? colors.success + 'CC' : colors.danger + 'CC' }]}>
-          <View style={[bc.statusDot, { backgroundColor: butcher.workingHours.isOpen ? '#fff' : '#fff' }]} />
-          <Text style={bc.statusText}>{butcher.workingHours.isOpen ? 'مفتوح' : 'مغلق'}</Text>
-        </View>
-      </View>
-
-      {/* Body */}
-      <View style={bc.body}>
-        {/* Logo + Name */}
-        <View style={bc.logoRow}>
-          <View style={bc.logoWrap}>
-            <Image source={{ uri: butcher.logo }} style={bc.logo} contentFit="cover" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={bc.name} numberOfLines={1}>{butcher.nameAr}</Text>
-            <View style={bc.locationRow}>
-              <AppIcon name="map-marker-outline" size={12} color={colors.glow} />
-              <Text style={bc.locationText}>{butcher.cityAr} · {country.ar}</Text>
-            </View>
-          </View>
-          {/* Rating */}
-          <View style={bc.ratingPill}>
-            <AppIcon name="star" size={12} color={colors.gold} />
-            <Text style={bc.ratingText}>{butcher.rating.toFixed(1)}</Text>
-          </View>
-        </View>
-
-        {/* Specialties chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
-          <View style={bc.chipsRow}>
-            {butcher.specialties.slice(0, 4).map((spec, i) => (
-              <View key={i} style={bc.chip}>
-                <Text style={bc.chipText}>{spec}</Text>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-
-        {/* Stats */}
-        <View style={bc.statsRow}>
-          <View style={bc.stat}>
-            <AppIcon name="check-circle-outline" size={13} color={colors.success} />
-            <Text style={bc.statText}>{butcher.orderCompletionRate}% إتمام</Text>
-          </View>
-          <View style={bc.statDivider} />
-          <View style={bc.stat}>
-            <AppIcon name="bag-outline" size={13} color={colors.electricBright} />
-            <Text style={bc.statText}>{butcher.totalOrders.toLocaleString()} طلب</Text>
-          </View>
-          <View style={bc.statDivider} />
-          <View style={bc.stat}>
-            <AppIcon name="time-outline" size={13} color={colors.textMuted} />
-            <Text style={bc.statText}>{butcher.workingHours.open} – {butcher.workingHours.close}</Text>
-          </View>
-        </View>
-      </View>
-    </Pressable>
   );
 }
 
@@ -461,6 +366,12 @@ export default function ButchersScreen() {
                     params: { id: butcher.id },
                   })
                 }
+                onOrder={() =>
+                  router.push({
+                    pathname: '/butchers/order',
+                    params: { butcherId: butcher.id },
+                  })
+                }
               />
             ))
           )}
@@ -686,117 +597,5 @@ function createStoryStyles(colors: ThemeColors) {
     textAlign: 'center',
     maxWidth: STORY_CIRCLE + 8,
   },
-  });
-}
-
-// Butcher card
-function createCardStyles(colors: ThemeColors) {
-  return StyleSheet.create({
-  card: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.xxl,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    overflow: 'hidden',
-  },
-  coverWrap: {
-    height: 160,
-    backgroundColor: colors.bgElevated,
-    position: 'relative',
-  },
-  cover: { width: '100%', height: '100%' },
-  verifiedBadge: {
-    position: 'absolute',
-    top: spacing.md,
-    right: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-  },
-  verifiedText: { ...typography.micro, color: '#1A1300', fontWeight: '700' },
-  flagPill: {
-    position: 'absolute',
-    top: spacing.md,
-    left: spacing.md,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(6,9,26,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-  },
-  flag: { fontSize: 14 },
-  statusPill: {
-    position: 'absolute',
-    bottom: spacing.md,
-    left: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-  },
-  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' },
-  statusText: { ...typography.micro, color: '#fff' },
-
-  body: { padding: spacing.lg },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  logoWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: colors.borderMid,
-    overflow: 'hidden',
-    backgroundColor: colors.bgElevated,
-  },
-  logo: { width: '100%', height: '100%' },
-  name: { ...typography.h3, color: colors.textPrimary },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  locationText: { ...typography.caption, color: colors.textMuted },
-  ratingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.gold + '22',
-    borderWidth: 1,
-    borderColor: colors.gold + '44',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-  },
-  ratingText: { ...typography.caption, color: colors.gold, fontWeight: '700' },
-
-  chipsRow: { flexDirection: 'row', gap: 6 },
-  chip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.bgElevated,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-  },
-  chipText: { ...typography.micro, color: colors.textBrand },
-
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSoft,
-    gap: spacing.md,
-  },
-  stat: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 },
-  statText: { ...typography.micro, color: colors.textMuted, flex: 1 },
-  statDivider: { width: 1, height: 14, backgroundColor: colors.borderSoft },
   });
 }

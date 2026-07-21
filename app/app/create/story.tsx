@@ -1,11 +1,11 @@
 // SAFAT — Create Story Screen (إنشاء قصة)
 import { AppIcon } from '@/components/ui/FlaticonIcon';
-
 import { Image } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import type { ImagePickerAsset } from 'expo-image-picker';
 import { StoryVideoPlayer } from '@/components/feature/StoryVideoPlayer';
 import { StoryVideoTrimmer } from '@/components/feature/StoryVideoTrimmer';
 import {
@@ -20,7 +20,7 @@ import {
   View,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   STORY_MAX_DURATION_SEC,
   STORY_MIN_DURATION_SEC,
@@ -29,7 +29,6 @@ import { radius, spacing, typography, type ThemeColors } from '@/constants/theme
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
 import { alertMessage } from '@/lib/actionSheet';
-import { rtlBackIcon } from '@/lib/rtl';
 import {
   resolveStoryThumbnailUri,
   requiresStoryVideoTrim,
@@ -63,13 +62,14 @@ function StoryVideoPreview({ uri }: { uri: string }) {
 
 export default function CreateStoryScreen() {
   const { colors, gradients } = useTheme();
-  const styles = useThemedStyles(({ colors }) => createStyles(colors));
+  const styles = useThemedStyles(({ colors: c }) => createStyles(c));
+  const insets = useSafeAreaInsets();
 
   const BUTCHER_TYPES: { id: ButcherStoryType; label: string; icon: string; color: string }[] = [
-    { id: 'daily_slaughter', label: 'ذبح يومي',   icon: '🔪', color: colors.danger   },
-    { id: 'new_stock',       label: 'مخزون جديد', icon: '📦', color: colors.textBrandSuccess  },
-    { id: 'offer',           label: 'عرض اليوم',  icon: '🏷️', color: colors.amber    },
-    { id: 'update',          label: 'تحديث عام',  icon: '📢', color: colors.textBrandAlt },
+    { id: 'daily_slaughter', label: 'ذبح يومي', icon: '🔪', color: colors.danger },
+    { id: 'new_stock', label: 'مخزون جديد', icon: '📦', color: colors.textBrandSuccess },
+    { id: 'offer', label: 'عرض اليوم', icon: '🏷️', color: colors.amber },
+    { id: 'update', label: 'تحديث عام', icon: '📢', color: colors.textBrandAlt },
   ];
 
   const router = useRouter();
@@ -92,31 +92,18 @@ export default function CreateStoryScreen() {
   const [storyType, setStoryType] = useState<ButcherStoryType>(initialType);
   const [submitting, setSubmitting] = useState(false);
   const [publishStage, setPublishStage] = useState<PublishStage>('idle');
+  const [showOptions, setShowOptions] = useState(false);
 
-  const pickMedia = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('إذن مطلوب', 'يرجى السماح بالوصول إلى الصور والفيديو لنشر قصة');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
-      allowsEditing: Platform.OS === 'ios',
-      aspect: [9, 16],
-      quality: 0.85,
-      videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
-    });
-
-    if (result.canceled || !result.assets[0]) return;
-
-    const asset = result.assets[0];
+  const processAsset = (asset: ImagePickerAsset) => {
     const isVideo = asset.type === 'video' || (asset.mimeType?.startsWith('video/') ?? false);
 
     if (isVideo) {
       const durationSec = storyDurationFromAsset(asset.duration);
       if (durationSec != null && durationSec < STORY_MIN_DURATION_SEC) {
-        Alert.alert('مدة الفيديو', `مدة الفيديو يجب أن تكون ${STORY_MIN_DURATION_SEC} ثوانٍ على الأقل`);
+        Alert.alert(
+          'مدة الفيديو',
+          `مدة الفيديو يجب أن تكون ${STORY_MIN_DURATION_SEC} ثوانٍ على الأقل`,
+        );
         return;
       }
 
@@ -147,6 +134,44 @@ export default function CreateStoryScreen() {
       kind: 'image',
       durationSec: storyDurationForKind('image', null),
     });
+  };
+
+  const pickFromLibrary = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('إذن مطلوب', 'يرجى السماح بالوصول إلى الصور والفيديو لنشر قصة');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      allowsEditing: Platform.OS === 'ios',
+      aspect: [9, 16],
+      quality: 0.85,
+      videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+    processAsset(result.assets[0]);
+  };
+
+  const captureFromCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('إذن مطلوب', 'يرجى السماح بالوصول إلى الكاميرا لالتقاط قصة');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images', 'videos'],
+      allowsEditing: Platform.OS === 'ios',
+      aspect: [9, 16],
+      quality: 0.85,
+      videoMaxDuration: STORY_MAX_DURATION_SEC,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+    processAsset(result.assets[0]);
   };
 
   const openVideoTrimmer = () => {
@@ -230,8 +255,8 @@ export default function CreateStoryScreen() {
 
       await alertMessage('تم النشر', 'قصتك متاحة الآن لمدة ٢٤ ساعة');
       router.back();
-    } catch (err: any) {
-      Alert.alert('خطأ', err?.message || 'تعذّر نشر القصة');
+    } catch (err: unknown) {
+      Alert.alert('خطأ', err instanceof Error ? err.message : 'تعذّر نشر القصة');
     } finally {
       setSubmitting(false);
       setPublishStage('idle');
@@ -246,128 +271,168 @@ export default function CreateStoryScreen() {
         : 'نشر';
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
-            <AppIcon name={rtlBackIcon} size={22} color={colors.textPrimary} />
-          </Pressable>
-          <Text style={styles.headerTitle}>قصة جديدة</Text>
-          <Pressable
-            style={[styles.publishBtn, (!media || submitting) && styles.publishBtnDisabled]}
-            onPress={handlePublish}
-            disabled={!media || submitting}
-          >
-            <LinearGradient
-              colors={media && !submitting ? gradients.royal : [colors.bgSurface, colors.bgSurface]}
-              style={styles.publishBtnInner}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={[styles.publishBtnText, !media && { color: colors.textMuted }]}>
-                  {publishLabel}
-                </Text>
-              )}
-            </LinearGradient>
-          </Pressable>
-        </View>
-
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-          <Text style={styles.hint}>
-            القصة تظهر ٢٤ ساعة — صورة أو فيديو من {STORY_MIN_DURATION_SEC} إلى {STORY_MAX_DURATION_SEC} ثوانٍ
-          </Text>
-
-          <Pressable style={styles.imageBox} onPress={pickMedia}>
-            {media ? (
-              media.kind === 'video' ? (
-                <StoryVideoPreview uri={media.uri} />
-              ) : (
-                <Image source={{ uri: media.uri }} style={styles.preview} contentFit="cover" />
-              )
-            ) : (
-              <View style={styles.imagePlaceholder}>
-                <AppIcon name="images-outline" size={40} color={colors.electricBright} />
-                <Text style={styles.imagePlaceholderText}>اختر صورة أو فيديو</Text>
-                <Text style={styles.imagePlaceholderSub}>
-                  نسبة 9:16 — فيديو {STORY_MIN_DURATION_SEC}–{STORY_MAX_DURATION_SEC} ث
-                </Text>
-              </View>
-            )}
-            {media && (
-              <View style={styles.changePhotoBtn}>
-                <AppIcon
-                  name={media.kind === 'video' ? 'videocam-outline' : 'images-outline'}
-                  size={16}
-                  color="#fff"
-                />
-                <Text style={styles.changePhotoText}>
-                  {media.kind === 'video' ? `${media.durationSec} ث` : 'تغيير'}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-
-          {media?.kind === 'video' && (
-            <Pressable style={styles.trimBtn} onPress={openVideoTrimmer}>
-              <AppIcon name="cut-outline" size={18} color={colors.electricBright} />
-              <Text style={styles.trimBtnText}>تعديل مقطع الفيديو</Text>
-            </Pressable>
+    <View style={styles.root}>
+      {media ? (
+        <>
+          {media.kind === 'video' ? (
+            <StoryVideoPreview uri={media.uri} />
+          ) : (
+            <Image source={{ uri: media.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
           )}
-
-          {isButcherMode && (
-            <>
-              <Text style={styles.label}>نوع القصة</Text>
-              <View style={styles.typeGrid}>
-                {BUTCHER_TYPES.map((t) => {
-                  const active = storyType === t.id;
-                  return (
-                    <Pressable
-                      key={t.id}
-                      onPress={() => setStoryType(t.id)}
-                      style={[styles.typeChip, active && { borderColor: t.color, backgroundColor: t.color + '22' }]}
-                    >
-                      <Text style={styles.typeIcon}>{t.icon}</Text>
-                      <Text style={[styles.typeLabel, active && { color: t.color }]}>{t.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </>
-          )}
-
-          <Text style={styles.label}>تعليق (اختياري)</Text>
-          <TextInput
-            style={styles.input}
-            value={captionAr}
-            onChangeText={setCaptionAr}
-            placeholder="اكتب وصفاً قصيراً..."
-            placeholderTextColor={colors.textSubtle}
-            maxLength={200}
-            multiline
-            textAlign="right"
-            textAlignVertical="top"
+          <LinearGradient
+            colors={['rgba(0,0,0,0.55)', 'transparent', 'rgba(0,0,0,0.75)']}
+            locations={[0, 0.35, 1]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
           />
+        </>
+      ) : (
+        <LinearGradient colors={gradients.royal} style={StyleSheet.absoluteFill} />
+      )}
 
-          {!isButcherMode && (
-            <>
-              <Text style={styles.label}>الموقع (اختياري)</Text>
-              <TextInput
-                style={styles.inputSingle}
-                value={location}
-                onChangeText={setLocation}
-                placeholder="مثال: الرياض"
-                placeholderTextColor={colors.textSubtle}
-                maxLength={120}
-                textAlign="right"
-              />
-            </>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.topBar}>
+            <Pressable onPress={() => router.back()} style={styles.topBtn} hitSlop={8}>
+              <AppIcon name="close" size={24} color="#fff" />
+            </Pressable>
+            <Text style={styles.topTitle}>قصة جديدة</Text>
+            {media ? (
+              <Pressable
+                onPress={handlePublish}
+                disabled={submitting}
+                style={[styles.publishChip, submitting && { opacity: 0.6 }]}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.publishChipText}>{publishLabel}</Text>
+                )}
+              </Pressable>
+            ) : (
+              <View style={styles.topBtnPlaceholder} />
+            )}
+          </View>
+
+          {!media ? (
+            <View style={styles.pickerBody}>
+              <View style={styles.pickerHero}>
+                <View style={styles.pickerFrame}>
+                  <AppIcon name="add-circle-outline" size={48} color="rgba(255,255,255,0.85)" />
+                  <Text style={styles.pickerTitle}>شارك لحظتك</Text>
+                  <Text style={styles.pickerSub}>
+                    تظهر لمدة ٢٤ ساعة · {STORY_MIN_DURATION_SEC}–{STORY_MAX_DURATION_SEC} ث للفيديو
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.pickerActions}>
+                <Pressable style={styles.pickerBtn} onPress={captureFromCamera}>
+                  <View style={styles.pickerBtnIcon}>
+                    <AppIcon name="camera" size={26} color="#fff" />
+                  </View>
+                  <Text style={styles.pickerBtnLabel}>كاميرا</Text>
+                </Pressable>
+                <Pressable style={styles.pickerBtn} onPress={pickFromLibrary}>
+                  <View style={styles.pickerBtnIcon}>
+                    <AppIcon name="images" size={26} color="#fff" />
+                  </View>
+                  <Text style={styles.pickerBtnLabel}>المعرض</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.editorBody}>
+              <View style={styles.editorTools}>
+                {media.kind === 'video' ? (
+                  <Pressable style={styles.toolChip} onPress={openVideoTrimmer}>
+                    <AppIcon name="cut-outline" size={16} color="#fff" />
+                    <Text style={styles.toolChipText}>{media.durationSec} ث · قص</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  style={styles.toolChip}
+                  onPress={() => {
+                    setMedia(null);
+                    setCaptionAr('');
+                    setLocation('');
+                  }}
+                >
+                  <AppIcon name="refresh-outline" size={16} color="#fff" />
+                  <Text style={styles.toolChipText}>تغيير</Text>
+                </Pressable>
+                <Pressable style={styles.toolChip} onPress={() => setShowOptions((v) => !v)}>
+                  <AppIcon name="options-outline" size={16} color="#fff" />
+                  <Text style={styles.toolChipText}>خيارات</Text>
+                </Pressable>
+              </View>
+
+              {showOptions ? (
+                <ScrollView
+                  style={styles.optionsPanel}
+                  contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.md }}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {isButcherMode ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <View style={styles.typeRow}>
+                        {BUTCHER_TYPES.map((t) => {
+                          const active = storyType === t.id;
+                          return (
+                            <Pressable
+                              key={t.id}
+                              onPress={() => setStoryType(t.id)}
+                              style={[
+                                styles.typeChip,
+                                active && {
+                                  borderColor: t.color,
+                                  backgroundColor: `${t.color}33`,
+                                },
+                              ]}
+                            >
+                              <Text style={styles.typeIcon}>{t.icon}</Text>
+                              <Text style={[styles.typeLabel, active && { color: t.color }]}>
+                                {t.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </ScrollView>
+                  ) : null}
+                  {!isButcherMode ? (
+                    <TextInput
+                      style={styles.optionInput}
+                      value={location}
+                      onChangeText={setLocation}
+                      placeholder="📍 الموقع (اختياري)"
+                      placeholderTextColor="rgba(255,255,255,0.45)"
+                      maxLength={120}
+                      textAlign="right"
+                    />
+                  ) : null}
+                </ScrollView>
+              ) : null}
+
+              <View style={[styles.captionBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+                <TextInput
+                  style={styles.captionInput}
+                  value={captionAr}
+                  onChangeText={setCaptionAr}
+                  placeholder="اكتب تعليقاً..."
+                  placeholderTextColor="rgba(255,255,255,0.45)"
+                  maxLength={200}
+                  multiline
+                  textAlign="right"
+                />
+              </View>
+            </View>
           )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
 
       <StoryVideoTrimmer
         visible={pendingTrim != null}
@@ -379,133 +444,189 @@ export default function CreateStoryScreen() {
           setPendingTrim(null);
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgDeep },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSoft,
-  },
-  backBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: colors.bgGlass,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.borderSoft,
-  },
-  headerTitle: { ...typography.h3, color: colors.textPrimary },
-  publishBtn: { borderRadius: radius.pill, overflow: 'hidden' },
-  publishBtnDisabled: { opacity: 0.7 },
-  publishBtnInner: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 9,
-    borderRadius: radius.pill,
-    minWidth: 72,
-    alignItems: 'center',
-  },
-  publishBtnText: { ...typography.bodyStrong, color: '#fff' },
-  scroll: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl },
-  hint: {
-    ...typography.caption,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  imageBox: {
-    height: 360,
-    borderRadius: radius.xxl,
-    overflow: 'hidden',
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1.5,
-    borderColor: colors.borderSoft,
-    borderStyle: 'dashed',
-  },
-  preview: { width: '100%', height: '100%' },
-  imagePlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    padding: spacing.xl,
-  },
-  imagePlaceholderText: { ...typography.bodyStrong, color: colors.textPrimary },
-  imagePlaceholderSub: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
-  changePhotoBtn: {
-    position: 'absolute',
-    bottom: spacing.md,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radius.pill,
-  },
-  changePhotoText: { ...typography.caption, color: '#fff', fontWeight: '600' },
-  trimBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    backgroundColor: colors.bgSurface,
-  },
-  trimBtnText: { ...typography.caption, color: colors.electricBright, fontWeight: '600' },
-  label: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    textAlign: 'right',
-  },
-  typeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  typeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: radius.pill,
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1.5,
-    borderColor: colors.borderSoft,
-  },
-  typeIcon: { fontSize: 14 },
-  typeLabel: { ...typography.caption, color: colors.textMuted, fontWeight: '600' },
-  input: {
-    minHeight: 90,
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    padding: spacing.md,
-    ...typography.body,
-    color: colors.textPrimary,
-  },
-  inputSingle: {
-    minHeight: 48,
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    ...typography.body,
-    color: colors.textPrimary,
-  },
+    root: { flex: 1, backgroundColor: '#000' },
+    safe: { flex: 1 },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      zIndex: 10,
+    },
+    topBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0,0,0,0.35)',
+    },
+    topBtnPlaceholder: { width: 40 },
+    topTitle: {
+      ...typography.bodyStrong,
+      color: '#fff',
+      fontSize: 16,
+    },
+    publishChip: {
+      backgroundColor: colors.electric,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 9,
+      borderRadius: radius.pill,
+      minWidth: 72,
+      alignItems: 'center',
+    },
+    publishChipText: {
+      ...typography.bodyStrong,
+      color: '#fff',
+      fontSize: 14,
+    },
+    pickerBody: {
+      flex: 1,
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.xl,
+    },
+    pickerHero: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pickerFrame: {
+      width: '72%',
+      aspectRatio: 9 / 16,
+      maxHeight: 420,
+      borderRadius: radius.xxl,
+      borderWidth: 2,
+      borderColor: 'rgba(255,255,255,0.35)',
+      borderStyle: 'dashed',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      padding: spacing.lg,
+      backgroundColor: 'rgba(0,0,0,0.2)',
+    },
+    pickerTitle: {
+      ...typography.h3,
+      color: '#fff',
+      marginTop: spacing.xs,
+    },
+    pickerSub: {
+      ...typography.caption,
+      color: 'rgba(255,255,255,0.72)',
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+    pickerActions: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: spacing.xxl,
+    },
+    pickerBtn: {
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    pickerBtnIcon: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: 'rgba(255,255,255,0.18)',
+      borderWidth: 1.5,
+      borderColor: 'rgba(255,255,255,0.35)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pickerBtnLabel: {
+      ...typography.bodyStrong,
+      color: '#fff',
+    },
+    editorBody: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    editorTools: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    toolChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: radius.pill,
+      backgroundColor: 'rgba(0,0,0,0.42)',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: 'rgba(255,255,255,0.28)',
+    },
+    toolChipText: {
+      ...typography.caption,
+      color: '#fff',
+      fontWeight: '600',
+    },
+    optionsPanel: {
+      maxHeight: 140,
+      marginHorizontal: spacing.md,
+      marginBottom: spacing.sm,
+      backgroundColor: 'rgba(0,0,0,0.38)',
+      borderRadius: radius.lg,
+      padding: spacing.sm,
+    },
+    typeRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    typeChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: radius.pill,
+      backgroundColor: 'rgba(255,255,255,0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.22)',
+    },
+    typeIcon: { fontSize: 14 },
+    typeLabel: {
+      ...typography.caption,
+      color: 'rgba(255,255,255,0.85)',
+      fontWeight: '600',
+    },
+    optionInput: {
+      minHeight: 44,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.22)',
+      paddingHorizontal: spacing.md,
+      color: '#fff',
+      ...typography.body,
+    },
+    captionBar: {
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.sm,
+    },
+    captionInput: {
+      minHeight: 48,
+      maxHeight: 100,
+      borderRadius: radius.pill,
+      borderWidth: 1.5,
+      borderColor: 'rgba(255,255,255,0.35)',
+      backgroundColor: 'rgba(0,0,0,0.35)',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+      color: '#fff',
+      ...typography.body,
+      textAlignVertical: 'center',
+    },
   });
 }

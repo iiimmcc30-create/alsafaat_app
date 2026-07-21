@@ -248,3 +248,57 @@ export const CATEGORY_LABELS: Record<MeatCategory, { en: string; ar: string; ico
   goat:            { en: 'Goat',             ar: 'ماعز',          icon: '🐐' },
   special_orders:  { en: 'Special Orders',   ar: 'طلبات خاصة',   icon: '⭐' },
 };
+
+/** Normalize expo-router params that may arrive as string | string[]. */
+export function routeParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? '';
+  return value ?? '';
+}
+
+export function mapButcherProductFromApi(p: Record<string, unknown>): ButcherProduct {
+  const cuts = Array.isArray(p.availableCuts)
+    ? (p.availableCuts as string[]).filter(Boolean)
+    : [];
+  const images = Array.isArray(p.images)
+    ? (p.images as string[]).filter((x) => typeof x === 'string' && x.length > 0)
+    : [];
+
+  return {
+    id: String(p.id ?? ''),
+    butcherId: String(p.butcherId ?? ''),
+    name: String(p.nameAr || p.nameEn || 'منتج'),
+    nameAr: String(p.nameAr || p.nameEn || 'منتج'),
+    category: (p.category as MeatCategory) || 'lamb',
+    images,
+    pricePerKg: p.pricePerKg != null ? Number(p.pricePerKg) : undefined,
+    priceFixed: p.priceFixed != null ? Number(p.priceFixed) : undefined,
+    pricingNote: p.pricingNoteAr ? String(p.pricingNoteAr) : undefined,
+    pricingNoteAr: p.pricingNoteAr ? String(p.pricingNoteAr) : undefined,
+    availableCuts: (cuts.length ? cuts : ['whole']) as CutType[],
+    weightRange:
+      p.weightMin != null
+        ? {
+            min: Number(p.weightMin),
+            max: Number(p.weightMax ?? p.weightMin),
+          }
+        : undefined,
+    inStock: p.inStock !== false,
+    freshness: (p.freshness as ButcherProduct['freshness']) || 'fresh',
+    description: String(p.descriptionEn || ''),
+    descriptionAr: String(p.descriptionAr || p.descriptionEn || ''),
+    country: (p.country as Country) || 'SA',
+  };
+}
+
+export function parseOrderWeightKg(raw: string, product?: ButcherProduct): number {
+  const n = parseFloat(String(raw).replace(',', '.').trim());
+  const fallback = product?.weightRange?.min ?? 1;
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  const min = product?.weightRange?.min ?? 0.5;
+  const max = product?.weightRange?.max ?? 999;
+  return Math.round(Math.min(max, Math.max(min, n)) * 10) / 10;
+}
+
+export function cutLabelAr(cut: string): string {
+  return CUT_LABELS[cut as CutType]?.ar ?? cut;
+}

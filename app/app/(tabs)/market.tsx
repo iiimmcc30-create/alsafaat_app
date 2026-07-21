@@ -3,7 +3,7 @@
 import { AppIcon } from '@/components/ui/FlaticonIcon';
 
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -35,6 +35,8 @@ const CATEGORIES = [
   { id: 'equipment', ar: 'معدات', icon: '⚙️' },
 ];
 
+const LISTING_ROW_HEIGHT = 126;
+
 export default function MarketScreen() {
   const router = useRouter();
   const styles = useThemedStyles(({ colors }) => createMarketStyles(colors));
@@ -47,7 +49,7 @@ export default function MarketScreen() {
   // ──────────────────────────────────────────────────────
   // منطق الفلترة — لم يتغير
   // ──────────────────────────────────────────────────────
-  const filtered = listings.filter((l) => {
+  const filtered = useMemo(() => listings.filter((l) => {
     if (l.country === 'EG') return false;
     if (activeCategory !== 'all' && l.category !== activeCategory) return false;
     if (activeCountry !== 'ALL' && l.country !== activeCountry) return false;
@@ -61,7 +63,7 @@ export default function MarketScreen() {
       );
     }
     return true;
-  });
+  }), [listings, activeCategory, activeCountry, showFeaturedOnly, search]);
 
   // ──────────────────────────────────────────────────────
   // FlatList — كل صف إعلان ضيق
@@ -79,17 +81,29 @@ export default function MarketScreen() {
 
   const keyExtractor = useCallback((item: Listing) => item.id, []);
 
-  const ItemSeparator = useCallback(() => null, []);
-
-  const ListEmpty = (
-    <View style={styles.empty}>
-      <Text style={styles.emptyIcon}>🔍</Text>
-      <Text style={styles.emptyText}>لا توجد إعلانات مطابقة</Text>
-    </View>
+  const getItemLayout = useCallback(
+    (_: unknown, index: number) => ({
+      length: LISTING_ROW_HEIGHT,
+      offset: LISTING_ROW_HEIGHT * index,
+      index,
+    }),
+    [],
   );
 
-  // الهيدر داخل FlatList حتى يتحرك مع القائمة
-  const ListHeader = (
+  const ItemSeparator = useCallback(() => null, []);
+
+  const ListEmpty = useMemo(
+    () => (
+      <View style={styles.empty}>
+        <Text style={styles.emptyIcon}>🔍</Text>
+        <Text style={styles.emptyText}>لا توجد إعلانات مطابقة</Text>
+      </View>
+    ),
+    [styles.empty, styles.emptyIcon, styles.emptyText],
+  );
+
+  const ListHeader = useCallback(
+    () => (
     <View>
       <View style={styles.pageHeader}>
         <View>
@@ -157,6 +171,18 @@ export default function MarketScreen() {
         <Text style={styles.count}>{filtered.length} إعلان</Text>
       </View>
     </View>
+    ),
+    [
+      activeCategory,
+      activeCountry,
+      filtered.length,
+      search,
+      showFeaturedOnly,
+      styles,
+      colors.electricBright,
+      colors.gold,
+      colors.textMuted,
+    ],
   );
 
   return (
@@ -165,6 +191,7 @@ export default function MarketScreen() {
         data={filtered}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
+        getItemLayout={getItemLayout}
         ItemSeparatorComponent={ItemSeparator}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={ListEmpty}

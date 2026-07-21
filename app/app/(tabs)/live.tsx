@@ -1,12 +1,13 @@
 // Powered by OnSpace.AI
 // SAFAT — Live Tab (البث المباشر)
 import { AppIcon } from '@/components/ui/FlaticonIcon';
-
 import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
+  FlatList,
+  ListRenderItemInfo,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,14 +18,23 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
-import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
-import { openLiveCreateIfAllowed } from '@/lib/liveStreamAccess';
+import { showLiveBroadcastComingSoonAlert } from '@/lib/liveStreamAccess';
 import { LiveStreamItem } from '@/components/feature/LiveStreamItem';
 import { UserProfileLink } from '@/components/feature/UserProfileLink';
+import type { LiveStream } from '@/services/types';
 
-const LIVE_CATEGORIES = ['الكل', 'إبل', 'خيول', 'أغنام', 'صقور', 'معز'];
+const LIVE_CATEGORIES = ['الكل', 'إبل', 'خيول', 'أغنام', 'صقور', 'معز'] as const;
+const LIVE_CAT_MAP: Record<string, string> = {
+  'إبل': 'camels',
+  'خيول': 'horses',
+  'أغنام': 'sheep',
+  'صقور': 'falcons',
+  'معز': 'goats',
+};
+const LIVE_REFRESH_TTL_MS = 45_000;
+const LIVE_ROW_HEIGHT = 200 + spacing.md;
 
 export default function LiveScreen() {
   const { colors } = useTheme();
@@ -32,10 +42,15 @@ export default function LiveScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { accessToken } = useAuth();
-  const [activeCategory, setActiveCategory] = useState('الكل');
-  const [streamsList, setStreamsList] = useState<any[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>('الكل');
+  const [streamsList, setStreamsList] = useState<LiveStream[]>([]);
+  const lastFetchAt = useRef(0);
 
-  const fetchStreams = async () => {
+  const fetchStreams = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastFetchAt.current < LIVE_REFRESH_TTL_MS && streamsList.length > 0) {
+      return;
+    }
     try {
       const headers: HeadersInit = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
       const res = await fetch(`${API_BASE}/api/livestreams`, { headers });
@@ -43,37 +58,143 @@ export default function LiveScreen() {
         const json = await res.json();
         if (json.success && json.data) {
           setStreamsList(json.data);
+          lastFetchAt.current = Date.now();
         }
       }
     } catch (err) {
       console.warn('[LiveScreen] Failed to fetch streams:', err);
     }
-  };
+  }, [accessToken, streamsList.length]);
 
-  useEffect(() => {
-    fetchStreams();
-  }, [accessToken]);
+  useFocusEffect(
+    useCallback(() => {
+      void fetchStreams();
+    }, [fetchStreams]),
+  );
 
-  const filtered =
-    activeCategory === 'الكل'
-      ? streamsList
-      : streamsList.filter((l) => {
-          const catMap: Record<string, string> = {
-            'إبل': 'camels',
-            'خيول': 'horses',
-            'أغنام': 'sheep',
-            'صقور': 'falcons',
-            'معز': 'goats',
-          };
-          const target = catMap[activeCategory];
-          return l.category?.toLowerCase() === target || l.category?.toLowerCase().includes(activeCategory);
-        });
+  const filtered = useMemo(() => {
+    if (activeCategory === 'الكل') return streamsList;
+    const target = LIVE_CAT_MAP[activeCategory];
+    return streamsList.filter(
+      (l) =>
+        l.category?.toLowerCase() === target ||
+        l.category?.toLowerCase().includes(activeCategory),
+    );
+  }, [streamsList, activeCategory]);
 
-  const totalViewers = streamsList.reduce((sum, l) => sum + (l.viewers || 0), 0);
+  const featured = filtered[0] ?? null;
+  const listData = useMemo(() => filtered.slice(1), [filtered]);
+
+  const totalViewers = useMemo(
+    () => streamsList.reduce((sum, l) => sum + (l.viewers || 0), 0),
+    [streamsList],
+  );
+
+  const openWatch = useCallback(
+    (id: string) => router.push({ pathname: '/live/watch/[id]', params: { id } } as never),
+    [router],
+  );
+
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<LiveStream>) => (
+      <Pressable onPress={() => openWatch(item.id)}>
+        <LiveStreamItem stream={item} height={200} />
+      </Pressable>
+    ),
+    [openWatch],
+  );
+
+  const keyExtractor = useCallback((item: LiveStream) => item.id, []);
+
+  const getItemLayout = useCallback(
+    (_: unknown, index: number) => ({
+      length: LIVE_ROW_HEIGHT,
+      offset: LIVE_ROW_HEIGHT * index,
+      index,
+    }),
+    [],
+  );
+
+  const ListHeader = useCallback(
+    () => (
+      <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.catRow}
+        >
+          {LIVE_CATEGORIES.map((cat) => (
+            <Pressable
+              key={cat}
+              onPress={() => setActiveCategory(cat)}
+              style={[styles.catChip, activeCategory === cat && styles.catChipActive]}
+            >
+              <Text style={[styles.catLabel, activeCategory === cat && styles.catLabelActive]}>
+                {cat}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {featured ? (
+          <Pressable style={styles.featured} onPress={() => openWatch(featured.id)}>
+            <Image
+              source={uriSource(featured.thumbnail)}
+              style={styles.featuredImg}
+              contentFit="cover"
+              transition={150}
+              priority="high"
+            />
+            <LinearGradient
+              colors={['transparent', 'rgba(6,9,26,0.95)']}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.liveTag}>
+              <View style={styles.liveDotSmall} />
+              <Text style={styles.liveTagText}>LIVE</Text>
+            </View>
+            <View style={styles.featuredContent}>
+              <UserProfileLink userId={featured.host?.id} style={styles.hostRow}>
+                <Image source={uriSource(featured.host?.avatar)} style={styles.hostAvatar} contentFit="cover" transition={0} />
+                <View>
+                  <Text style={styles.hostName}>{featured.host?.arabicName || 'مستخدم سرح'}</Text>
+                  <Text style={styles.hostHandle}>@{featured.host?.username || 'user'}</Text>
+                </View>
+              </UserProfileLink>
+              <Text style={styles.featuredTitle} numberOfLines={2}>{featured.arabicTitle}</Text>
+              <View style={styles.statsRow}>
+                <View style={styles.stat}>
+                  <AppIcon name="eye" size={14} color={colors.textMuted} />
+                  <Text style={styles.statText}>{(featured.viewers ?? 0).toLocaleString()}</Text>
+                </View>
+                <View style={styles.stat}>
+                  <AppIcon name="heart" size={14} color={colors.rose} />
+                  <Text style={styles.statText}>{(featured.likes ?? 0).toLocaleString()}</Text>
+                </View>
+                <View style={styles.catBadge}>
+                  <Text style={styles.catBadgeText}>{featured.category}</Text>
+                </View>
+              </View>
+            </View>
+          </Pressable>
+        ) : null}
+      </View>
+    ),
+    [activeCategory, colors.rose, colors.textMuted, featured, openWatch, styles],
+  );
+
+  const ListEmpty = useMemo(
+    () => (
+      <View style={styles.empty}>
+        <Text style={styles.emptyIcon}>📡</Text>
+        <Text style={styles.emptyText}>لا يوجد بث مباشر الآن</Text>
+      </View>
+    ),
+    [styles.empty, styles.emptyIcon, styles.emptyText],
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.liveBadge}>
           <View style={styles.liveDot} />
@@ -86,94 +207,29 @@ export default function LiveScreen() {
         </View>
       </View>
 
-      {/* Category chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.catRow}
-      >
-        {LIVE_CATEGORIES.map((cat) => (
-          <Pressable
-            key={cat}
-            onPress={() => setActiveCategory(cat)}
-            style={[styles.catChip, activeCategory === cat && styles.catChipActive]}
-          >
-            <Text style={[styles.catLabel, activeCategory === cat && styles.catLabelActive]}>
-              {cat}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <FlatList
+        data={listData}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        getItemLayout={getItemLayout}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={filtered.length === 0 ? ListEmpty : null}
+        ListFooterComponent={<View style={{ height: 100 + insets.bottom }} />}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={5}
+      />
 
-      {/* Live streams */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {/* Featured (first stream large) */}
-        {filtered.length > 0 && (
-          <Pressable style={styles.featured} onPress={() => router.push({ pathname: '/live/watch/[id]', params: { id: filtered[0].id } } as any)}>
-            <Image
-              source={uriSource(filtered[0].thumbnail)}
-              style={styles.featuredImg}
-              contentFit="cover"
-              transition={300}
-            />
-            <LinearGradient
-              colors={['transparent', 'rgba(6,9,26,0.95)']}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.liveTag}>
-              <View style={styles.liveDotSmall} />
-              <Text style={styles.liveTagText}>LIVE</Text>
-            </View>
-            <View style={styles.featuredContent}>
-              <UserProfileLink userId={filtered[0].host?.id} style={styles.hostRow}>
-                <Image source={uriSource(filtered[0].host?.avatar)} style={styles.hostAvatar} contentFit="cover" />
-                <View>
-                  <Text style={styles.hostName}>{filtered[0].host?.arabicName || 'مستخدم سرح'}</Text>
-                  <Text style={styles.hostHandle}>@{filtered[0].host?.username || 'user'}</Text>
-                </View>
-              </UserProfileLink>
-              <Text style={styles.featuredTitle} numberOfLines={2}>{filtered[0].arabicTitle}</Text>
-              <View style={styles.statsRow}>
-                <View style={styles.stat}>
-                  <AppIcon name="eye" size={14} color={colors.textMuted} />
-                  <Text style={styles.statText}>{(filtered[0].viewers ?? 0).toLocaleString()}</Text>
-                </View>
-                <View style={styles.stat}>
-                  <AppIcon name="heart" size={14} color={colors.rose} />
-                  <Text style={styles.statText}>{(filtered[0].likes ?? 0).toLocaleString()}</Text>
-                </View>
-                <View style={styles.catBadge}>
-                  <Text style={styles.catBadgeText}>{filtered[0].category}</Text>
-                </View>
-              </View>
-            </View>
-          </Pressable>
-        )}
-
-        {/* Rest of streams */}
-        <View style={styles.streamsList}>
-          {filtered.slice(1).map((stream) => (
-            <LiveStreamItem key={stream.id} stream={stream} height={200} />
-          ))}
-        </View>
-
-        {filtered.length === 0 && (
-          <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>📡</Text>
-            <Text style={styles.emptyText}>لا يوجد بث مباشر الآن</Text>
-          </View>
-        )}
-
-        <View style={{ height: 100 + insets.bottom }} />
-      </ScrollView>
-      {/* FAB — بدء بث جديد */}
       <Pressable
         style={[styles.fab, { bottom: Math.max(insets.bottom, spacing.lg) + 58 }]}
-        onPress={() => openLiveCreateIfAllowed(router, accessToken)}
+        onPress={() => showLiveBroadcastComingSoonAlert()}
       >
         <LinearGradient colors={['#EF4444', '#DC2626']} style={styles.fabGrad}>
           <View style={styles.fabDot} />
-          <Text style={styles.fabText}>بث مباشر</Text>
+          <Text style={styles.fabText}>قريباً</Text>
         </LinearGradient>
       </Pressable>
     </SafeAreaView>
@@ -198,7 +254,7 @@ function createStyles(colors: ThemeColors) {
   title: { ...typography.h2, color: colors.textPrimary },
   viewersWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   viewersCount: { ...typography.caption, color: colors.textMuted },
-  catRow: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.sm },
+  catRow: { paddingBottom: spacing.md, gap: spacing.sm },
   catChip: {
     paddingHorizontal: spacing.md, paddingVertical: 6,
     borderRadius: radius.pill, backgroundColor: colors.bgSurface,
@@ -238,7 +294,6 @@ function createStyles(colors: ThemeColors) {
     borderWidth: 1, borderColor: colors.borderSoft,
   },
   catBadgeText: { ...typography.micro, color: colors.textSecondary },
-  streamsList: { gap: spacing.md },
   empty: { alignItems: 'center', paddingVertical: spacing.xxxl, gap: spacing.md },
   emptyIcon: { fontSize: 40 },
   emptyText: { ...typography.body, color: colors.textMuted },

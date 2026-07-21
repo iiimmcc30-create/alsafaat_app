@@ -1,7 +1,7 @@
 // Powered by OnSpace.AI
 // SAFAT — Auth Context (JWT + OTP + Google)
 
-import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerAuthFetch } from '@/services/authFetch';
 import { fetchWithTimeout } from '@/services/fetchWithTimeout';
@@ -377,8 +377,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [accessToken, clearSession, user?.id]);
 
-  return (
-    <AuthContext.Provider value={{
+  const authValue = useMemo(
+    () => ({
       user,
       accessToken,
       isLoading,
@@ -393,7 +393,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       signOut,
       refreshSession,
-    }}>
+    }),
+    [
+      user,
+      accessToken,
+      isLoading,
+      activeMode,
+      switchMode,
+      sendOtp,
+      verifyOtp,
+      signInWithGoogle,
+      signInWithPassword,
+      resetPassword,
+      register,
+      signOut,
+      refreshSession,
+    ],
+  );
+
+  return (
+    <AuthContext.Provider value={authValue}>
       {children}
     </AuthContext.Provider>
   );

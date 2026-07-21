@@ -1,49 +1,68 @@
-// Powered by OnSpace.AI
-// SAFAT — Butcher Order Screen (صفحة الطلب + الدفع عبر بوابة المنصة)
+// SAFAT — Butcher Order Screen (صفحة الطلب + الدفع)
 import { AppIcon } from '@/components/ui/FlaticonIcon';
-
 import { Image } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-  Alert,
-  ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, gradients, radius, spacing, typography } from '@/constants/theme';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon } from '@/lib/rtl';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
-import { openPaymentCheckout } from '@/services/paymentCheckout';
-import {  CATEGORY_LABELS,
-  CUT_LABELS,
+import { launchPaymentCheckout } from '@/services/payments';
+import { resolveMediaUrl } from '@/services/media';
+import {
+  CATEGORY_LABELS,
+  ButcherProduct,
   CutType,
   DeliveryType,
-  gccCurrencies,
   MeatCategory,
+  cutLabelAr,
+  gccCurrencies,
+  mapButcherFromApi,
+  mapButcherProductFromApi,
+  parseOrderWeightKg,
+  routeParam,
+  type ButcherProfile,
 } from '@/services/butcherData';
 import { PAYMENT_METHODS, NIPaymentMethod } from '@/services/network_international';
 
-export default function ButcherOrderScreen() {
-  const { productId, butcherId } = useLocalSearchParams<{ productId?: string; butcherId: string }>();
-  const router = useRouter();
-  const { accessToken } = useAuth();
+const PLACEHOLDER_IMG =
+  'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=400&q=80';
 
-  const [butcher, setButcher] = useState<any>(null);
-  const [products, setProducts] = useState<any[]>([]);
+export default function ButcherOrderScreen() {
+  const params = useLocalSearchParams<{ productId?: string; butcherId?: string }>();
+  const butcherId = routeParam(params.butcherId);
+  const initialProductId = routeParam(params.productId);
+
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { accessToken } = useAuth();
+  const { colors, gradients } = useTheme();
+  const styles = useThemedStyles(({ colors: c }) => createStyles(c));
+
+  const [butcher, setButcher] = useState<ButcherProfile | null>(null);
+  const [products, setProducts] = useState<ButcherProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
 
-  const [selectedProductId, setSelectedProductId] = useState<string>(productId ?? '');
+  const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedCut, setSelectedCut] = useState<CutType>('whole');
-  const [weight, setWeight] = useState<string>('1');
+  const [weight, setWeight] = useState('1');
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('pickup');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
@@ -51,10 +70,21 @@ export default function ButcherOrderScreen() {
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
+    if (!butcherId) {
+      setLoadError('معرّف الملحمة غير صالح');
+      setLoading(false);
+      return;
+    }
+
     let active = true;
     const loadData = async () => {
+      setLoading(true);
+      setLoadError(null);
       try {
-        const headers: HeadersInit = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+        const headers: HeadersInit = accessToken
+          ? { Authorization: `Bearer ${accessToken}` }
+          : {};
+
         const [resButcher, resProducts] = await Promise.all([
           fetch(`${API_BASE}/api/butchers/${butcherId}`, { headers }),
           fetch(`${API_BASE}/api/butchers/products?butcherId=${butcherId}`, { headers }),
@@ -62,73 +92,77 @@ export default function ButcherOrderScreen() {
 
         if (!active) return;
 
+        let butcherJson: { success?: boolean; data?: Record<string, unknown> } | null = null;
+
         if (resButcher.ok) {
-          const json = await resButcher.json();
-          if (json.success && json.data) {
-            setButcher(json.data);
+          butcherJson = await resButcher.json();
+          if (butcherJson?.success && butcherJson.data) {
+            setButcher(mapButcherFromApi(butcherJson.data));
           }
         }
+
+        let mapped: ButcherProduct[] = [];
         if (resProducts.ok) {
           const json = await resProducts.json();
-          if (json.success && json.data) {
-            setProducts(json.data);
-            if (json.data.length > 0) {
-              const defaultProd = json.data.find((p: any) => p.id === productId) || json.data[0];
-              setSelectedProductId(defaultProd.id);
-              setSelectedCut(defaultProd.availableCuts[0] || 'whole');
-            }
+          const rows = Array.isArray(json.data) ? json.data : json.data?.products;
+          if (json.success && Array.isArray(rows)) {
+            mapped = rows.map((p: Record<string, unknown>) => mapButcherProductFromApi(p));
           }
+        }
+
+        if (mapped.length === 0 && Array.isArray(butcherJson?.data?.products)) {
+          mapped = (butcherJson!.data!.products as Record<string, unknown>[]).map((p) =>
+            mapButcherProductFromApi(p),
+          );
+        }
+
+        setProducts(mapped.filter((p) => p.inStock));
+
+        if (mapped.length > 0) {
+          const preferred =
+            mapped.find((p) => p.id === initialProductId && p.inStock) ??
+            mapped.find((p) => p.inStock) ??
+            mapped[0];
+          setSelectedProductId(preferred.id);
+          setSelectedCut(preferred.availableCuts[0] ?? 'whole');
+          if (preferred.weightRange?.min) {
+            setWeight(String(preferred.weightRange.min));
+          }
+        }
+
+        if (!resButcher.ok) {
+          setLoadError('تعذّر تحميل بيانات الملحمة');
         }
       } catch (err) {
         console.warn('[ButcherOrder] Fetch failed:', err);
+        if (active) setLoadError('تعذّر الاتصال بالخادم');
       } finally {
         if (active) setLoading(false);
       }
     };
-    loadData();
-    return () => { active = false; };
-  }, [butcherId, accessToken, productId]);
 
-  if (loading) {
-    return (
-      <SafeAreaView style={s.screen}>
-        <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={colors.electricBright} />
-          <Text style={{ marginTop: spacing.md, color: colors.textMuted, ...typography.body }}>جاري تحميل البيانات...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+    void loadData();
+    return () => {
+      active = false;
+    };
+  }, [butcherId, accessToken, initialProductId]);
 
-  if (!butcher) {
-    return (
-      <SafeAreaView style={s.screen}>
-        <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl }}>
-          <AppIcon name="alert-circle-outline" size={48} color={colors.textMuted} />
-          <Text style={{ marginTop: spacing.md, color: colors.textSecondary, ...typography.body, textAlign: 'center' }}>
-            تعذر العثور على بيانات الملحمة المطلوبة.
-          </Text>
-          <Pressable style={{ marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.bgSurface, borderRadius: radius.md }} onPress={() => router.back()}>
-            <Text style={{ color: colors.textBrandStrong }}>رجوع</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const currency = gccCurrencies[butcher.country as keyof typeof gccCurrencies] || gccCurrencies['SA'];
-  const selectedProduct = products.find((p) => p.id === selectedProductId) ?? products[0];
+  const currency = gccCurrencies[butcher?.country ?? 'SA'] ?? gccCurrencies.SA;
+  const selectedProduct = useMemo(
+    () => products.find((p) => p.id === selectedProductId) ?? products[0],
+    [products, selectedProductId],
+  );
   const availableCuts = selectedProduct?.availableCuts ?? [];
 
-  const computedTotal = (() => {
+  const weightKg = parseOrderWeightKg(weight, selectedProduct);
+
+  const computedTotal = useMemo(() => {
     if (!selectedProduct) return 0;
     if (selectedProduct.pricePerKg) {
-      return parseFloat(weight || '0') * selectedProduct.pricePerKg;
+      return weightKg * selectedProduct.pricePerKg;
     }
     return selectedProduct.priceFixed ?? 0;
-  })();
+  }, [selectedProduct, weightKg]);
 
   const goSuccess = (orderId: string, orderNumber: string, paymentStatus: string) => {
     setSubmitted(true);
@@ -142,11 +176,14 @@ export default function ButcherOrderScreen() {
           paymentStatus: paymentStatus ?? 'unpaid',
         },
       });
-    }, 800);
+    }, 600);
   };
 
   const handleSubmit = async () => {
-    if (!selectedProduct) return;
+    if (!selectedProduct) {
+      Alert.alert('لا منتجات', 'لا توجد منتجات متاحة للطلب من هذه الملحمة حالياً');
+      return;
+    }
     if (!accessToken) {
       Alert.alert('تسجيل الدخول', 'يجب تسجيل الدخول لإتمام الطلب والدفع');
       return;
@@ -155,7 +192,7 @@ export default function ButcherOrderScreen() {
       Alert.alert('العنوان مطلوب', 'أدخل عنوان التوصيل قبل إتمام الدفع');
       return;
     }
-    if (computedTotal <= 0) {
+    if (computedTotal <= 0 || !Number.isFinite(computedTotal)) {
       Alert.alert('خطأ', 'مبلغ الطلب غير صالح');
       return;
     }
@@ -164,12 +201,12 @@ export default function ButcherOrderScreen() {
     try {
       const payload = {
         butcherId,
-        productId: selectedProductId,
+        productId: selectedProduct.id,
         cutType: selectedCut,
-        weightKg: selectedProduct.pricePerKg ? parseFloat(weight || '1') : 1.0,
+        weightKg,
         deliveryType,
-        deliveryAddress: deliveryType === 'delivery' ? address : null,
-        notes: notes || null,
+        deliveryAddress: deliveryType === 'delivery' ? address.trim() : null,
+        notes: notes.trim() || null,
         currency: currency.code,
       };
 
@@ -229,24 +266,32 @@ export default function ButcherOrderScreen() {
         devMode?: boolean;
       };
 
-      if (devMode) {
-        Alert.alert(
-          'الدفع غير متاح حالياً',
-          'بوابة الدفع في وضع التطوير، لذلك تم إيقاف أي نجاح وهمي للطلب. يمكنك إنشاء الطلب وإكمال الدفع لاحقاً عند تفعيل البوابة الحقيقية.',
-          [{ text: 'متابعة', onPress: () => goSuccess(orderId, orderNumber, 'unpaid') }],
-        );
+      const payOutcome = await launchPaymentCheckout({
+        accessToken,
+        paymentId,
+        checkoutUrl,
+        devMode,
+        context: 'butcher_order',
+        returnParams: {
+          orderId,
+          orderNumber,
+          butcherId,
+        },
+      });
+
+      if (payOutcome === 'cancelled') {
+        goSuccess(orderId, orderNumber, 'unpaid');
         return;
       }
 
-      if (checkoutUrl) {
-        await openPaymentCheckout(checkoutUrl, paymentId);
+      if (payOutcome === 'failed') {
         Alert.alert(
-          'أكمل الدفع',
-          'تم فتح بوابة الدفع. بعد إتمام الدفع سيصل طلبك للملحمة تلقائياً.',
-          [{ text: 'حسناً', onPress: () => goSuccess(orderId, orderNumber, 'unpaid') }],
+          'الطلب بانتظار الدفع',
+          devMode
+            ? 'لم يكتمل الدفع التجريبي. يمكنك المحاولة مجدداً لاحقاً.'
+            : 'تعذّر فتح بوابة الدفع. يمكنك إكمال الدفع لاحقاً.',
+          [{ text: 'متابعة', onPress: () => goSuccess(orderId, orderNumber, 'unpaid') }],
         );
-      } else {
-        goSuccess(orderId, orderNumber, 'unpaid');
       }
     } catch (err) {
       console.error(err);
@@ -256,488 +301,671 @@ export default function ButcherOrderScreen() {
     }
   };
 
-  if (submitted) {
+  if (loading || submitted) {
     return (
-      <SafeAreaView style={s.screen}>
+      <SafeAreaView style={styles.screen}>
         <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
-        <View style={s.successWrap}>
+        <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.electricBright} />
-          <Text style={s.successTitle}>جاري التحويل...</Text>
+          <Text style={styles.centeredText}>
+            {submitted ? 'جاري التحويل...' : 'جاري تحميل الطلب...'}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!butcher || loadError) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
+        <View style={styles.centered}>
+          <AppIcon name="alert-circle-outline" size={48} color={colors.textMuted} />
+          <Text style={styles.centeredText}>{loadError ?? 'الملحمة غير موجودة'}</Text>
+          <Pressable style={styles.secondaryBtn} onPress={() => router.back()}>
+            <Text style={styles.secondaryBtnText}>رجوع</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={s.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
 
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.iconBtn}>
           <AppIcon name={rtlBackIcon} size={22} color={colors.textPrimary} />
         </Pressable>
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={s.headerTitle}>طلب جديد</Text>
-          <Text style={s.headerSub}>{butcher.nameAr}</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>طلب جديد</Text>
+          <Text style={styles.headerSub} numberOfLines={1}>
+            {butcher.nameAr}
+          </Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
-        <View style={s.butcherCard}>
-          <Image source={{ uri: butcher.logo }} style={s.butcherLogo} contentFit="cover" />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 130 }]}
+      >
+        <View style={styles.butcherHero}>
+          <Image
+            source={{ uri: resolveMediaUrl(butcher.logo) }}
+            style={styles.butcherLogo}
+            contentFit="cover"
+          />
           <View style={{ flex: 1 }}>
-            <Text style={s.butcherName}>{butcher.nameAr}</Text>
-            <Text style={s.butcherCity}>{butcher.cityAr} · {currency.nameAr}</Text>
+            <Text style={styles.butcherName}>{butcher.nameAr}</Text>
+            <Text style={styles.butcherMeta}>
+              {butcher.cityAr} · {currency.symbol}
+            </Text>
           </View>
-          {butcher.subscriptionActive && (
-            <View style={s.verifiedMini}>
+          {butcher.subscriptionActive ? (
+            <View style={styles.verifiedBadge}>
               <AppIcon name="shield-checkmark" size={13} color={colors.gold} />
-              <Text style={s.verifiedMiniText}>موثّق</Text>
+              <Text style={styles.verifiedText}>موثّق</Text>
             </View>
-          )}
+          ) : null}
         </View>
 
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>اختر المنتج</Text>
-          {products.map((p: any) => (
-            <Pressable
-              key={p.id}
-              onPress={() => {
-                setSelectedProductId(p.id);
-                setSelectedCut(p.availableCuts[0] ?? 'whole');
-              }}
-              style={[s.productOption, selectedProductId === p.id && s.productOptionActive]}
-            >
-              <Image source={{ uri: p.images[0] }} style={s.productThumb} contentFit="cover" />
-              <View style={{ flex: 1 }}>
-                <Text style={s.productOptionName}>{p.nameAr}</Text>
-                <Text style={s.productOptionCat}>{CATEGORY_LABELS[p.category as MeatCategory]?.ar || p.category}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                {p.pricePerKg ? (
-                  <Text style={s.productOptionPrice}>{p.pricePerKg} {currency.symbol}/كغ</Text>
-                ) : (
-                  <Text style={s.productOptionPrice}>{p.priceFixed?.toLocaleString()} {currency.symbol}</Text>
-                )}
-                {selectedProductId === p.id && (
-                  <View style={s.checkCircle}>
-                    <AppIcon name="checkmark" size={14} color="#fff" />
-                  </View>
-                )}
-              </View>
-            </Pressable>
-          ))}
-        </View>
-
-        {availableCuts.length > 0 && (
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>طريقة التقطيع</Text>
-            <View style={s.cutsGrid}>
-              {availableCuts.map((cut: CutType) => (
+        <Section title="اختر المنتج" styles={styles}>
+          {products.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyEmoji}>🥩</Text>
+              <Text style={styles.emptyTitle}>لا منتجات متاحة</Text>
+              <Text style={styles.emptySub}>تواصل مع الملحمة أو عد لاحقاً</Text>
+            </View>
+          ) : (
+            products.map((p) => {
+              const active = selectedProductId === p.id;
+              const cat = CATEGORY_LABELS[p.category as MeatCategory];
+              return (
                 <Pressable
-                  key={cut}
-                  onPress={() => setSelectedCut(cut)}
-                  style={[s.cutOption, selectedCut === cut && s.cutOptionActive]}
+                  key={p.id}
+                  onPress={() => {
+                    setSelectedProductId(p.id);
+                    setSelectedCut(p.availableCuts[0] ?? 'whole');
+                    if (p.weightRange?.min) setWeight(String(p.weightRange.min));
+                  }}
+                  style={[styles.productCard, active && styles.productCardActive]}
                 >
-                  <Text style={[s.cutOptionText, selectedCut === cut && s.cutOptionTextActive]}>
-                    {CUT_LABELS[cut as CutType]?.ar || cut}
-                  </Text>
+                  <Image
+                    source={{ uri: resolveMediaUrl(p.images[0]) ?? PLACEHOLDER_IMG }}
+                    style={styles.productImg}
+                    contentFit="cover"
+                  />
+                  <View style={styles.productBody}>
+                    <View style={styles.productTopRow}>
+                      <Text style={styles.productName} numberOfLines={1}>
+                        {p.nameAr}
+                      </Text>
+                      {active ? (
+                        <View style={styles.selectedDot}>
+                          <AppIcon name="checkmark" size={12} color="#fff" />
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.productCat}>
+                      {cat?.icon} {cat?.ar ?? p.category}
+                    </Text>
+                    <Text style={styles.productPrice}>
+                      {p.pricePerKg
+                        ? `${p.pricePerKg} ${currency.symbol}/كغ`
+                        : `${(p.priceFixed ?? 0).toLocaleString('en-US')} ${currency.symbol}`}
+                    </Text>
+                  </View>
                 </Pressable>
-              ))}
-            </View>
-          </View>
-        )}
+              );
+            })
+          )}
+        </Section>
 
-        {selectedProduct?.pricePerKg && (
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>الوزن (كغ)</Text>
-            <View style={s.weightRow}>
+        {availableCuts.length > 0 ? (
+          <Section title="طريقة التقطيع" styles={styles}>
+            <View style={styles.chipsWrap}>
+              {availableCuts.map((cut) => {
+                const active = selectedCut === cut;
+                return (
+                  <Pressable
+                    key={cut}
+                    onPress={() => setSelectedCut(cut as CutType)}
+                    style={[styles.chip, active && styles.chipActive]}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {cutLabelAr(cut)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Section>
+        ) : null}
+
+        {selectedProduct?.pricePerKg ? (
+          <Section title="الوزن (كغ)" styles={styles}>
+            <View style={styles.weightCard}>
               <Pressable
-                style={s.weightBtn}
-                onPress={() => setWeight((w) => Math.max(0.5, parseFloat(w || '1') - 0.5).toString())}
+                style={styles.weightBtn}
+                onPress={() =>
+                  setWeight(String(Math.max(0.5, weightKg - 0.5)))
+                }
               >
                 <AppIcon name="remove" size={20} color={colors.textPrimary} />
               </Pressable>
               <TextInput
-                style={s.weightInput}
+                style={styles.weightInput}
                 value={weight}
                 onChangeText={setWeight}
                 keyboardType="decimal-pad"
                 selectTextOnFocus
               />
               <Pressable
-                style={s.weightBtn}
-                onPress={() => setWeight((w) => (parseFloat(w || '0') + 0.5).toString())}
+                style={styles.weightBtn}
+                onPress={() => setWeight(String(weightKg + 0.5))}
               >
                 <AppIcon name="add" size={20} color={colors.textPrimary} />
               </Pressable>
             </View>
-          </View>
-        )}
+            {selectedProduct.weightRange ? (
+              <Text style={styles.hint}>
+                من {selectedProduct.weightRange.min} إلى {selectedProduct.weightRange.max} كغ
+              </Text>
+            ) : null}
+          </Section>
+        ) : null}
 
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>طريقة الاستلام</Text>
-          <View style={s.deliveryRow}>
-            {(['pickup', 'delivery'] as DeliveryType[]).map((type) => (
-              <Pressable
-                key={type}
-                onPress={() => setDeliveryType(type)}
-                style={[s.deliveryOption, deliveryType === type && s.deliveryOptionActive]}
-              >
-                <AppIcon
-                  name={type === 'pickup' ? 'store-outline' : 'truck-delivery-outline'}
-                  size={18}
-                  color={deliveryType === type ? colors.electricBright : colors.textMuted}
-                />
-                <Text style={[s.deliveryLabel, deliveryType === type && s.deliveryLabelActive]}>
-                  {type === 'pickup' ? 'استلام من الملحمة' : 'توصيل'}
-                </Text>
-              </Pressable>
-            ))}
+        <Section title="طريقة الاستلام" styles={styles}>
+          <View style={styles.deliveryRow}>
+            {(['pickup', 'delivery'] as DeliveryType[]).map((type) => {
+              const active = deliveryType === type;
+              return (
+                <Pressable
+                  key={type}
+                  onPress={() => setDeliveryType(type)}
+                  style={[styles.deliveryCard, active && styles.deliveryCardActive]}
+                >
+                  <AppIcon
+                    name={type === 'pickup' ? 'shop' : 'box'}
+                    size={22}
+                    color={active ? colors.electricBright : colors.textMuted}
+                  />
+                  <Text style={[styles.deliveryLabel, active && styles.deliveryLabelActive]}>
+                    {type === 'pickup' ? 'استلام' : 'توصيل'}
+                  </Text>
+                  <Text style={styles.deliverySub}>
+                    {type === 'pickup' ? 'من الملحمة مباشرة' : 'إلى عنوانك'}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
-          {deliveryType === 'delivery' && (
+          {deliveryType === 'delivery' ? (
             <TextInput
-              style={s.addressInput}
-              placeholder="أدخل عنوان التوصيل..."
+              style={styles.textArea}
+              placeholder="عنوان التوصيل..."
               placeholderTextColor={colors.textSubtle}
               value={address}
               onChangeText={setAddress}
               multiline
-              numberOfLines={2}
-              textAlignVertical="top"
+              textAlign="right"
             />
-          )}
-        </View>
+          ) : null}
+        </Section>
 
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>ملاحظات إضافية (اختياري)</Text>
+        <Section title="ملاحظات (اختياري)" styles={styles}>
           <TextInput
-            style={s.notesInput}
-            placeholder="مثال: أريد الكبد والرقبة منفصلين..."
+            style={styles.textArea}
+            placeholder="مثال: افصل الكبد والرقبة..."
             placeholderTextColor={colors.textSubtle}
             value={notes}
             onChangeText={setNotes}
             multiline
-            numberOfLines={3}
-            textAlignVertical="top"
+            textAlign="right"
           />
-        </View>
+        </Section>
 
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>طريقة الدفع</Text>
-          <Text style={s.payHint}>الدفع إلزامي عبر بوابة المنصة قبل إرسال الطلب للملحمة</Text>
-          {PAYMENT_METHODS.map((method) => (
-            <Pressable
-              key={method.id}
-              onPress={() => setSelectedMethod(method.id)}
-              style={[s.payOption, selectedMethod === method.id && s.payOptionActive]}
-            >
-              <View style={[s.payDot, selectedMethod === method.id && s.payDotActive]} />
-              <Text style={s.payOptionText}>{method.arabic}</Text>
-              {selectedMethod === method.id && (
-                <AppIcon name="checkmark-circle" size={18} color={colors.electricBright} />
-              )}
-            </Pressable>
-          ))}
-        </View>
+        <Section title="طريقة الدفع" styles={styles}>
+          <View style={styles.payRow}>
+            {PAYMENT_METHODS.map((method) => {
+              const active = selectedMethod === method.id;
+              return (
+                <Pressable
+                  key={method.id}
+                  onPress={() => setSelectedMethod(method.id)}
+                  style={[styles.payPill, active && styles.payPillActive]}
+                >
+                  <Text style={[styles.payPillText, active && styles.payPillTextActive]}>
+                    {method.arabic}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Section>
 
-        <View style={s.summaryCard}>
-          <LinearGradient
-            colors={[colors.electric + '22', colors.bgElevated]}
-            style={StyleSheet.absoluteFill}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryTitle}>ملخص الطلب</Text>
+          <SummaryRow label="المنتج" value={selectedProduct?.nameAr ?? '—'} styles={styles} />
+          <SummaryRow label="التقطيع" value={cutLabelAr(selectedCut)} styles={styles} />
+          {selectedProduct?.pricePerKg ? (
+            <SummaryRow label="الوزن" value={`${weightKg} كغ`} styles={styles} />
+          ) : null}
+          <SummaryRow
+            label="الاستلام"
+            value={deliveryType === 'pickup' ? 'استلام من الملحمة' : 'توصيل'}
+            styles={styles}
           />
-          <Text style={s.summaryTitle}>ملخص الطلب</Text>
-          <View style={s.summaryRow}>
-            <Text style={s.summaryLabel}>المنتج</Text>
-            <Text style={s.summaryValue}>{selectedProduct?.nameAr}</Text>
-          </View>
-          <View style={s.summaryRow}>
-            <Text style={s.summaryLabel}>التقطيع</Text>
-            <Text style={s.summaryValue}>{CUT_LABELS[selectedCut as CutType]?.ar || selectedCut}</Text>
-          </View>
-          {selectedProduct?.pricePerKg && (
-            <View style={s.summaryRow}>
-              <Text style={s.summaryLabel}>الوزن</Text>
-              <Text style={s.summaryValue}>{weight} كغ</Text>
-            </View>
-          )}
-          <View style={s.summaryRow}>
-            <Text style={s.summaryLabel}>الاستلام</Text>
-            <Text style={s.summaryValue}>{deliveryType === 'pickup' ? 'استلام من الملحمة' : 'توصيل'}</Text>
-          </View>
-          <View style={s.summaryDivider} />
-          <View style={s.summaryRow}>
-            <Text style={s.summaryTotalLabel}>المبلغ المستحق</Text>
-            <Text style={s.summaryTotalValue}>
-              {computedTotal.toLocaleString(undefined, { maximumFractionDigits: 1 })} {currency.symbol}
+          <View style={styles.summaryDivider} />
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>المبلغ</Text>
+            <Text style={styles.totalValue}>
+              {computedTotal.toLocaleString('en-US', { maximumFractionDigits: 2 })}{' '}
+              {currency.symbol}
             </Text>
           </View>
-          <Text style={s.summaryNote}>
-            * يتم الدفع عبر بوابة المنصة، ثم يصل الطلب للملحمة بعد نجاح العملية
-          </Text>
         </View>
-
-        <View style={{ height: 120 }} />
       </ScrollView>
 
-      <SafeAreaView edges={['bottom']} style={s.submitWrap}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <LinearGradient
           colors={['transparent', colors.bgDeep]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
-        <Pressable
-          style={({ pressed }) => [s.submitBtn, pressed && { opacity: 0.88 }]}
-          onPress={handleSubmit}
-          disabled={loadingSubmit}
-        >
-          <LinearGradient
-            colors={[colors.electric, colors.cyan]}
-            style={s.submitBtnGrad}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+        <View style={styles.footerInner}>
+          <View>
+            <Text style={styles.footerLabel}>الإجمالي</Text>
+            <Text style={styles.footerTotal}>
+              {computedTotal.toLocaleString('en-US', { maximumFractionDigits: 2 })}{' '}
+              {currency.symbol}
+            </Text>
+          </View>
+          <Pressable
+            style={[styles.submitBtn, (loadingSubmit || products.length === 0) && { opacity: 0.5 }]}
+            onPress={() => void handleSubmit()}
+            disabled={loadingSubmit || products.length === 0}
           >
-            {loadingSubmit ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <AppIcon name="card-outline" size={20} color="#fff" />
-                <Text style={s.submitBtnText}>إتمام الدفع وإرسال الطلب</Text>
-              </>
-            )}
-          </LinearGradient>
-        </Pressable>
-      </SafeAreaView>
+            <LinearGradient
+              colors={[colors.electric, colors.cyan]}
+              style={styles.submitGrad}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              {loadingSubmit ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <AppIcon name="card-outline" size={18} color="#fff" />
+                  <Text style={styles.submitText}>ادفع وأرسل الطلب</Text>
+                </>
+              )}
+            </LinearGradient>
+          </Pressable>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
 
-const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bgDeep },
-  scroll: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+function Section({
+  title,
+  children,
+  styles,
+}: {
+  title: string;
+  children: ReactNode;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+}
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  backBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: colors.bgGlass,
-    borderWidth: 1, borderColor: colors.borderSoft,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  headerTitle: { ...typography.h3, color: colors.textPrimary },
-  headerSub: { ...typography.caption, color: colors.textBrand, marginTop: 1 },
+function SummaryRow({
+  label,
+  value,
+  styles,
+}: {
+  label: string;
+  value: string;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <View style={styles.summaryRow}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={styles.summaryValue} numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
+  );
+}
 
-  butcherCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    padding: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  butcherLogo: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: colors.bgElevated,
-  },
-  butcherName: { ...typography.bodyStrong, color: colors.textPrimary },
-  butcherCity: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
-  verifiedMini: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.gold + '22',
-    borderWidth: 1,
-    borderColor: colors.gold + '44',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-  },
-  verifiedMiniText: { ...typography.micro, color: colors.gold, fontWeight: '700' },
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.bgDeep },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xl,
+      gap: spacing.md,
+    },
+    centeredText: {
+      ...typography.body,
+      color: colors.textMuted,
+      textAlign: 'center',
+    },
+    secondaryBtn: {
+      marginTop: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.pill,
+      backgroundColor: colors.bgSurface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
+    },
+    secondaryBtnText: { ...typography.bodyStrong, color: colors.textBrandStrong },
 
-  section: { marginBottom: spacing.xl },
-  sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md, textAlign: 'right' },
-  payHint: { ...typography.caption, color: colors.textMuted, marginBottom: spacing.md, textAlign: 'right' },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    iconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.bgGlass,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerCenter: { flex: 1, alignItems: 'center' },
+    headerTitle: { ...typography.bodyStrong, color: colors.textPrimary, fontSize: 17 },
+    headerSub: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
 
-  productOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.xl,
-    borderWidth: 1.5,
-    borderColor: colors.borderSoft,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  productOptionActive: {
-    borderColor: colors.electric,
-    backgroundColor: colors.electric + '11',
-  },
-  productThumb: {
-    width: 52, height: 52, borderRadius: radius.md,
-    backgroundColor: colors.bgElevated,
-  },
-  productOptionName: { ...typography.bodyStrong, color: colors.textPrimary },
-  productOptionCat: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
-  productOptionPrice: { ...typography.caption, color: colors.gold, fontWeight: '700' },
-  checkCircle: {
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: colors.electric,
-    alignItems: 'center', justifyContent: 'center',
-    marginTop: 4,
-  },
+    scroll: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
 
-  cutsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  cutOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: radius.pill,
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1.5,
-    borderColor: colors.borderSoft,
-  },
-  cutOptionActive: { backgroundColor: colors.electric, borderColor: colors.electric },
-  cutOptionText: { ...typography.caption, color: colors.textMuted },
-  cutOptionTextActive: { color: '#fff', fontWeight: '600' },
+    butcherHero: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      padding: spacing.md,
+      marginBottom: spacing.lg,
+      borderRadius: radius.xxl,
+      backgroundColor: colors.bgSurface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
+    },
+    butcherLogo: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: colors.bgElevated,
+    },
+    butcherName: { ...typography.bodyStrong, color: colors.textPrimary, fontSize: 16 },
+    butcherMeta: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+    verifiedBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: radius.pill,
+      backgroundColor: colors.gold + '18',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.gold + '44',
+    },
+    verifiedText: { ...typography.micro, color: colors.gold, fontWeight: '700' },
 
-  weightRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    overflow: 'hidden',
-  },
-  weightBtn: {
-    width: 48, height: 48,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.bgElevated,
-  },
-  weightInput: {
-    flex: 1,
-    ...typography.h2,
-    textAlign: 'center',
-    color: colors.textPrimary,
-    paddingVertical: 10,
-  },
+    section: { marginBottom: spacing.lg },
+    sectionTitle: {
+      ...typography.bodyStrong,
+      color: colors.textPrimary,
+      marginBottom: spacing.sm,
+      textAlign: 'right',
+      fontSize: 15,
+    },
+    hint: {
+      ...typography.micro,
+      color: colors.textMuted,
+      textAlign: 'center',
+      marginTop: spacing.xs,
+    },
 
-  deliveryRow: { flexDirection: 'row', gap: spacing.md },
-  deliveryOption: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: spacing.lg,
-    borderRadius: radius.xl,
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1.5,
-    borderColor: colors.borderSoft,
-  },
-  deliveryOptionActive: { borderColor: colors.electric, backgroundColor: colors.electric + '11' },
-  deliveryLabel: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
-  deliveryLabelActive: { color: colors.textBrandStrong, fontWeight: '600' },
-  addressInput: {
-    marginTop: spacing.md,
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    padding: spacing.md,
-    ...typography.body,
-    color: colors.textPrimary,
-    textAlign: 'right',
-    minHeight: 70,
-  },
-  notesInput: {
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    padding: spacing.md,
-    ...typography.body,
-    color: colors.textPrimary,
-    textAlign: 'right',
-    minHeight: 80,
-  },
+    emptyBox: {
+      alignItems: 'center',
+      padding: spacing.xl,
+      borderRadius: radius.xxl,
+      backgroundColor: colors.bgSurface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
+      gap: spacing.xs,
+    },
+    emptyEmoji: { fontSize: 32 },
+    emptyTitle: { ...typography.bodyStrong, color: colors.textPrimary },
+    emptySub: { ...typography.caption, color: colors.textMuted },
 
-  payOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.xl,
-    borderWidth: 1.5,
-    borderColor: colors.borderSoft,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
-    marginBottom: spacing.sm,
-  },
-  payOptionActive: {
-    borderColor: colors.electric,
-    backgroundColor: colors.electric + '11',
-  },
-  payDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: colors.borderMid,
-  },
-  payDotActive: {
-    borderColor: colors.electricBright,
-    backgroundColor: colors.electricBright,
-  },
-  payOptionText: { ...typography.bodyStrong, color: colors.textPrimary, flex: 1 },
+    productCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      padding: spacing.sm,
+      marginBottom: spacing.sm,
+      borderRadius: radius.xl,
+      backgroundColor: colors.bgSurface,
+      borderWidth: 1.5,
+      borderColor: colors.borderSoft,
+    },
+    productCardActive: {
+      borderColor: colors.electric,
+      backgroundColor: colors.electric + '0D',
+    },
+    productImg: {
+      width: 72,
+      height: 72,
+      borderRadius: radius.lg,
+      backgroundColor: colors.bgElevated,
+    },
+    productBody: { flex: 1, gap: 2 },
+    productTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.sm,
+    },
+    productName: {
+      ...typography.bodyStrong,
+      color: colors.textPrimary,
+      flex: 1,
+      textAlign: 'right',
+    },
+    productCat: { ...typography.micro, color: colors.textMuted, textAlign: 'right' },
+    productPrice: {
+      ...typography.caption,
+      color: colors.gold,
+      fontWeight: '800',
+      textAlign: 'right',
+      marginTop: 2,
+    },
+    selectedDot: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: colors.electric,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  summaryCard: {
-    borderRadius: radius.xxl,
-    borderWidth: 1,
-    borderColor: colors.electric + '44',
-    overflow: 'hidden',
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    position: 'relative',
-  },
-  summaryTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  summaryLabel: { ...typography.caption, color: colors.textMuted },
-  summaryValue: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
-  summaryDivider: { height: 1, backgroundColor: colors.borderSoft, marginVertical: 10 },
-  summaryTotalLabel: { ...typography.bodyStrong, color: colors.textPrimary },
-  summaryTotalValue: { ...typography.h3, color: colors.gold },
-  summaryNote: { ...typography.micro, color: colors.textSubtle, marginTop: spacing.sm, textAlign: 'right' },
+    chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+    chip: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: radius.pill,
+      backgroundColor: colors.bgSurface,
+      borderWidth: 1.5,
+      borderColor: colors.borderSoft,
+    },
+    chipActive: {
+      backgroundColor: colors.electric,
+      borderColor: colors.electric,
+    },
+    chipText: { ...typography.caption, color: colors.textMuted, fontWeight: '600' },
+    chipTextActive: { color: '#fff' },
 
-  submitWrap: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xl,
-  },
-  submitBtn: { borderRadius: radius.xl, overflow: 'hidden' },
-  submitBtnGrad: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 16,
-    borderRadius: radius.xl,
-  },
-  submitBtnText: { ...typography.bodyStrong, color: '#fff', fontSize: 16 },
+    weightCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: radius.xl,
+      overflow: 'hidden',
+      backgroundColor: colors.bgSurface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
+    },
+    weightBtn: {
+      width: 52,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.bgElevated,
+    },
+    weightInput: {
+      flex: 1,
+      ...typography.h2,
+      textAlign: 'center',
+      color: colors.textPrimary,
+      paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    },
 
-  successWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
-  successTitle: { ...typography.h1, color: colors.textPrimary },
-});
+    deliveryRow: { flexDirection: 'row', gap: spacing.sm },
+    deliveryCard: {
+      flex: 1,
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radius.xl,
+      backgroundColor: colors.bgSurface,
+      borderWidth: 1.5,
+      borderColor: colors.borderSoft,
+    },
+    deliveryCardActive: {
+      borderColor: colors.electric,
+      backgroundColor: colors.electric + '10',
+    },
+    deliveryLabel: { ...typography.bodyStrong, color: colors.textMuted, fontSize: 14 },
+    deliveryLabelActive: { color: colors.textBrandStrong },
+    deliverySub: { ...typography.micro, color: colors.textSubtle, textAlign: 'center' },
+
+    textArea: {
+      marginTop: spacing.sm,
+      minHeight: 88,
+      borderRadius: radius.xl,
+      backgroundColor: colors.bgSurface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
+      padding: spacing.md,
+      color: colors.textPrimary,
+      ...typography.body,
+      textAlignVertical: 'top',
+    },
+
+    payRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+    payPill: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: radius.pill,
+      backgroundColor: colors.bgSurface,
+      borderWidth: 1.5,
+      borderColor: colors.borderSoft,
+    },
+    payPillActive: {
+      borderColor: colors.electric,
+      backgroundColor: colors.electric + '14',
+    },
+    payPillText: { ...typography.caption, color: colors.textMuted, fontWeight: '600' },
+    payPillTextActive: { color: colors.textBrandStrong },
+
+    summaryCard: {
+      borderRadius: radius.xxl,
+      padding: spacing.lg,
+      backgroundColor: colors.bgSurface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.electric + '33',
+      marginBottom: spacing.md,
+    },
+    summaryTitle: {
+      ...typography.bodyStrong,
+      color: colors.textPrimary,
+      marginBottom: spacing.sm,
+      textAlign: 'right',
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: spacing.md,
+      marginBottom: 6,
+    },
+    summaryLabel: { ...typography.caption, color: colors.textMuted },
+    summaryValue: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      fontWeight: '600',
+      flex: 1,
+      textAlign: 'left',
+    },
+    summaryDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.borderSoft,
+      marginVertical: spacing.sm,
+    },
+    totalRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    totalLabel: { ...typography.bodyStrong, color: colors.textPrimary },
+    totalValue: { ...typography.h3, color: colors.gold },
+
+    footer: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.lg,
+    },
+    footerInner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+      backgroundColor: colors.bgDeep + 'EE',
+      borderRadius: radius.xxl,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
+      padding: spacing.md,
+    },
+    footerLabel: { ...typography.micro, color: colors.textMuted },
+    footerTotal: { ...typography.h3, color: colors.gold, fontSize: 20 },
+    submitBtn: { flex: 1, borderRadius: radius.xl, overflow: 'hidden', maxWidth: 220 },
+    submitGrad: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 14,
+      borderRadius: radius.xl,
+    },
+    submitText: { ...typography.bodyStrong, color: '#fff' },
+  });
+}

@@ -83,8 +83,14 @@ export default function ProfileScreen() {
     }, [loadStories]),
   );
 
-  const myListings = listings.filter((l) => l.seller.id === me.id);
-  const myPosts = posts.filter((p) => p.author.id === me.id);
+  const myListings = useMemo(
+    () => listings.filter((l) => l.seller.id === me.id),
+    [listings, me.id],
+  );
+  const myPosts = useMemo(
+    () => posts.filter((p) => p.author.id === me.id),
+    [posts, me.id],
+  );
   const timeline = useMemo(
     () => buildProfileTimeline(myPosts, myListings),
     [myPosts, myListings],
@@ -242,6 +248,18 @@ export default function ProfileScreen() {
               ) : null}
             </View>
             <Text style={styles.username}>@{me.username}</Text>
+
+            <View style={styles.statsRow}>
+              <Pressable style={styles.statItem} onPress={() => openConnections('followers')}>
+                <Text style={styles.statNum}>{me.followers.toLocaleString('en-US')}</Text>
+                <Text style={styles.statLbl}>متابعون</Text>
+              </Pressable>
+              <Pressable style={styles.statItem} onPress={() => openConnections('following')}>
+                <Text style={styles.statNum}>{me.following.toLocaleString('en-US')}</Text>
+                <Text style={styles.statLbl}>متابَعون</Text>
+              </Pressable>
+            </View>
+
             {!!me.bio ? (
               <Text style={styles.bio} numberOfLines={3}>
                 {me.bio}
@@ -255,17 +273,6 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             </View>
-          </View>
-
-          <View style={styles.statsRow}>
-            <Pressable style={styles.statCard} onPress={() => openConnections('followers')}>
-              <Text style={styles.statNum}>{me.followers.toLocaleString('ar-SA')}</Text>
-              <Text style={styles.statLbl}>متابعون</Text>
-            </Pressable>
-            <Pressable style={styles.statCard} onPress={() => openConnections('following')}>
-              <Text style={styles.statNum}>{me.following.toLocaleString('ar-SA')}</Text>
-              <Text style={styles.statLbl}>متابَعون</Text>
-            </Pressable>
           </View>
 
         </View>
@@ -490,25 +497,19 @@ function createStyles(colors: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: spacing.sm,
-      paddingHorizontal: spacing.lg,
-      paddingTop: spacing.sm,
+      gap: spacing.xl,
+      marginTop: spacing.sm,
     },
-    statCard: {
-      minWidth: 96,
+    statItem: {
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 2,
-      paddingVertical: 6,
-      paddingHorizontal: spacing.md,
-      borderRadius: radius.md,
-      backgroundColor: colors.bgElevated,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.borderSoft,
+      gap: 1,
+      paddingVertical: 2,
+      paddingHorizontal: 4,
     },
     statNum: {
       ...typography.bodyStrong,
-      fontSize: 15,
+      fontSize: 16,
       color: colors.textPrimary,
       fontWeight: '800',
     },

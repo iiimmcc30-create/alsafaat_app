@@ -33,6 +33,7 @@ import { BRAND_DISPLAY_NAME } from '@/constants/brandCopy';
 import type { Listing } from '@/services/types';
 
 const HOME_REFRESH_TTL_MS = 60_000;
+const LISTING_ROW_HEIGHT = 126;
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -48,6 +49,7 @@ export default function HomeScreen() {
   const [canShowLive, setCanShowLive] = useState(false);
   const lastStoriesAt = useRef(0);
   const lastLiveAt = useRef(0);
+  const hasStoriesData = useRef(false);
 
   const refreshLiveAccess = useCallback(async (force = false) => {
     if (!accessToken || !isAuthenticated) {
@@ -69,21 +71,22 @@ export default function HomeScreen() {
 
   const fetchStories = useCallback(async (force = false) => {
     const now = Date.now();
-    if (!force && now - lastStoriesAt.current < HOME_REFRESH_TTL_MS && storiesFeed.length > 0) {
+    if (!force && now - lastStoriesAt.current < HOME_REFRESH_TTL_MS && hasStoriesData.current) {
       return;
     }
     setStoriesLoading(true);
     try {
-      const data = await fetchStoriesFeed(accessToken);
+      const data = await fetchStoriesFeed(accessToken, { force });
       setStoriesFeed(data.items ?? []);
       setMyStories(data.myStories ?? null);
+      hasStoriesData.current = (data.items?.length ?? 0) > 0 || data.myStories != null;
       lastStoriesAt.current = Date.now();
     } catch (err) {
       console.warn('[HomeScreen] Failed to fetch stories:', err);
     } finally {
       setStoriesLoading(false);
     }
-  }, [accessToken, storiesFeed.length]);
+  }, [accessToken]);
 
   useFocusEffect(
     useCallback(() => {
@@ -111,6 +114,15 @@ export default function HomeScreen() {
   );
 
   const keyExtractor = useCallback((item: Listing) => item.id, []);
+
+  const getItemLayout = useCallback(
+    (_: unknown, index: number) => ({
+      length: LISTING_ROW_HEIGHT,
+      offset: LISTING_ROW_HEIGHT * index,
+      index,
+    }),
+    [],
+  );
 
   const renderListHeader = useCallback(
     () => (
@@ -209,6 +221,7 @@ export default function HomeScreen() {
           data={displayedListings}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
+          getItemLayout={getItemLayout}
           ListHeaderComponent={renderListHeader}
           ListEmptyComponent={ListEmpty}
           ListFooterComponent={<View style={{ height: 100 }} />}

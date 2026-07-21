@@ -330,6 +330,17 @@ export default function UserProfileScreen() {
             </View>
             <Text style={styles.username}>@{profile.username}</Text>
 
+            <View style={styles.statsRow}>
+              <Pressable style={styles.statItem} onPress={() => openConnections('followers')}>
+                <Text style={styles.statNum}>{profile.followersCount.toLocaleString('en-US')}</Text>
+                <Text style={styles.statLbl}>متابعون</Text>
+              </Pressable>
+              <Pressable style={styles.statItem} onPress={() => openConnections('following')}>
+                <Text style={styles.statNum}>{profile.followingCount.toLocaleString('en-US')}</Text>
+                <Text style={styles.statLbl}>متابَعون</Text>
+              </Pressable>
+            </View>
+
             {!!profile.bio ? (
               <Text style={styles.bio} numberOfLines={3}>
                 {profile.bio}
@@ -343,17 +354,6 @@ export default function UserProfileScreen() {
                 </Text>
               </View>
             </View>
-          </View>
-
-          <View style={styles.statsRow}>
-            <Pressable style={styles.statCard} onPress={() => openConnections('followers')}>
-              <Text style={styles.statNum}>{profile.followersCount.toLocaleString('ar-SA')}</Text>
-              <Text style={styles.statLbl}>متابعون</Text>
-            </Pressable>
-            <Pressable style={styles.statCard} onPress={() => openConnections('following')}>
-              <Text style={styles.statNum}>{profile.followingCount.toLocaleString('ar-SA')}</Text>
-              <Text style={styles.statLbl}>متابَعون</Text>
-            </Pressable>
           </View>
 
           {/* Actions — متابعة / مراسلة / إبلاغ */}
@@ -615,25 +615,19 @@ function createStyles(colors: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: spacing.sm,
-      paddingHorizontal: spacing.lg,
-      paddingTop: spacing.sm,
+      gap: spacing.xl,
+      marginTop: spacing.sm,
     },
-    statCard: {
-      minWidth: 96,
+    statItem: {
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 2,
-      paddingVertical: 6,
-      paddingHorizontal: spacing.md,
-      borderRadius: radius.md,
-      backgroundColor: colors.bgElevated,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.borderSoft,
+      gap: 1,
+      paddingVertical: 2,
+      paddingHorizontal: 4,
     },
     statNum: {
       ...typography.bodyStrong,
-      fontSize: 15,
+      fontSize: 16,
       color: colors.textPrimary,
       fontWeight: '800',
     },

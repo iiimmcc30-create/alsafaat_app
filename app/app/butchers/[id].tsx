@@ -23,7 +23,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
 import {
   CATEGORY_LABELS,
-  CUT_LABELS,
+  cutLabelAr,
+  mapButcherProductFromApi,
   ButcherOffer,
   ButcherProduct,
   ButcherProfile,
@@ -135,7 +136,7 @@ function ProductsTab({ products, currencySymbol, onOrder }: {
             <View style={productsStyles.cutsRow}>
               {product.availableCuts.map((cut) => (
                 <View key={cut} style={productsStyles.cutChip}>
-                  <Text style={productsStyles.cutLabel}>{CUT_LABELS[cut].ar}</Text>
+                  <Text style={productsStyles.cutLabel}>{cutLabelAr(cut)}</Text>
                 </View>
               ))}
             </View>
@@ -478,25 +479,9 @@ export default function ButcherProfileScreen() {
             setButcher(mappedButcher);
             
             if (b.products) {
-              setProducts(b.products.map((p: any) => ({
-                id: p.id,
-                butcherId: p.butcherId,
-                name: p.nameAr || p.nameEn,
-                nameAr: p.nameAr,
-                category: p.category,
-                images: p.images || [],
-                pricePerKg: p.pricePerKg,
-                priceFixed: p.priceFixed,
-                pricingNote: p.pricingNoteAr,
-                pricingNoteAr: p.pricingNoteAr,
-                availableCuts: p.availableCuts || [],
-                weightRange: p.weightMin ? { min: p.weightMin, max: p.weightMax || p.weightMin } : undefined,
-                inStock: p.inStock ?? true,
-                freshness: p.freshness || 'fresh',
-                description: p.descriptionEn,
-                descriptionAr: p.descriptionAr,
-                country: p.country,
-              })));
+              setProducts(
+                b.products.map((p: Record<string, unknown>) => mapButcherProductFromApi(p)),
+              );
             }
             
             if (b.offers) {

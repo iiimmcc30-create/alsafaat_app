@@ -87,22 +87,20 @@ export function showLiveStreamEligibilityDeniedAlert(
   }
 }
 
+/** Starting a live broadcast is disabled until launch — watching streams stays available. */
+export function showLiveBroadcastComingSoonAlert() {
+  Alert.alert(
+    'قريباً',
+    'ميزة بدء البث المباشر ستتوفر قريباً مع إطلاق التطبيق.\n\nيمكنك مشاهدة البثوث الحية الآن.',
+    [{ text: 'حسناً' }],
+  );
+}
+
 export async function openLiveCreateIfAllowed(
-  router: Router,
-  accessToken: string | null,
-  params?: Record<string, string>,
+  _router: Router,
+  _accessToken: string | null,
+  _params?: Record<string, string>,
 ): Promise<boolean> {
-  if (!accessToken) {
-    Alert.alert('تسجيل الدخول', 'يجب تسجيل الدخول لبدء بث مباشر');
-    return false;
-  }
-
-  const eligibility = await fetchLiveStreamEligibility(accessToken);
-  if (!eligibility.canStream) {
-    showLiveStreamEligibilityDeniedAlert(router, eligibility);
-    return false;
-  }
-
-  router.push({ pathname: '/live/create', params } as never);
-  return true;
+  showLiveBroadcastComingSoonAlert();
+  return false;
 }

@@ -24,7 +24,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useApp } from '@/hooks/useApp';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
-import { openPaymentCheckout } from '@/services/paymentCheckout';
+import { launchPaymentCheckout } from '@/services/payments';
 import { NIPaymentMethod, PAYMENT_METHODS } from '@/services/network_international';
 import { normalizeSlug, planGradientColors } from '@/services/subscriptionPlans';
 import { usePlans } from '@/hooks/usePlans';
@@ -273,34 +273,24 @@ export default function PaymentScreen() {
 
       const json = await res.json().catch(() => ({}));
 
-      if (res.ok && json.success && json.data?.checkoutUrl) {
-        const { checkoutUrl, paymentId, devMode } = json.data as { checkoutUrl: string; paymentId?: string; devMode?: boolean };
+      if (res.ok && json.success && json.data) {
+        const { checkoutUrl, paymentId, devMode } = json.data as {
+          checkoutUrl?: string;
+          paymentId?: string;
+          devMode?: boolean;
+        };
 
-        if (devMode) {
-          setStep('method');
-          Alert.alert(
-            'الدفع غير متاح حالياً',
-            'بوابة الدفع تعمل حالياً في وضع التطوير، لذلك تم إيقاف أي نجاح وهمي. لن يتم اعتماد أي عملية حتى يتم ربط مفاتيح الدفع الحقيقية أو بطاقات الاختبار الرسمية من Network International.',
-          );
-          return;
-        }
+        setStep('method');
+        setLoading(false);
 
-        // Hosted NI checkout. This account is connected to the real KSA gateway,
-        // so random card numbers are rejected by the gateway itself.
-        Alert.alert(
-          'صفحة الدفع الآمنة',
-          'ستُفتح بوابة Network International داخل التطبيق.\n\nلا تستخدم رقماً عشوائياً للبطاقة؛ يلزم استخدام بطاقة صالحة، أو بطاقة اختبار رسمية يوفرها حساب NI إن تم تفعيل وضع الاختبار.',
-          [
-            {
-              text: 'متابعة للدفع',
-              onPress: async () => {
-                await openPaymentCheckout(checkoutUrl, paymentId);
-                await refetchSubscription();
-              },
-            },
-            { text: 'إلغاء', style: 'cancel', onPress: () => setStep('method') },
-          ],
-        );
+        await launchPaymentCheckout({
+          accessToken,
+          paymentId,
+          checkoutUrl,
+          devMode,
+          context: 'subscription',
+        });
+        return;
       } else {
         setStep('method');
         const detail =

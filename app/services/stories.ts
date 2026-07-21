@@ -57,13 +57,28 @@ export type StoriesFeed = {
   myStories: StoryGroup | null;
 };
 
+const STORIES_FEED_TTL_MS = 60_000;
+let storiesFeedCache: { key: string; data: StoriesFeed; fetchedAt: number } | null = null;
+
 async function parseJson(res: Response) {
   return res.json().catch(() => ({}));
 }
 
 export async function fetchStoriesFeed(
   accessToken?: string | null,
+  options?: { force?: boolean },
 ): Promise<StoriesFeed> {
+  const cacheKey = accessToken ?? 'guest';
+  const now = Date.now();
+  if (
+    !options?.force &&
+    storiesFeedCache &&
+    storiesFeedCache.key === cacheKey &&
+    now - storiesFeedCache.fetchedAt < STORIES_FEED_TTL_MS
+  ) {
+    return storiesFeedCache.data;
+  }
+
   const headers: HeadersInit = accessToken
     ? { Authorization: `Bearer ${accessToken}` }
     : {};
@@ -72,7 +87,9 @@ export async function fetchStoriesFeed(
   if (!res.ok || !json.success) {
     throw new Error(json.messageAr || 'فشل تحميل القصص');
   }
-  return json.data as StoriesFeed;
+  const data = json.data as StoriesFeed;
+  storiesFeedCache = { key: cacheKey, data, fetchedAt: now };
+  return data;
 }
 
 export async function createStory(

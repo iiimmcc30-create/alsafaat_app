@@ -24,7 +24,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { rtlBackIcon, rtlForwardIcon } from '@/lib/rtl';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
-import { openPaymentCheckout } from '@/services/paymentCheckout';
+import { launchPaymentCheckout } from '@/services/payments';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useApp } from '@/hooks/useApp';
 import {  PendingFee,
@@ -190,26 +190,17 @@ export default function FeesScreen() {
           devMode?: boolean;
         };
 
-        if (devMode) {
-          setShowPayModal(false);
-          Alert.alert(
-            'الدفع غير متاح حالياً',
-            'الرسوم لن تُسدد بشكل حقيقي لأن بوابة الدفع في وضع التطوير، وتم إيقاف أي سداد وهمي.',
-          );
-          return;
-        }
-
-        if (checkoutUrl) {
-          await openPaymentCheckout(checkoutUrl, paymentId);
+        setShowPayModal(false);
+        const outcome = await launchPaymentCheckout({
+          accessToken: accessToken!,
+          paymentId,
+          checkoutUrl,
+          devMode,
+          context: 'listing_fee',
+        });
+        if (outcome === 'paid' || outcome === 'opened') {
           setSelectedFees(new Set());
-          setShowPayModal(false);
-          Alert.alert(
-            'أكمل الدفع',
-            'تم فتح صفحة الدفع. بعد إتمام الدفع سيتم تحديث حالة الرسوم تلقائياً.',
-            [{ text: 'حسناً', onPress: () => fetchFees() }]
-          );
-        } else {
-          Alert.alert('❌ فشل الدفع', 'لم يتم استلام رابط الدفع من الخادم.');
+          void fetchFees();
         }
       } else {
         const errMsg = json.messageAr || json.message || 'فشل إنشاء معاملة الدفع';
@@ -255,34 +246,15 @@ export default function FeesScreen() {
           devMode?: boolean;
         };
 
-        if (devMode) {
-          setShowFeePayModal(false);
-          Alert.alert(
-            'الدفع غير متاح حالياً',
-            'تم إيقاف محاكاة نجاح الدفع. لن يتم تسجيل أي مبلغ مدفوع حتى تعمل بوابة الدفع الحقيقية.',
-          );
-          return;
-        }
-
-        if (checkoutUrl) {
-          setShowFeePayModal(false);
-          setCommissionAmount('');
-          Alert.alert(
-            'صفحة الدفع الآمنة',
-            'ستُفتح بوابة Network International.\n\n⚠️ لا تستخدم أرقاماً وهمية للبطاقة — يلزم بطاقة حقيقية صالحة لإتمام الدفع.',
-            [
-              {
-                text: 'متابعة للدفع',
-                onPress: async () => {
-                  await openPaymentCheckout(checkoutUrl, paymentId);
-                },
-              },
-              { text: 'إلغاء', style: 'cancel' },
-            ],
-          );
-        } else {
-          Alert.alert('❌ خطأ', 'لم يتم استلام رابط الدفع من الخادم');
-        }
+        setShowFeePayModal(false);
+        setCommissionAmount('');
+        await launchPaymentCheckout({
+          accessToken: accessToken!,
+          paymentId,
+          checkoutUrl,
+          devMode,
+          context: 'commission',
+        });
       } else {
         Alert.alert('❌ فشل', json.messageAr ?? json.message ?? 'تعذّر إنشاء عملية الدفع');
       }

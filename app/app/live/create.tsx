@@ -25,12 +25,11 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 import { rtlBackIcon } from '@/lib/rtl';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE } from '@/services/api';
-import {
-  fetchLiveStreamEligibility,
-  showLiveStreamEligibilityDeniedAlert,
-} from '@/lib/liveStreamAccess';
+import { showLiveBroadcastComingSoonAlert, showLiveStreamEligibilityDeniedAlert } from '@/lib/liveStreamAccess';
 
 const AGORA_APP_ID = process.env.EXPO_PUBLIC_AGORA_APP_ID ?? '';
+/** Disabled until app launch — see liveStreamAccess.ts */
+const LIVE_BROADCAST_ENABLED = false;
 
 const CATEGORIES = [
   { id: 'camels', ar: 'إبل' },
@@ -57,8 +56,8 @@ export default function CreateStreamScreen() {
   const [arabicTitle, setArabicTitle] = useState(params.listingTitle ?? '');
   const [category, setCategory] = useState('camels');
   const [loading, setLoading] = useState(false);
-  const [checkingAccess, setCheckingAccess] = useState(true);
-  const [accessDenied, setAccessDenied] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(LIVE_BROADCAST_ENABLED);
+  const [accessDenied, setAccessDenied] = useState(!LIVE_BROADCAST_ENABLED);
   const [showPledge, setShowPledge] = useState(false);
   const [pledgeChecked, setPledgeChecked] = useState(false);
   const [camOff, setCamOff] = useState(false);
@@ -82,6 +81,11 @@ export default function CreateStreamScreen() {
   });
 
   useEffect(() => {
+    if (!LIVE_BROADCAST_ENABLED) {
+      showLiveBroadcastComingSoonAlert();
+      return;
+    }
+
     let active = true;
 
     (async () => {
@@ -93,6 +97,9 @@ export default function CreateStreamScreen() {
         return;
       }
 
+      const { fetchLiveStreamEligibility, showLiveStreamEligibilityDeniedAlert } = await import(
+        '@/lib/liveStreamAccess'
+      );
       const eligibility = await fetchLiveStreamEligibility(accessToken);
       if (!active) return;
 
@@ -223,6 +230,24 @@ export default function CreateStreamScreen() {
   }
 
   if (accessDenied) {
+    if (!LIVE_BROADCAST_ENABLED) {
+      return (
+        <SafeAreaView style={[styles.screen, styles.centered]} edges={['top', 'bottom']}>
+          <Text style={styles.blockedIcon}>📡</Text>
+          <Text style={styles.blockedTitle}>البث المباشر — قريباً</Text>
+          <Text style={styles.muted}>
+            ميزة بدء البث المباشر ستتوفر قريباً مع إطلاق التطبيق. يمكنك مشاهدة البثوث الحية من تبويب البث.
+          </Text>
+          <Pressable style={styles.primaryBtn} onPress={() => router.replace('/(tabs)/live')}>
+            <Text style={styles.primaryBtnText}>مشاهدة البث المباشر</Text>
+          </Pressable>
+          <Pressable onPress={() => router.back()} style={{ marginTop: spacing.md }}>
+            <Text style={styles.link}>رجوع</Text>
+          </Pressable>
+        </SafeAreaView>
+      );
+    }
+
     return (
       <SafeAreaView style={[styles.screen, styles.centered]} edges={['top', 'bottom']}>
         <Text style={styles.blockedIcon}>📋</Text>

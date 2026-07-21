@@ -16,15 +16,19 @@ export function paymentResultDeepLink(paymentId?: string): string {
 export async function openPaymentCheckout(
   checkoutUrl: string,
   paymentId?: string,
-): Promise<void> {
+): Promise<'success' | 'cancel' | 'dismiss'> {
   const returnUrl = paymentResultDeepLink(paymentId);
   try {
-    await WebBrowser.openAuthSessionAsync(checkoutUrl, returnUrl);
+    const result = await WebBrowser.openAuthSessionAsync(checkoutUrl, returnUrl);
+    if (result.type === 'success') return 'success';
+    if (result.type === 'cancel') return 'cancel';
+    return 'dismiss';
   } catch {
     try {
       await WebBrowser.openBrowserAsync(checkoutUrl);
     } catch {
       await Linking.openURL(checkoutUrl);
     }
+    return 'dismiss';
   }
 }

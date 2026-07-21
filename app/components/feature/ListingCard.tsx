@@ -2,6 +2,7 @@
 import { AppIcon } from '@/components/ui/FlaticonIcon';
 import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
+import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, imageCardOverlay, imageCardOverlayStrong, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -57,7 +58,7 @@ function formatCount(n: number): string {
   return n.toLocaleString('ar-SA');
 }
 
-export function ListingCard({ listing, onPress, variant = 'grid', compact = false }: ListingCardProps) {
+function ListingCardInner({ listing, onPress, variant = 'grid', compact = false }: ListingCardProps) {
   const country = getCountryInfo(listing.country);
   const thumbUri = listingImageUri(listing);
   const { scheme } = useTheme();
@@ -139,7 +140,7 @@ export function ListingCard({ listing, onPress, variant = 'grid', compact = fals
 
         <View style={styles.listThumbWrap}>
           {thumbUri ? (
-            <Image source={uriSource(thumbUri)} style={styles.listThumb} contentFit="cover" transition={200} />
+            <Image source={uriSource(thumbUri)} style={styles.listThumb} contentFit="cover" transition={0} priority="low" />
           ) : (
             <View style={styles.listThumbPlaceholder}>
               <Text style={styles.listThumbIcon}>{CATEGORY_ICONS[listing.category] || '📦'}</Text>
@@ -696,5 +697,17 @@ function createStyles(colors: ThemeColors) {
   harajImgPlaceholderIcon: { fontSize: 40 },
   });
 }
+
+export const ListingCard = memo(ListingCardInner, (prev, next) =>
+  prev.variant === next.variant &&
+  prev.compact === next.compact &&
+  prev.onPress === next.onPress &&
+  prev.listing.id === next.listing.id &&
+  prev.listing.price === next.listing.price &&
+  prev.listing.featured === next.listing.featured &&
+  prev.listing.images?.[0] === next.listing.images?.[0] &&
+  prev.listing.arabicTitle === next.listing.arabicTitle &&
+  prev.listing.views === next.listing.views,
+);
 
 export default ListingCard;

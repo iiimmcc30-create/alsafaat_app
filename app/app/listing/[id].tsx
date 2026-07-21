@@ -13,7 +13,7 @@ import { openUserProfile } from '@/lib/openUserProfile';
 import { BRAND_VERIFIED_AR, BRAND_VERIFIED_EN } from '@/constants/brandCopy';
 import { API_BASE } from '@/services/api';
 import { authFetch } from '@/services/authFetch';
-import { openPaymentCheckout } from '@/services/paymentCheckout';
+import { launchPaymentCheckout } from '@/services/payments';
 import { promptReport } from '@/services/reports';
 import { alertMessage, confirmDestructive, presentActionSheet } from '@/lib/actionSheet';
 import { AppIcon } from '@/components/ui/FlaticonIcon';
@@ -119,21 +119,15 @@ export default function ListingDetailScreen() {
         devMode?: boolean;
       };
 
-      if (devMode) {
-        setBoostModalVisible(false);
-        Alert.alert(
-          'الدفع غير متاح حالياً',
-          'تم إيقاف أي ترقية وهمية للإعلان. لن يتم التمييز أو التثبيت حتى تعمل بوابة الدفع الحقيقية.',
-        );
-        return;
-      }
-
-      if (checkoutUrl) {
-        setBoostModalVisible(false);
-        await openPaymentCheckout(checkoutUrl, paymentId);
-      } else {
-        Alert.alert('خطأ', 'لم يُرجع الخادم رابط الدفع');
-      }
+      setBoostModalVisible(false);
+      await launchPaymentCheckout({
+        accessToken: accessToken!,
+        paymentId,
+        checkoutUrl,
+        devMode,
+        context: 'boost',
+        returnParams: { listingId: listing.id },
+      });
     } catch (err) {
       Alert.alert('خطأ في الاتصال', 'تعذّر الوصول للخادم');
     } finally {

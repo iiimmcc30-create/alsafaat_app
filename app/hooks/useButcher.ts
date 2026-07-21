@@ -27,6 +27,71 @@ const DEFAULT_FILTER: ButcherFilter = {
   isOpenNow: false,
 };
 
+const BUTCHER_CACHE_TTL_MS = 60_000;
+type ButcherCatalogCache = {
+  butchers: ButcherProfile[];
+  stories: ButcherStory[];
+  fetchedAt: number;
+};
+let butcherCatalogCache: ButcherCatalogCache | null = null;
+let butcherCatalogInflight: Promise<ButcherCatalogCache> | null = null;
+
+async function loadButcherCatalog(): Promise<ButcherCatalogCache> {
+  const now = Date.now();
+  if (butcherCatalogCache && now - butcherCatalogCache.fetchedAt < BUTCHER_CACHE_TTL_MS) {
+    return butcherCatalogCache;
+  }
+  if (butcherCatalogInflight) return butcherCatalogInflight;
+
+  butcherCatalogInflight = (async () => {
+    const [resB, resS] = await Promise.all([
+      fetch(`${API_BASE}/api/butchers`),
+      fetch(`${API_BASE}/api/butchers/stories`),
+    ]);
+
+    let butchers: ButcherProfile[] = butcherCatalogCache?.butchers ?? [];
+    let stories: ButcherStory[] = butcherCatalogCache?.stories ?? [];
+
+    if (resB.ok) {
+      const json = await resB.json();
+      const rawButchers = Array.isArray(json.data) ? json.data : json.data?.butchers;
+      if (json.success && Array.isArray(rawButchers)) {
+        butchers = rawButchers.map((b: Record<string, unknown>) => mapButcherFromApi(b));
+      }
+    }
+
+    if (resS.ok) {
+      const json = await resS.json();
+      if (json.success && Array.isArray(json.data)) {
+        stories = json.data.map((s: any) => ({
+          id: s.id,
+          butcherId: s.butcherId ?? s.butcher?.id ?? '',
+          butcherName: s.butcher?.nameAr ?? s.butcher?.nameEn ?? 'ملحمة',
+          butcherNameAr: s.butcher?.nameAr ?? s.butcher?.nameEn ?? 'ملحمة',
+          butcherLogo: s.butcher?.logo ?? s.thumbnail ?? '',
+          isVerified: s.butcher?.subscriptionActive ?? false,
+          thumbnail: s.thumbnail ?? '',
+          mediaUrl: s.mediaUrl ?? undefined,
+          caption: s.caption ?? undefined,
+          captionAr: s.captionAr ?? undefined,
+          postedAt: s.createdAt ?? new Date().toISOString(),
+          duration: s.duration ?? 15,
+          seen: false,
+          type: s.type ?? 'update',
+        }));
+      }
+    }
+
+    const next: ButcherCatalogCache = { butchers, stories, fetchedAt: Date.now() };
+    butcherCatalogCache = next;
+    return next;
+  })().finally(() => {
+    butcherCatalogInflight = null;
+  });
+
+  return butcherCatalogInflight;
+}
+
 /**
  * Primary hook for the butchers marketplace.
  * Provides ranked + filtered butcher list, story management,
@@ -46,52 +111,23 @@ export function useButcher() {
   const [selectedReviews, setSelectedReviews] = useState<any[]>([]);
 
   useEffect(() => {
+    let active = true;
     const fetchAll = async () => {
       try {
-        const [resB, resS] = await Promise.all([
-          fetch(`${API_BASE}/api/butchers`),
-          fetch(`${API_BASE}/api/butchers/stories`),
-        ]);
-        if (resB.ok) {
-          const json = await resB.json();
-          const rawButchers = Array.isArray(json.data)
-            ? json.data
-            : json.data?.butchers;
-
-          if (json.success && Array.isArray(rawButchers)) {
-            setButchers(rawButchers.map((b: Record<string, unknown>) => mapButcherFromApi(b)));
-          }
-        }
-        if (resS.ok) {
-          const json = await resS.json();
-          if (json.success && Array.isArray(json.data)) {
-            setButcherStories(
-              json.data.map((s: any) => ({
-                id: s.id,
-                butcherId: s.butcherId ?? s.butcher?.id ?? '',
-                butcherName: s.butcher?.nameAr ?? s.butcher?.nameEn ?? 'ملحمة',
-                butcherNameAr: s.butcher?.nameAr ?? s.butcher?.nameEn ?? 'ملحمة',
-                butcherLogo: s.butcher?.logo ?? s.thumbnail ?? '',
-                isVerified: s.butcher?.subscriptionActive ?? false,
-                thumbnail: s.thumbnail ?? '',
-                mediaUrl: s.mediaUrl ?? undefined,
-                caption: s.caption ?? undefined,
-                captionAr: s.captionAr ?? undefined,
-                postedAt: s.createdAt ?? new Date().toISOString(),
-                duration: s.duration ?? 15,
-                seen: false,
-                type: s.type ?? 'update',
-              })),
-            );
-          }
-        }
+        const catalog = await loadButcherCatalog();
+        if (!active) return;
+        setButchers(catalog.butchers);
+        setButcherStories(catalog.stories);
       } catch (err) {
         console.warn('[useButcher] Failed to fetch butchers:', err);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
-    fetchAll();
+    void fetchAll();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {

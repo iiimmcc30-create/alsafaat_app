@@ -81,6 +81,7 @@ function RootNavigator() {
         <Stack.Screen name="create/listing" />
         <Stack.Screen name="create/post" />
         <Stack.Screen name="create/story" options={{ animation: 'slide_from_left' }} />
+        <Stack.Screen name="stories/view" options={{ animation: 'fade', presentation: 'fullScreenModal' }} />
         <Stack.Screen name="info/about" />
         <Stack.Screen name="info/privacy" />
         <Stack.Screen name="info/terms" />

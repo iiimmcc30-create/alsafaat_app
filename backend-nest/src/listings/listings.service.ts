@@ -248,12 +248,31 @@ export class ListingsService {
       dto.weightKg !== undefined ? dto.weightKg : listing.weightKg ?? undefined;
     this.assertWeightForCategory(category, weightKg);
 
-    const payload: UpdateListingDto = { ...dto };
-    if (!isLivestockCategory(category)) {
-      payload.weightKg = undefined;
+    const updateData: Prisma.ListingUpdateInput = {};
+    if (dto.title !== undefined) updateData.title = dto.title;
+    if (dto.arabicTitle !== undefined) updateData.arabicTitle = dto.arabicTitle;
+    if (dto.description !== undefined) updateData.description = dto.description;
+    if (dto.arabicDescription !== undefined) {
+      updateData.arabicDescription = dto.arabicDescription;
+    }
+    if (dto.price !== undefined) updateData.price = dto.price;
+    if (dto.images !== undefined) updateData.images = dto.images;
+    if (dto.breed !== undefined) updateData.breed = dto.breed;
+    if (dto.age !== undefined) updateData.age = dto.age;
+    if (dto.location !== undefined) updateData.location = dto.location;
+    if (dto.arabicLocation !== undefined) updateData.arabicLocation = dto.arabicLocation;
+    if (dto.contactPhone !== undefined) updateData.contactPhone = dto.contactPhone;
+    if (dto.category !== undefined) updateData.category = dto.category;
+
+    if (isLivestockCategory(category)) {
+      if (dto.weightKg !== undefined) {
+        updateData.weightKg = dto.weightKg;
+      }
+    } else {
+      updateData.weightKg = null;
     }
 
-    const updated = await this.repo.update(id, payload);
+    const updated = await this.repo.update(id, updateData);
     await this.cache.del(`listing:${id}`);
     await this.cache.delPattern('listings:v2:*');
     return updated;
