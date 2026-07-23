@@ -82,6 +82,7 @@ function RootNavigator() {
         <Stack.Screen name="(butcher)" options={{ animation: 'none' }} />
         <Stack.Screen name="butchers" />
         <Stack.Screen name="listing/[id]" />
+        <Stack.Screen name="post/[id]" />
         <Stack.Screen name="search" />
         <Stack.Screen name="users/[id]" />
         <Stack.Screen name="sidebar" options={{ animation: 'slide_from_right', presentation: 'transparentModal' }} />

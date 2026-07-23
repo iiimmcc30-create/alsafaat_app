@@ -64,20 +64,28 @@ export function ListingCommentsSection({ listingId }: ListingCommentsSectionProp
   const { isAuthenticated } = useAuth();
   const [comments, setComments] = useState<PostComment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
 
   const loadComments = useCallback(async () => {
     if (!listingId) return;
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch(`${API_BASE}/api/listings/${listingId}/comments`);
       const json = await res.json().catch(() => ({}));
-      if (res.ok && json.success && json.data?.comments) {
-        setComments(json.data.comments.map(mapComment));
+      if (res.ok && json.success) {
+        const rows = Array.isArray(json.data?.comments) ? json.data.comments : [];
+        setComments(rows.map(mapComment));
+        return;
       }
+      setComments([]);
+      setLoadError(json.messageAr ?? json.message ?? 'تعذّر تحميل الردود');
     } catch (err) {
       console.warn('[ListingComments] load failed:', err);
+      setComments([]);
+      setLoadError('تعذّر تحميل الردود — تحقق من الاتصال');
     } finally {
       setLoading(false);
     }
@@ -123,8 +131,19 @@ export function ListingCommentsSection({ listingId }: ListingCommentsSectionProp
         <Text style={styles.count}>{comments.length}</Text>
       </View>
 
+      <Text style={styles.hint}>
+        ردود عامة يراها الجميع — للمحادثة الخاصة استخدم زر المراسلة أسفل الصفحة
+      </Text>
+
       {loading ? (
         <ActivityIndicator color={colors.electricBright} style={styles.loader} />
+      ) : loadError ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{loadError}</Text>
+          <Pressable onPress={() => void loadComments()} style={styles.retryBtn}>
+            <Text style={styles.retryText}>إعادة المحاولة</Text>
+          </Pressable>
+        </View>
       ) : comments.length === 0 ? (
         <Text style={styles.empty}>لا توجد ردود بعد — كن أول من يسأل أو يعلّق علناً</Text>
       ) : (
@@ -156,15 +175,15 @@ export function ListingCommentsSection({ listingId }: ListingCommentsSectionProp
           placeholderTextColor={colors.textSubtle}
           value={text}
           onChangeText={setText}
-          editable={isAuthenticated && !sending}
+          editable={isAuthenticated && !sending && !loadError}
           textAlign="right"
           multiline
           maxLength={500}
         />
         <Pressable
-          style={[styles.sendBtn, (!text.trim() || sending || !isAuthenticated) && styles.sendBtnDisabled]}
+          style={[styles.sendBtn, (!text.trim() || sending || !isAuthenticated || !!loadError) && styles.sendBtnDisabled]}
           onPress={handleSend}
-          disabled={!text.trim() || sending || !isAuthenticated}
+          disabled={!text.trim() || sending || !isAuthenticated || !!loadError}
         >
           {sending ? (
             <ActivityIndicator size="small" color="#fff" />
@@ -212,6 +231,37 @@ function createStyles(colors: ThemeColors) {
       paddingVertical: 2,
       borderRadius: radius.pill,
       overflow: 'hidden',
+    },
+    hint: {
+      ...typography.caption,
+      color: colors.textMuted,
+      textAlign: 'right',
+      writingDirection: 'rtl',
+      lineHeight: 20,
+    },
+    errorBox: {
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingVertical: spacing.sm,
+    },
+    errorText: {
+      ...typography.body,
+      color: colors.rose,
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    retryBtn: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: radius.pill,
+      backgroundColor: colors.bgElevated,
+      borderWidth: 1,
+      borderColor: colors.borderSoft,
+    },
+    retryText: {
+      ...typography.caption,
+      color: colors.electricBright,
+      fontWeight: '600',
     },
     loader: {
       paddingVertical: spacing.lg,

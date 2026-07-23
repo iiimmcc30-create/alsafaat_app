@@ -220,10 +220,10 @@ function navigateToPost(
   openComments = false,
 ): boolean {
   ctx.router.push({
-    pathname: '/(tabs)/posts',
+    pathname: '/post/[id]',
     params: {
-      postId,
-      ...(openComments ? { openComments: '1' } : {}),
+      id: postId,
+      ...(openComments ? { focusComment: '1' } : {}),
     },
   } as never);
   return true;

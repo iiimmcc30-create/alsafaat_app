@@ -43,14 +43,6 @@ export class ListingsController {
 
   @OptionalAuth()
   @RateLimit('api')
-  @Get(':id')
-  @HttpCode(HttpStatus.OK)
-  async getById(@Param('id') id: string) {
-    return successResponse(await this.listings.getById(id));
-  }
-
-  @OptionalAuth()
-  @RateLimit('api')
   @Get(':id/comments')
   @HttpCode(HttpStatus.OK)
   async listComments(@Param('id') id: string) {
@@ -66,6 +58,14 @@ export class ListingsController {
     @Body() dto: CreateListingCommentDto,
   ) {
     return successResponse(await this.listings.createComment(user, id, dto));
+  }
+
+  @OptionalAuth()
+  @RateLimit('api')
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  async getById(@Param('id') id: string) {
+    return successResponse(await this.listings.getById(id));
   }
 
   @RateLimit('api')

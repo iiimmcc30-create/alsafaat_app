@@ -23,9 +23,10 @@ import { PostMediaGallery } from '@/components/feature/PostMediaGallery';
 
 interface PostItemProps {
   post: Post;
+  variant?: 'feed' | 'detail';
+  onPress?: () => void;
   onLike: () => void;
   onComment: () => void;
-  onRepost: () => void;
   onShare: () => void;
   onMenu: () => void;
   onBookmark?: () => void;
@@ -138,14 +139,23 @@ function ActionBtn({
 // ─────────────────────────────────────────────────────────────────────────────
 // Post Item
 // ─────────────────────────────────────────────────────────────────────────────
-function PostItemComponent({ post, onLike, onComment, onRepost, onShare, onMenu, onBookmark }: PostItemProps) {
+function PostItemComponent({
+  post,
+  variant = 'feed',
+  onPress,
+  onLike,
+  onComment,
+  onShare,
+  onMenu,
+  onBookmark,
+}: PostItemProps) {
   const { styles, colors, scheme } = useThemedStyles((theme) => ({
     styles: createStyles(theme.colors),
     colors: theme.colors,
     scheme: theme.scheme,
   }));
 
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(variant === 'detail');
 
   const images = useMemo(() => {
     if (post.images && post.images.length > 0) return post.images;
@@ -161,7 +171,7 @@ function PostItemComponent({ post, onLike, onComment, onRepost, onShare, onMenu,
   const bodyText = post.arabicContent || post.content;
 
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, variant === 'detail' && styles.rowDetail]}>
       {/* ── Avatar ─────────────────────────────── */}
       <UserProfileLink userId={post.author.id}>
         <Image source={uriSource(post.author.avatar)} style={styles.avatar} contentFit="cover" />
@@ -202,91 +212,76 @@ function PostItemComponent({ post, onLike, onComment, onRepost, onShare, onMenu,
           </Pressable>
         </View>
 
-        {/* Body text */}
-        <PostBody
-          text={bodyText}
-          style={styles.body}
-          lines={expanded ? undefined : TEXT_COLLAPSE_LINES}
-        />
-        {bodyText.split('\n').length > TEXT_COLLAPSE_LINES ||
-        bodyText.length > 400 ? (
-          !expanded ? (
-            <Pressable onPress={() => setExpanded(true)} hitSlop={6}>
-              <Text style={styles.showMore}>عرض المزيد</Text>
-            </Pressable>
-          ) : (
-            <Pressable onPress={() => setExpanded(false)} hitSlop={6}>
-              <Text style={styles.showMore}>عرض أقل</Text>
-            </Pressable>
-          )
-        ) : null}
+        {/* Body + media — tap opens post detail */}
+        <Pressable
+          onPress={onPress}
+          disabled={!onPress || variant === 'detail'}
+          style={({ pressed }) => [pressed && onPress ? styles.bodyPressed : null]}
+        >
+          <PostBody
+            text={bodyText}
+            style={styles.body}
+            lines={expanded ? undefined : TEXT_COLLAPSE_LINES}
+          />
+          {variant === 'feed' &&
+          (bodyText.split('\n').length > TEXT_COLLAPSE_LINES || bodyText.length > 400) ? (
+            !expanded ? (
+              <Pressable onPress={() => (onPress ? onPress() : setExpanded(true))} hitSlop={6}>
+                <Text style={styles.showMore}>عرض المزيد</Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={() => setExpanded(false)} hitSlop={6}>
+                <Text style={styles.showMore}>عرض أقل</Text>
+              </Pressable>
+            )
+          ) : null}
 
-        {/* Media */}
-        {images.length > 0 || post.video ? (
-          <View style={styles.mediaWrap}>
-            <PostMediaGallery images={images} video={post.video} colors={colors} scheme={scheme} />
-          </View>
-        ) : null}
+          {images.length > 0 || post.video ? (
+            <View style={styles.mediaWrap}>
+              <PostMediaGallery images={images} video={post.video} colors={colors} scheme={scheme} />
+            </View>
+          ) : null}
+        </Pressable>
 
-        {/* Action bar */}
+        {/* Action bar — comment · like · save · share */}
         <View style={styles.actions}>
-          {/* Comment */}
           <ActionBtn
             icon="chatbubble-outline"
             iconColor={colors.textSubtle}
             textColor={colors.textSubtle}
             count={post.comments}
             onPress={onComment}
-            style={styles.actionBtn}
+            style={styles.actionSlot}
             countStyle={styles.actionCount}
+            size={20}
           />
-          {/* Repost */}
-          <ActionBtn
-            icon="repeat-outline"
-            iconColor={post.reposted ? colors.electricBright : colors.textSubtle}
-            textColor={post.reposted ? colors.electricBright : colors.textSubtle}
-            count={post.reposts}
-            onPress={onRepost}
-            style={styles.actionBtn}
-            countStyle={styles.actionCount}
-          />
-          {/* Like */}
           <ActionBtn
             icon={post.liked ? 'heart' : 'heart-outline'}
             iconColor={post.liked ? colors.rose : colors.textSubtle}
             textColor={post.liked ? colors.rose : colors.textSubtle}
             count={post.likes}
             onPress={onLike}
-            style={styles.actionBtn}
+            style={styles.actionSlot}
             countStyle={styles.actionCount}
+            size={20}
           />
-          {/* Views / Stats */}
-          <ActionBtn
-            icon="stats-chart-outline"
-            iconColor={colors.textSubtle}
-            textColor={colors.textSubtle}
-            count={post.views ?? (post.likes + post.reposts + post.comments > 0 ? post.likes + post.reposts + post.comments : undefined)}
-            onPress={() => {}}
-            style={styles.actionBtn}
-            countStyle={styles.actionCount}
-          />
-          {/* Bookmark */}
           <ActionBtn
             icon={post.bookmarked ? 'bookmark' : 'bookmark-outline'}
             iconColor={post.bookmarked ? colors.electricBright : colors.textSubtle}
             textColor={colors.textSubtle}
             onPress={onBookmark ?? (() => {})}
-            style={styles.actionBtn}
+            style={styles.actionSlot}
             countStyle={styles.actionCount}
+            size={20}
           />
-          {/* Share */}
           <ActionBtn
             icon="share-outline"
             iconColor={colors.textSubtle}
             textColor={colors.textSubtle}
             onPress={onShare}
-            style={styles.actionBtn}
+            style={styles.actionSlot}
             countStyle={styles.actionCount}
+            size={20}
           />
         </View>
       </View>
@@ -304,7 +299,6 @@ function arePropsEqual(prev: PostItemProps, next: PostItemProps): boolean {
     a.comments === b.comments &&
     a.views === b.views &&
     a.liked === b.liked &&
-    a.reposted === b.reposted &&
     a.bookmarked === b.bookmarked &&
     a.arabicContent === b.arabicContent &&
     a.content === b.content &&
@@ -336,6 +330,10 @@ function createStyles(colors: ThemeColors) {
       borderBottomColor: colors.borderHairline,
       gap: 10,
       backgroundColor: colors.bgDeep,
+    },
+    rowDetail: {
+      borderBottomWidth: 0,
+      paddingBottom: 4,
     },
 
     avatar: {
@@ -418,6 +416,9 @@ function createStyles(colors: ThemeColors) {
       writingDirection: 'rtl',
       marginTop: 4,
     },
+    bodyPressed: {
+      opacity: 0.92,
+    },
     showMore: {
       fontSize: 14,
       color: colors.electricBright,
@@ -431,19 +432,23 @@ function createStyles(colors: ThemeColors) {
       overflow: 'hidden',
     },
 
-    // Action bar — 6 items spread evenly, exactly like X
+    // Action bar — 4 evenly spaced icons like X
     actions: {
       ...rtlRow,
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginTop: 10,
+      marginTop: 12,
+      paddingHorizontal: 2,
     },
-    actionBtn: {
-      flexShrink: 0,
-      minWidth: 36,
+    actionSlot: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 36,
+      paddingHorizontal: 4,
     },
     actionCount: {
-      fontSize: 13,
+      fontSize: 12,
       fontWeight: '500',
     },
   });

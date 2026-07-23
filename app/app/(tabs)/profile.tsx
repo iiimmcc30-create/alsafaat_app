@@ -25,8 +25,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getCountryInfo } from '@/services/types';
 import { ListingCard } from '@/components/feature/ListingCard';
 import { PostItem } from '@/components/feature/PostItem';
-import { PostCommentsModal } from '@/components/feature/PostCommentsModal';
 import { requireAuth, sharePost, showPostMenu } from '@/lib/postInteractions';
+import { openPostDetail } from '@/lib/openPost';
 import { presentActionSheet } from '@/lib/actionSheet';
 import { fetchStoriesFeed, type StoryGroup } from '@/services/stories';
 import { buildProfileTimeline } from '@/lib/profileTimeline';
@@ -47,18 +47,14 @@ export default function ProfileScreen() {
     listings,
     posts,
     likedPosts,
-    repostedPosts,
     bookmarkedPosts,
     toggleLike,
-    toggleRepost,
     toggleBookmark,
     deletePost,
-    addComment,
     refetchData,
   } = useApp();
   const { accessToken, isAuthenticated } = useAuth();
 
-  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const [hasStories, setHasStories] = useState(false);
   const [myStoryGroup, setMyStoryGroup] = useState<StoryGroup | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -312,17 +308,14 @@ export default function ProfileScreen() {
                   post={{
                     ...entry.data,
                     liked: likedPosts.has(entry.data.id),
-                    reposted: repostedPosts.has(entry.data.id),
                     bookmarked: bookmarkedPosts.has(entry.data.id),
                   }}
+                  onPress={() => openPostDetail(router, entry.data.id)}
                   onLike={() =>
                     requireAuth(isAuthenticated, 'الإعجاب') && toggleLike(entry.data.id)
                   }
                   onComment={() =>
-                    requireAuth(isAuthenticated, 'التعليق') && setCommentsPostId(entry.data.id)
-                  }
-                  onRepost={() =>
-                    requireAuth(isAuthenticated, 'إعادة النشر') && toggleRepost(entry.data.id)
+                    openPostDetail(router, entry.data.id, { focusComment: isAuthenticated })
                   }
                   onBookmark={() =>
                     requireAuth(isAuthenticated, 'الحفظ') && toggleBookmark(entry.data.id)
@@ -346,15 +339,6 @@ export default function ProfileScreen() {
           )}
         </View>
       </ScrollView>
-
-      <PostCommentsModal
-        visible={!!commentsPostId}
-        postId={commentsPostId}
-        onClose={() => setCommentsPostId(null)}
-        onSubmitComment={(content) =>
-          commentsPostId ? addComment(commentsPostId, content) : Promise.resolve(false)
-        }
-      />
 
       <ProfileRatingSheet
         visible={ratingSheetVisible}

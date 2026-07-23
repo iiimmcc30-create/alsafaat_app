@@ -673,37 +673,6 @@ export default function ListingDetailScreen() {
 
           {/* Public listing replies */}
           <ListingCommentsSection listingId={listing.id} />
-
-          {/* Private contact with seller */}
-          {!isOwner ? (
-            <View style={styles.contactCard}>
-              <View style={[styles.sectionHeader, rtlRow]}>
-                <View style={styles.sectionBar} />
-                <Text style={styles.sectionTitle}>تواصل مع البائع</Text>
-              </View>
-              <Text style={styles.contactHint}>
-                للمحادثة الخاصة استخدم المراسلة داخل التطبيق أو واتساب.
-              </Text>
-              <View style={[styles.contactActions, rtlRow]}>
-                <Pressable
-                  onPress={() => openSellerChat()}
-                  style={({ pressed }) => [styles.contactBtnPrimary, pressed && { opacity: 0.88 }]}
-                >
-                  <AppIcon name="chatbubbles" size={18} color="#fff" />
-                  <Text style={styles.contactBtnPrimaryText}>مراسلة داخل التطبيق</Text>
-                </Pressable>
-                {listing.contactPhone ? (
-                  <Pressable
-                    onPress={openSellerWhatsApp}
-                    style={({ pressed }) => [styles.contactBtnWhatsApp, pressed && { opacity: 0.88 }]}
-                  >
-                    <AppIcon name="whatsapp" size={18} color="#fff" />
-                    <Text style={styles.contactBtnWhatsAppText}>واتساب</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            </View>
-          ) : null}
         </View>
       </ScrollView>
 
@@ -1160,55 +1129,6 @@ function createStyles(colors: ThemeColors) {
       textAlign: 'right',
       writingDirection: 'rtl',
       lineHeight: 26,
-    },
-
-    contactCard: {
-      gap: spacing.md,
-      padding: spacing.md,
-      borderRadius: radius.xl,
-      backgroundColor: colors.bgSurface,
-      borderWidth: 1,
-      borderColor: colors.borderSoft,
-    },
-    contactHint: {
-      ...typography.caption,
-      color: colors.textMuted,
-      textAlign: 'right',
-      writingDirection: 'rtl',
-      lineHeight: 20,
-    },
-    contactActions: {
-      gap: spacing.sm,
-    },
-    contactBtnPrimary: {
-      flex: 1,
-      ...rtlRow,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      paddingVertical: 14,
-      borderRadius: radius.lg,
-      backgroundColor: colors.electric,
-    },
-    contactBtnPrimaryText: {
-      ...typography.bodyStrong,
-      color: '#fff',
-      fontSize: 14,
-    },
-    contactBtnWhatsApp: {
-      flex: 1,
-      ...rtlRow,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      paddingVertical: 14,
-      borderRadius: radius.lg,
-      backgroundColor: '#25D366',
-    },
-    contactBtnWhatsAppText: {
-      ...typography.bodyStrong,
-      color: '#fff',
-      fontSize: 14,
     },
 
     // Bottom CTA

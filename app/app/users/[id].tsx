@@ -30,9 +30,9 @@ import { fetchUserProfile, rateUser, setFollowUser, type PublicUserProfile } fro
 import { promptReport } from '@/services/reports';
 import { ListingCard } from '@/components/feature/ListingCard';
 import { PostItem } from '@/components/feature/PostItem';
-import { PostCommentsModal } from '@/components/feature/PostCommentsModal';
 import { RatingModal } from '@/components/feature/RatingModal';
 import { requireAuth, sharePost, showPostMenu } from '@/lib/postInteractions';
+import { openPostDetail } from '@/lib/openPost';
 import { presentActionSheet } from '@/lib/actionSheet';
 import { buildProfileTimeline } from '@/lib/profileTimeline';
 
@@ -48,13 +48,10 @@ export default function UserProfileScreen() {
     listings,
     posts,
     likedPosts,
-    repostedPosts,
     bookmarkedPosts,
     toggleLike,
-    toggleRepost,
     toggleBookmark,
     deletePost,
-    addComment,
   } = useApp();
   const { accessToken, isAuthenticated, isLoading: authLoading } = useAuth();
   const { gradients, colors: themeColors } = useTheme();
@@ -64,7 +61,6 @@ export default function UserProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const [ratingModalVisible, setRatingModalVisible] = useState(false);
 
   const isOwnProfile = !id || id === me.id;
@@ -416,17 +412,14 @@ export default function UserProfileScreen() {
                   post={{
                     ...entry.data,
                     liked: likedPosts.has(entry.data.id),
-                    reposted: repostedPosts.has(entry.data.id),
                     bookmarked: bookmarkedPosts.has(entry.data.id),
                   }}
+                  onPress={() => openPostDetail(router, entry.data.id)}
                   onLike={() =>
                     requireAuth(isAuthenticated, 'الإعجاب') && toggleLike(entry.data.id)
                   }
                   onComment={() =>
-                    requireAuth(isAuthenticated, 'التعليق') && setCommentsPostId(entry.data.id)
-                  }
-                  onRepost={() =>
-                    requireAuth(isAuthenticated, 'إعادة النشر') && toggleRepost(entry.data.id)
+                    openPostDetail(router, entry.data.id, { focusComment: isAuthenticated })
                   }
                   onBookmark={() =>
                     requireAuth(isAuthenticated, 'الحفظ') && toggleBookmark(entry.data.id)
@@ -461,14 +454,6 @@ export default function UserProfileScreen() {
         onSubmit={handleRateSubmit}
       />
 
-      <PostCommentsModal
-        visible={!!commentsPostId}
-        postId={commentsPostId}
-        onClose={() => setCommentsPostId(null)}
-        onSubmitComment={(content) =>
-          commentsPostId ? addComment(commentsPostId, content) : Promise.resolve(false)
-        }
-      />
     </SafeAreaView>
   );
 }

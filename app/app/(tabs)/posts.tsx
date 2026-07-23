@@ -20,9 +20,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { useApp } from '@/hooks/useApp';
 import { useAuth } from '@/contexts/AuthContext';
 import { PostItem } from '@/components/feature/PostItem';
-import { PostCommentsModal } from '@/components/feature/PostCommentsModal';
 import { CreatePostFab } from '@/components/feature/CreatePostFab';
 import { requireAuth, sharePost, showPostMenu } from '@/lib/postInteractions';
+import { openPostDetail } from '@/lib/openPost';
 import type { Post } from '@/services/types';
 
 type FeedTab = 'for_you' | 'following';
@@ -40,19 +40,15 @@ export default function PostsScreen() {
     me,
     posts,
     likedPosts,
-    repostedPosts,
     bookmarkedPosts,
     toggleLike,
-    toggleRepost,
     toggleBookmark,
     deletePost,
-    addComment,
     fetchPosts,
   } = useApp();
   const [feedTab, setFeedTab] = useState<FeedTab>('for_you');
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const loadedTabs = useRef<Set<FeedTab>>(new Set());
 
   const loadFeed = useCallback(
@@ -90,10 +86,8 @@ export default function PostsScreen() {
 
   useEffect(() => {
     if (!postId) return;
-    if (openComments === '1') {
-      setCommentsPostId(postId);
-    }
-  }, [postId, openComments]);
+    openPostDetail(router, postId, { focusComment: openComments === '1' });
+  }, [postId, openComments, router]);
 
   const switchTab = (tab: FeedTab) => {
     if (tab === 'following' && !isAuthenticated) {
@@ -109,16 +103,11 @@ export default function PostsScreen() {
         post={{
           ...item,
           liked: likedPosts.has(item.id),
-          reposted: repostedPosts.has(item.id),
           bookmarked: bookmarkedPosts.has(item.id),
         }}
+        onPress={() => openPostDetail(router, item.id)}
         onLike={() => requireAuth(isAuthenticated, 'الإعجاب') && toggleLike(item.id)}
-        onComment={() =>
-          requireAuth(isAuthenticated, 'التعليق') && setCommentsPostId(item.id)
-        }
-        onRepost={() =>
-          requireAuth(isAuthenticated, 'إعادة النشر') && toggleRepost(item.id)
-        }
+        onComment={() => openPostDetail(router, item.id, { focusComment: isAuthenticated })}
         onBookmark={() =>
           requireAuth(isAuthenticated, 'الحفظ') && toggleBookmark(item.id)
         }
@@ -128,11 +117,9 @@ export default function PostsScreen() {
     ),
     [
       likedPosts,
-      repostedPosts,
       bookmarkedPosts,
       isAuthenticated,
       toggleLike,
-      toggleRepost,
       toggleBookmark,
       deletePost,
       me,
@@ -220,15 +207,6 @@ export default function PostsScreen() {
       </SafeAreaView>
 
       <CreatePostFab mode="fixed" />
-
-      <PostCommentsModal
-        visible={!!commentsPostId}
-        postId={commentsPostId}
-        onClose={() => setCommentsPostId(null)}
-        onSubmitComment={(content) =>
-          commentsPostId ? addComment(commentsPostId, content) : Promise.resolve(false)
-        }
-      />
     </View>
   );
 }
