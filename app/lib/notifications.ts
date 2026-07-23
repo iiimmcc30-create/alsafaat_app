@@ -219,13 +219,12 @@ function navigateToPost(
   postId: string,
   openComments = false,
 ): boolean {
-  ctx.router.push({
-    pathname: '/post/[id]',
-    params: {
-      id: postId,
-      ...(openComments ? { focusComment: '1' } : {}),
-    },
-  } as never);
+  const id = String(postId ?? '').trim();
+  if (!id) return false;
+
+  ctx.router.push(
+    openComments ? (`/post/${encodeURIComponent(id)}?focusComment=1` as never) : (`/post/${encodeURIComponent(id)}` as never),
+  );
   return true;
 }
 

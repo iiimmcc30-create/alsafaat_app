@@ -65,7 +65,12 @@ function mapBackendPost(p: any): Post | null {
 }
 
 export default function PostDetailScreen() {
-  const { id, focusComment } = useLocalSearchParams<{ id: string; focusComment?: string }>();
+  const params = useLocalSearchParams<{ id: string; focusComment?: string }>();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const focusComment = Array.isArray(params.focusComment)
+    ? params.focusComment[0]
+    : params.focusComment;
+  const postId = id ? decodeURIComponent(id) : '';
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -82,16 +87,20 @@ export default function PostDetailScreen() {
     addComment,
   } = useApp();
 
-  const cached = posts.find((p) => p.id === id);
+  const cached = posts.find((p) => p.id === postId);
   const [post, setPost] = useState<Post | null>(cached ?? null);
   const [loading, setLoading] = useState(!cached);
   const commentsRef = useRef<PostCommentsSectionRef>(null);
 
+  useEffect(() => {
+    if (!postId) router.back();
+  }, [postId, router]);
+
   const loadPost = useCallback(async () => {
-    if (!id) return;
+    if (!postId) return;
     setLoading(true);
     try {
-      const res = await authFetch(`${API_BASE}/api/posts/${id}`);
+      const res = await authFetch(`${API_BASE}/api/posts/${postId}`);
       const json = await res.json().catch(() => ({}));
       if (res.ok && json.success && json.data) {
         const mapped = mapBackendPost(json.data);
@@ -112,12 +121,12 @@ export default function PostDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id, cached, router]);
+  }, [postId, cached, router]);
 
   useEffect(() => {
     if (cached) setPost(cached);
     void loadPost();
-  }, [id, cached, loadPost]);
+  }, [postId, cached, loadPost]);
 
   useEffect(() => {
     if (focusComment === '1' && post) {
@@ -150,7 +159,7 @@ export default function PostDetailScreen() {
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={[styles.topBar, rtlRow]}>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-          <AppIcon name={rtlBackIcon()} size={22} color={colors.textPrimary} />
+          <AppIcon name={rtlBackIcon} size={22} color={colors.textPrimary} />
         </Pressable>
         <Text style={styles.screenTitle}>منشور</Text>
         <View style={styles.backBtn} />

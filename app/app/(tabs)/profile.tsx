@@ -8,7 +8,6 @@ import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -17,7 +16,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -132,15 +130,6 @@ export default function ProfileScreen() {
     });
   };
 
-  const handleCopyLink = async () => {
-    try {
-      await Clipboard.setStringAsync(profileUrl);
-      Alert.alert('تم النسخ', 'تم نسخ رابط ملفك الشخصي');
-    } catch {
-      Alert.alert('تعذّر النسخ', 'حاول مرة أخرى');
-    }
-  };
-
   const openRatingSheet = async () => {
     try {
       const profile = await fetchUserProfile(me.id);
@@ -200,9 +189,6 @@ export default function ProfileScreen() {
             <View style={[styles.coverTopActions, inlineEnd(12)]}>
               <Pressable onPress={handleShare} hitSlop={10} style={styles.coverIconBtn}>
                 <AppIcon name="share-social-outline" size={20} color="#fff" />
-              </Pressable>
-              <Pressable onPress={() => void handleCopyLink()} hitSlop={10} style={styles.coverIconBtn}>
-                <AppIcon name="link-outline" size={20} color="#fff" />
               </Pressable>
             </View>
             <Pressable

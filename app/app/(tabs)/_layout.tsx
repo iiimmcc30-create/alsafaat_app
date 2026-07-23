@@ -8,7 +8,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { layout, radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
-import { rtlDirection } from '@/lib/rtl';
 import type { FlaticonStyle } from '@/constants/flaticon-glyphs';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 
@@ -101,7 +100,6 @@ export default function TabsLayout() {
           shadowOpacity: scheme === 'light' ? 0.06 : 0.22,
           shadowRadius: 16,
           elevation: 12,
-          ...rtlDirection,
         },
         tabBarItemStyle: {
           paddingTop: 2,
