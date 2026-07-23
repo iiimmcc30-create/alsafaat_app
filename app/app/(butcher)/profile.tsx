@@ -126,7 +126,7 @@ export default function ButcherProfileScreen() {
           <Image source={{ uri: butcher.cover }} style={styles.cover} contentFit="cover" />
           <Pressable
             style={styles.menuBtn}
-            onPress={() => router.push('/sidebar')}
+            onPress={() => router.push('/butcher-sidebar')}
           >
             <AppIcon name="menu" size={22} color={colors.textPrimary} />
           </Pressable>

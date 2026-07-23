@@ -183,7 +183,7 @@ export default function ButcherDashboardScreen() {
 
       {/* Header */}
       <View style={s.header}>
-        <Pressable onPress={() => router.push('/sidebar')} hitSlop={12} style={s.backBtn}>
+        <Pressable onPress={() => router.push('/butcher-sidebar')} hitSlop={12} style={s.backBtn}>
           <AppIcon name="menu" size={22} color={colors.textPrimary} />
         </Pressable>
         <View style={{ flex: 1, alignItems: 'center' }}>

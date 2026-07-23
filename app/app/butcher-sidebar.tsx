@@ -1,4 +1,5 @@
 // Powered by OnSpace.AI
+// SAFAT — Butcher sidebar (same design as main sidebar + butcher sections)
 import { AppIcon } from '@/components/ui/FlaticonIcon';
 import { Image, uriSource } from '@/components/ui/AppImage';
 import { useRouter } from 'expo-router';
@@ -30,18 +31,19 @@ import {
 
 type MenuItem = SidebarMenuItem;
 
-export default function SidebarScreen() {
+export default function ButcherSidebarScreen() {
   const router = useRouter();
   const { me } = useApp();
   const { signOut, accessToken } = useAuth();
   const { preference, setPreference, colors } = useTheme();
   const styles = useThemedStyles((theme) => createSidebarStyles(theme.colors, theme.scheme));
   const { unreadCount: notificationsUnread } = useUnreadNotificationCount();
-  const { threads } = useMessageThreads(accessToken, 'DIRECT');
+  const { threads } = useMessageThreads(accessToken, 'BUTCHER');
   const {
     hasApprovedApplication,
     hasAnyApplication,
     hasPendingApplication,
+    provisionedButcherId,
   } = useApprovedButcherApplication();
 
   const messagesUnread = useMemo(
@@ -73,22 +75,12 @@ export default function SidebarScreen() {
     setPreference(preference === 'dark' ? 'light' : 'dark');
   };
 
-  const applyRoute = hasPendingApplication
-    ? '/butchers/my-application'
-    : hasAnyApplication
-      ? '/butchers/my-application'
-      : '/butchers/apply';
-
-  const ordersRoute = hasApprovedApplication
-    ? '/(butcher)/manage?tab=orders'
-    : '/butchers';
-
   const accountItems: MenuItem[] = [
     {
       key: 'messages',
       icon: 'chatbubble-outline',
-      label: 'الرسائل',
-      route: '/(tabs)/messages',
+      label: 'رسائل العملاء',
+      route: '/(butcher)/messages',
       badge: messagesUnread,
     },
     {
@@ -104,15 +96,9 @@ export default function SidebarScreen() {
       label: 'الباقات والاشتراك',
       route: '/subscription',
     },
-    {
-      key: 'settings',
-      icon: 'settings-outline',
-      label: 'الإعدادات',
-      route: '/profile/settings',
-    },
   ];
 
-  const serviceItems: MenuItem[] = [
+  const marketItems: MenuItem[] = [
     {
       key: 'butchers',
       icon: 'storefront-outline',
@@ -120,18 +106,84 @@ export default function SidebarScreen() {
       route: '/butchers',
     },
     {
-      key: 'orders',
-      icon: 'bag-outline',
-      label: 'طلباتي',
-      route: ordersRoute,
-    },
-    {
-      key: 'apply',
-      icon: 'document-text-outline',
-      label: 'طلب تسجيل ملحمة',
-      route: applyRoute,
+      key: 'map',
+      icon: 'map-outline',
+      label: 'خريطة الملاحم',
+      route: '/butchers/map',
     },
   ];
+
+  const ownerItems: MenuItem[] = useMemo(() => {
+    if (!hasApprovedApplication) return [];
+
+    const items: MenuItem[] = [
+      {
+        key: 'dashboard',
+        icon: 'bar-chart-outline',
+        label: 'لوحة التحليلات',
+        route: '/(butcher)',
+      },
+      {
+        key: 'manage',
+        icon: 'settings-outline',
+        label: 'إدارة الملحمة',
+        route: '/(butcher)/manage',
+      },
+      {
+        key: 'edit',
+        icon: 'create-outline',
+        label: 'تعديل بيانات الملحمة',
+        route: '/butchers/edit',
+      },
+    ];
+
+    if (provisionedButcherId) {
+      items.push({
+        key: 'my-page',
+        icon: 'storefront-outline',
+        label: 'صفحة ملحمتي',
+        route: `/butchers/${provisionedButcherId}`,
+      });
+    }
+
+    return items;
+  }, [hasApprovedApplication, provisionedButcherId]);
+
+  const applicationItems: MenuItem[] = useMemo(() => {
+    const items: MenuItem[] = [];
+
+    if (hasApprovedApplication) {
+      if (hasAnyApplication) {
+        items.push({
+          key: 'my-application',
+          icon: 'folder-open-outline',
+          label: 'طلبي',
+          route: '/butchers/my-application',
+        });
+      }
+      return items;
+    }
+
+    if (!hasPendingApplication) {
+      items.push({
+        key: 'apply',
+        icon: 'document-text-outline',
+        label: 'طلب تسجيل ملحمة',
+        route: '/butchers/apply',
+      });
+    }
+
+    if (hasAnyApplication) {
+      items.push({
+        key: 'my-application',
+        icon: 'folder-open-outline',
+        label: 'طلبي',
+        route: '/butchers/my-application',
+      });
+    }
+
+    return items;
+  }, [hasApprovedApplication, hasAnyApplication, hasPendingApplication]);
 
   return (
     <View style={[styles.backdrop, rtlRow]}>
@@ -144,7 +196,7 @@ export default function SidebarScreen() {
           <Pressable
             onPress={() => {
               router.back();
-              setTimeout(() => router.push('/(tabs)/profile'), 100);
+              setTimeout(() => router.push('/(butcher)/profile'), 100);
             }}
             style={styles.profileCenter}
           >
@@ -173,8 +225,8 @@ export default function SidebarScreen() {
             ))}
           </SidebarSection>
 
-          <SidebarSection title="الخدمات" colors={colors}>
-            {serviceItems.map((item) => (
+          <SidebarSection title="سوق الملاحم" colors={colors}>
+            {marketItems.map((item) => (
               <SidebarMenuRow
                 key={item.key}
                 item={item}
@@ -183,6 +235,32 @@ export default function SidebarScreen() {
               />
             ))}
           </SidebarSection>
+
+          {ownerItems.length > 0 ? (
+            <SidebarSection title="إدارة ملحمتي" colors={colors}>
+              {ownerItems.map((item) => (
+                <SidebarMenuRow
+                  key={item.key}
+                  item={item}
+                  colors={colors}
+                  onPress={() => (item.route ? handleNav(item.route) : item.onPress?.())}
+                />
+              ))}
+            </SidebarSection>
+          ) : null}
+
+          {applicationItems.length > 0 ? (
+            <SidebarSection title="التسجيل والطلبات" colors={colors}>
+              {applicationItems.map((item) => (
+                <SidebarMenuRow
+                  key={item.key}
+                  item={item}
+                  colors={colors}
+                  onPress={() => (item.route ? handleNav(item.route) : item.onPress?.())}
+                />
+              ))}
+            </SidebarSection>
+          ) : null}
 
           <SidebarSection title="التفضيلات" colors={colors}>
             <SidebarMenuRow
@@ -193,6 +271,16 @@ export default function SidebarScreen() {
               }}
               colors={colors}
               onPress={toggleTheme}
+            />
+            <SidebarMenuRow
+              item={{
+                key: 'main-app',
+                icon: 'home-outline',
+                label: 'العودة للتطبيق الرئيسي',
+                route: '/(tabs)',
+              }}
+              colors={colors}
+              onPress={() => handleNav('/(tabs)')}
             />
           </SidebarSection>
 

@@ -8,6 +8,7 @@ import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,18 +17,20 @@ import {
   Text,
   View,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
 import { useApp } from '@/hooks/useApp';
+import { rtlDirection, rtlRow, inlineEnd, inlineStart } from '@/lib/rtl';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCountryInfo } from '@/services/types';
 import { ListingCard } from '@/components/feature/ListingCard';
 import { PostItem } from '@/components/feature/PostItem';
 import { requireAuth, sharePost, showPostMenu } from '@/lib/postInteractions';
 import { openPostDetail } from '@/lib/openPost';
-import { presentActionSheet } from '@/lib/actionSheet';
+import { fetchUserProfile } from '@/services/users';
 import { fetchStoriesFeed, type StoryGroup } from '@/services/stories';
 import { buildProfileTimeline } from '@/lib/profileTimeline';
 import { ProfileRatingSheet } from '@/components/feature/ProfileRatingSheet';
@@ -59,6 +62,19 @@ export default function ProfileScreen() {
   const [myStoryGroup, setMyStoryGroup] = useState<StoryGroup | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [ratingSheetVisible, setRatingSheetVisible] = useState(false);
+  const [ratingSnapshot, setRatingSnapshot] = useState({
+    rating: me.rating,
+    reviewCount: me.reviewCount ?? 0,
+  });
+
+  const profileUrl = `https://alsfat.com/u/${me.username}`;
+
+  useEffect(() => {
+    setRatingSnapshot({
+      rating: me.rating,
+      reviewCount: me.reviewCount ?? 0,
+    });
+  }, [me.rating, me.reviewCount]);
 
   const loadStories = useCallback(async () => {
     try {
@@ -98,8 +114,8 @@ export default function ProfileScreen() {
 
   const country = getCountryInfo(me.country);
   const postsCount = me.postsCount ?? myPosts.length;
-  const hasRating = me.rating != null && (me.reviewCount ?? 0) > 0;
-  const ratingLabel = hasRating ? me.rating!.toFixed(1) : null;
+  const hasRating = ratingSnapshot.rating != null && ratingSnapshot.reviewCount > 0;
+  const ratingLabel = hasRating ? ratingSnapshot.rating!.toFixed(1) : null;
 
   const openConnections = (t: 'followers' | 'following') => {
     router.push({
@@ -110,41 +126,37 @@ export default function ProfileScreen() {
 
   const handleShare = () => {
     Share.share({
-      message: `تفقّد بروفايل ${me.arabicName || me.displayName} في تطبيق سرح 🐪\nhttps://alsfat.com/u/${me.username}`,
+      message: `تفقّد بروفايل ${me.arabicName || me.displayName} في تطبيق سرح 🐪\n${profileUrl}`,
       title: 'سرح — المنصة الوطنية للثروة الحيوانية',
+      url: profileUrl,
     });
   };
 
-  const handleCoverMenu = async () => {
-    const key = await presentActionSheet({
-      title: 'خيارات الحساب',
-      message: 'الإعدادات والمشاركة',
-      items: [
-        {
-          key: 'settings',
-          label: 'الإعدادات',
-          subtitle: 'الحساب والخصوصية والإشعارات',
-          icon: 'settings-outline',
-        },
-        {
-          key: 'share',
-          label: 'مشاركة الملف',
-          subtitle: 'إرسال رابط حسابك',
-          icon: 'share-social-outline',
-        },
-        {
-          key: 'copy',
-          label: 'نسخ الرابط',
-          subtitle: 'نسخ رابط الملف',
-          icon: 'link-outline',
-        },
-        { key: 'cancel', label: 'إلغاء', cancel: true },
-      ],
-    });
+  const handleCopyLink = async () => {
+    try {
+      await Clipboard.setStringAsync(profileUrl);
+      Alert.alert('تم النسخ', 'تم نسخ رابط ملفك الشخصي');
+    } catch {
+      Alert.alert('تعذّر النسخ', 'حاول مرة أخرى');
+    }
+  };
 
-    if (key === 'settings') router.push('/profile/settings');
-    if (key === 'share') handleShare();
-    if (key === 'copy') handleShare();
+  const openRatingSheet = async () => {
+    try {
+      const profile = await fetchUserProfile(me.id);
+      if (profile) {
+        setRatingSnapshot({
+          rating: profile.rating,
+          reviewCount: profile.reviewCount,
+        });
+      }
+    } catch {
+      setRatingSnapshot({
+        rating: me.rating,
+        reviewCount: me.reviewCount ?? 0,
+      });
+    }
+    setRatingSheetVisible(true);
   };
 
   const onRefresh = useCallback(async () => {
@@ -179,21 +191,29 @@ export default function ProfileScreen() {
               end={{ x: 1, y: 1 }}
             />
             <Pressable
-              onPress={handleCoverMenu}
+              onPress={() => router.push('/sidebar')}
               hitSlop={10}
-              style={styles.coverMenuBtn}
+              style={[styles.coverIconBtn, inlineStart(12), styles.coverTopBtn]}
             >
               <AppIcon name="menu" size={22} color="#fff" />
             </Pressable>
+            <View style={[styles.coverTopActions, inlineEnd(12)]}>
+              <Pressable onPress={handleShare} hitSlop={10} style={styles.coverIconBtn}>
+                <AppIcon name="share-social-outline" size={20} color="#fff" />
+              </Pressable>
+              <Pressable onPress={() => void handleCopyLink()} hitSlop={10} style={styles.coverIconBtn}>
+                <AppIcon name="link-outline" size={20} color="#fff" />
+              </Pressable>
+            </View>
             <Pressable
               style={styles.coverRating}
-              onPress={() => setRatingSheetVisible(true)}
+              onPress={() => void openRatingSheet()}
               hitSlop={6}
             >
               <AppIcon name="star" size={12} color={themeColors.gold} />
               <Text style={styles.coverRatingText}>
                 {ratingLabel ?? '—'}
-                {hasRating ? ` (${(me.reviewCount ?? 0).toLocaleString('ar-SA')})` : ''}
+                {hasRating ? ` (${ratingSnapshot.reviewCount.toLocaleString('ar-SA')})` : ''}
               </Text>
             </Pressable>
           </View>
@@ -344,8 +364,8 @@ export default function ProfileScreen() {
         visible={ratingSheetVisible}
         onClose={() => setRatingSheetVisible(false)}
         targetName={me.arabicName || me.displayName || me.username}
-        rating={me.rating}
-        reviewCount={me.reviewCount ?? 0}
+        rating={ratingSnapshot.rating}
+        reviewCount={ratingSnapshot.reviewCount}
         readOnly
       />
     </SafeAreaView>
@@ -369,10 +389,19 @@ function createStyles(colors: ThemeColors) {
       overflow: 'hidden',
       position: 'relative',
     },
-    coverMenuBtn: {
+    coverTopBtn: {
       position: 'absolute',
       top: 10,
-      left: 12,
+      zIndex: 2,
+    },
+    coverTopActions: {
+      position: 'absolute',
+      top: 10,
+      zIndex: 2,
+      ...rtlRow,
+      gap: 8,
+    },
+    coverIconBtn: {
       width: 36,
       height: 36,
       borderRadius: 18,
@@ -381,7 +410,6 @@ function createStyles(colors: ThemeColors) {
       justifyContent: 'center',
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: 'rgba(255,255,255,0.22)',
-      zIndex: 2,
     },
     coverRating: {
       position: 'absolute',

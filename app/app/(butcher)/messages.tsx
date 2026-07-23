@@ -101,7 +101,7 @@ export default function ButcherMessagesScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.push('/sidebar')} hitSlop={12} style={styles.menuBtn}>
+        <Pressable onPress={() => router.push('/butcher-sidebar')} hitSlop={12} style={styles.menuBtn}>
           <AppIcon name="menu" size={22} color={colors.textPrimary} />
         </Pressable>
         <Text style={styles.title}>

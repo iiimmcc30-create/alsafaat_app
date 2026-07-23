@@ -1,46 +1,7 @@
-import { SettingsMenuScreen, type SettingsMenuItem } from '@/components/ui/SettingsMenuScreen';
+import { ProfileSettingsMenuScreen } from '@/components/feature/ProfileSettingsMenuScreen';
 import { useAuth } from '@/contexts/AuthContext';
-import { confirmDestructive } from '@/lib/actionSheet';
+import { confirmDestructive, presentActionSheet } from '@/lib/actionSheet';
 import { useRouter } from 'expo-router';
-
-const ITEMS: SettingsMenuItem[] = [
-  {
-    icon: 'person-outline',
-    label: 'إدارة الملف الشخصي',
-    subtitle: 'الصورة، الاسم، النبذة، والخصوصية',
-    route: '/profile/edit',
-  },
-  {
-    icon: 'lock-outline',
-    label: 'تغيير كلمة المرور',
-    subtitle: 'تحديث بيانات الدخول بأمان',
-    route: '/profile/settings/password',
-  },
-  {
-    icon: 'bell-outline',
-    label: 'الإشعارات',
-    subtitle: 'مركز الإشعارات وتفضيلات التنبيه',
-    route: '/notifications',
-  },
-  {
-    icon: 'shield-outline',
-    label: 'الخصوصية',
-    subtitle: 'من يرى ملفك وكيف تُستخدم بياناتك',
-    route: '/info/privacy',
-  },
-  {
-    icon: 'lifebuoy',
-    label: 'المساعدة والدعم',
-    subtitle: 'تواصل معنا والإبلاغ عن مشكلة',
-    route: '/info/contact',
-  },
-  {
-    icon: 'information-outline',
-    label: 'مركز المعلومات',
-    subtitle: 'من نحن، الشروط، وسياسة الخصوصية',
-    route: '/settings/info',
-  },
-];
 
 export default function ProfileSettingsScreen() {
   const router = useRouter();
@@ -57,27 +18,103 @@ export default function ProfileSettingsScreen() {
     router.replace('/auth/phone' as any);
   };
 
+  const openReportsTicket = async () => {
+    const key = await presentActionSheet({
+      title: 'البلاغات',
+      message: 'اختر نوع التذكرة',
+      items: [
+        { key: 'support', label: 'تواصل مع الدعم' },
+        { key: 'report', label: 'إبلاغ عن محتوى مخالف' },
+      ],
+    });
+    if (key === 'support') {
+      router.push('/info/contact' as any);
+    } else if (key === 'report') {
+      router.push('/info/contact' as any);
+    }
+  };
+
   return (
-    <SettingsMenuScreen
-      title="إعدادات الحساب"
-      description="إدارة ملفك الشخصي، الأمان، الخصوصية، والدعم من مكان واحد."
-      heroIcon="settings-outline"
-      items={[
-        ...ITEMS,
+    <ProfileSettingsMenuScreen
+      title="الإعدادات"
+      onLogout={() => void handleLogout()}
+      sections={[
         {
-          icon: 'log-out-outline',
-          label: 'تسجيل الخروج',
-          subtitle: 'الخروج من حسابك على هذا الجهاز',
-          route: '__logout__',
+          title: 'الحساب',
+          items: [
+            {
+              key: 'profile',
+              icon: 'person-outline',
+              label: 'إدارة الملف',
+              route: '/profile/edit',
+            },
+            {
+              key: 'password',
+              icon: 'lock-outline',
+              label: 'تغيير كلمة المرور',
+              route: '/profile/settings/password',
+            },
+            {
+              key: 'privacy',
+              icon: 'shield-outline',
+              label: 'الخصوصية',
+              route: '/info/privacy',
+            },
+          ],
+        },
+        {
+          title: 'مركز المعلومات',
+          items: [
+            {
+              key: 'about',
+              icon: 'information-outline',
+              label: 'من نحن',
+              route: '/info/about',
+            },
+            {
+              key: 'terms',
+              icon: 'document-text-outline',
+              label: 'الشروط والأحكام',
+              route: '/info/terms',
+            },
+            {
+              key: 'usage',
+              icon: 'shield-check',
+              label: 'سياسة الاستخدام',
+              route: '/info/terms',
+            },
+            {
+              key: 'privacy-policy',
+              icon: 'shield-outline',
+              label: 'سياسة الخصوصية',
+              route: '/info/privacy',
+            },
+            {
+              key: 'refund',
+              icon: 'refresh',
+              label: 'سياسة الاسترداد',
+              route: '/info/refund',
+            },
+          ],
+        },
+        {
+          title: 'المساعدة والدعم',
+          items: [
+            {
+              key: 'contact',
+              icon: 'headset',
+              label: 'تواصل معنا',
+              route: '/info/contact',
+            },
+            {
+              key: 'reports',
+              icon: 'ticket',
+              label: 'البلاغات (إنشاء تذكرة)',
+              onPress: () => void openReportsTicket(),
+            },
+          ],
         },
       ]}
-      onItemPress={(item) => {
-        if (item.route === '__logout__') {
-          void handleLogout();
-          return true;
-        }
-        return false;
-      }}
     />
   );
 }

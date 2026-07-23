@@ -7,16 +7,15 @@ import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState, useRef } from 'react';
 import {
-  FlatList,
-  ListRenderItemInfo,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
-import { colors, headerFadeGradient, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { colors, headerFadeGradient, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/hooks/useTheme';
 import { useApp } from '@/hooks/useApp';
@@ -25,22 +24,34 @@ import { fetchStoriesFeed, type StoryGroup } from '@/services/stories';
 import { ButcherMiniSection } from '@/components/feature/ButcherMiniSection';
 import { CategoryChips, CategoryKey } from '@/components/feature/CategoryChips';
 import { ListingCard } from '@/components/feature/ListingCard';
-import { requireAuth } from '@/lib/postInteractions';
+import { HomeSectionHeader } from '@/components/feature/HomeSectionHeader';
+import { PostItem } from '@/components/feature/PostItem';
+import { requireAuth, sharePost, showPostMenu } from '@/lib/postInteractions';
+import { openPostDetail } from '@/lib/openPost';
 import { fetchLiveStreamEligibility } from '@/lib/liveStreamAccess';
 
 import { NotificationBellButton } from '@/components/notifications/NotificationBellButton';
 import { BRAND_DISPLAY_NAME } from '@/constants/brandCopy';
-import type { Listing } from '@/services/types';
 
 const HOME_REFRESH_TTL_MS = 60_000;
-const LISTING_ROW_HEIGHT = 126;
+const HOME_POSTS_LIMIT = 6;
 
 export default function HomeScreen() {
   const router = useRouter();
   const { scheme } = useTheme();
   const styles = useThemedStyles(({ colors }) => createHomeStyles(colors));
   const headerFade = headerFadeGradient(scheme);
-  const { me, listings } = useApp();
+  const {
+    me,
+    listings,
+    posts,
+    likedPosts,
+    bookmarkedPosts,
+    toggleLike,
+    toggleBookmark,
+    deletePost,
+    fetchPosts,
+  } = useApp();
   const { accessToken, isAuthenticated } = useAuth();
   const [activeCategory, setActiveCategory] = useState<CategoryKey>('all');
   const [storiesFeed, setStoriesFeed] = useState<StoryGroup[]>([]);
@@ -66,7 +77,8 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       void refreshLiveAccess();
-    }, [refreshLiveAccess]),
+      void fetchPosts('for_you');
+    }, [refreshLiveAccess, fetchPosts]),
   );
 
   const fetchStories = useCallback(async (force = false) => {
@@ -102,83 +114,16 @@ export default function HomeScreen() {
     return filtered.slice().sort((a, b) => Number(b.featured) - Number(a.featured));
   }, [listings, activeCategory]);
 
-  const renderItem = useCallback(
-    ({ item }: ListRenderItemInfo<Listing>) => (
-      <ListingCard
-        listing={item}
-        variant="list"
-        onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
-      />
-    ),
-    [router],
-  );
-
-  const keyExtractor = useCallback((item: Listing) => item.id, []);
-
-  const getItemLayout = useCallback(
-    (_: unknown, index: number) => ({
-      length: LISTING_ROW_HEIGHT,
-      offset: LISTING_ROW_HEIGHT * index,
-      index,
-    }),
-    [],
-  );
-
-  const renderListHeader = useCallback(
-    () => (
-      <View>
-        <StoriesBar
-          feed={storiesFeed}
-          myStories={myStories}
-          myAvatar={me.avatar}
-          currentUserId={me.id}
-          accessToken={accessToken}
-          loading={storiesLoading}
-          onAddStory={() => {
-            if (!requireAuth(isAuthenticated, 'نشر قصة')) return;
-            router.push('/create/story');
-          }}
-          onRefresh={() => void fetchStories(true)}
-        />
-
-        <CategoryChips value={activeCategory} onChange={setActiveCategory} />
-
-        <ButcherMiniSection showStories limit={5} />
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>الإعلانات</Text>
-          <Pressable onPress={() => router.push('/(tabs)/market')} hitSlop={8}>
-            <Text style={styles.sectionLink}>السوق</Text>
-          </Pressable>
-        </View>
-      </View>
-    ),
-    [
-      storiesFeed,
-      myStories,
-      me.avatar,
-      me.id,
-      accessToken,
-      storiesLoading,
-      isAuthenticated,
-      router,
-      fetchStories,
-      activeCategory,
-      styles.sectionHeader,
-      styles.sectionTitle,
-      styles.sectionLink,
-    ],
-  );
-
-  const ListEmpty = useMemo(
-    () => (
-      <View style={styles.empty}>
-        <Text style={styles.emptyIcon}>🛒</Text>
-        <Text style={styles.emptyText}>لا توجد إعلانات بعد</Text>
-      </View>
-    ),
-    [styles.empty, styles.emptyIcon, styles.emptyText],
-  );
+  const recentPosts = useMemo(() => {
+    return posts
+      .slice()
+      .sort((a, b) => {
+        const ta = new Date(a.createdAt ?? 0).getTime();
+        const tb = new Date(b.createdAt ?? 0).getTime();
+        return tb - ta;
+      })
+      .slice(0, HOME_POSTS_LIMIT);
+  }, [posts]);
 
   return (
     <View style={styles.root}>
@@ -217,20 +162,84 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <FlatList
-          data={displayedListings}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          getItemLayout={getItemLayout}
-          ListHeaderComponent={renderListHeader}
-          ListEmptyComponent={ListEmpty}
-          ListFooterComponent={<View style={{ height: 100 }} />}
+        <ScrollView
           showsVerticalScrollIndicator={false}
-          removeClippedSubviews
-          initialNumToRender={10}
-          maxToRenderPerBatch={8}
-          windowSize={7}
-        />
+          contentContainerStyle={styles.scrollContent}
+        >
+          <StoriesBar
+            feed={storiesFeed}
+            myStories={myStories}
+            myAvatar={me.avatar}
+            currentUserId={me.id}
+            accessToken={accessToken}
+            loading={storiesLoading}
+            onAddStory={() => {
+              if (!requireAuth(isAuthenticated, 'نشر قصة')) return;
+              router.push('/create/story');
+            }}
+            onRefresh={() => void fetchStories(true)}
+          />
+
+          <CategoryChips value={activeCategory} onChange={setActiveCategory} />
+
+          <ButcherMiniSection size="hero" showStories={false} limit={8} />
+
+          <HomeSectionHeader
+            title="الإعلانات"
+            onSeeAll={() => router.push('/(tabs)/market')}
+          />
+          <View style={styles.listingsSection}>
+            {displayedListings.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyIcon}>🛒</Text>
+                <Text style={styles.emptyText}>لا توجد إعلانات بعد</Text>
+              </View>
+            ) : (
+              displayedListings.map((item) => (
+                <ListingCard
+                  key={item.id}
+                  listing={item}
+                  variant="list"
+                  onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
+                />
+              ))
+            )}
+          </View>
+
+          <HomeSectionHeader
+            title="المنشورات"
+            onSeeAll={() => router.push('/(tabs)/posts')}
+          />
+          <View style={styles.postsSection}>
+            {recentPosts.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyIcon}>📝</Text>
+                <Text style={styles.emptyText}>لا توجد منشورات بعد</Text>
+              </View>
+            ) : (
+              recentPosts.map((item) => (
+                <PostItem
+                  key={item.id}
+                  post={{
+                    ...item,
+                    liked: likedPosts.has(item.id),
+                    bookmarked: bookmarkedPosts.has(item.id),
+                  }}
+                  onPress={() => openPostDetail(router, item.id)}
+                  onLike={() => requireAuth(isAuthenticated, 'الإعجاب') && toggleLike(item.id)}
+                  onComment={() => openPostDetail(router, item.id, { focusComment: isAuthenticated })}
+                  onBookmark={() =>
+                    requireAuth(isAuthenticated, 'الحفظ') && toggleBookmark(item.id)
+                  }
+                  onShare={() => sharePost(item)}
+                  onMenu={() => showPostMenu(item, me, router, deletePost, isAuthenticated)}
+                />
+              ))
+            )}
+          </View>
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -240,6 +249,9 @@ function createHomeStyles(colors: ThemeColors) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.bgDeep },
     container: { flex: 1, backgroundColor: colors.bgDeep },
+    scrollContent: {
+      paddingBottom: spacing.md,
+    },
     headerGradient: {
       position: 'absolute', top: 0, left: 0, right: 0, height: 100, zIndex: 1,
     },
@@ -286,18 +298,15 @@ function createHomeStyles(colors: ThemeColors) {
       borderColor: `${colors.liveRed}40`,
       backgroundColor: `${colors.liveRed}15`,
     },
-    sectionHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: spacing.lg,
-      paddingTop: spacing.xl,
-      paddingBottom: spacing.md,
+    listingsSection: {
+      gap: 0,
     },
-    sectionTitle: { ...typography.h3, color: colors.textPrimary },
-    sectionLink: { ...typography.caption, color: colors.textBrandStrong, fontWeight: '600' },
-    empty: { alignItems: 'center', paddingVertical: spacing.xxxl, gap: spacing.md },
-    emptyIcon: { fontSize: 40 },
+    postsSection: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.borderHairline,
+    },
+    empty: { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.md },
+    emptyIcon: { fontSize: 36 },
     emptyText: { ...typography.body, color: colors.textMuted },
   });
 }

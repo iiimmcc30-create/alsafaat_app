@@ -4,19 +4,17 @@ import { AppIcon } from '@/components/ui/FlaticonIcon';
 import { Image, uriSource } from '@/components/ui/AppImage';
 import { LinearGradient } from '@/components/ui/AppLinearGradient';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import {
   colors,
-  imageCardOverlayStrong,
   radius,
   spacing,
   typography,
   type ThemeColors,
 } from '@/constants/theme';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { useTheme } from '@/hooks/useTheme';
 import { rtlForwardIcon } from '@/lib/rtl';
-import { ButcherStory, gccCurrencies } from '@/services/butcherData';
+import { gccCurrencies } from '@/services/butcherData';
 import { countries } from '@/services/types';
 import { useButcher } from '@/hooks/useButcher';
 
@@ -28,35 +26,39 @@ const STORY_RING_COLORS = {
 } as const;
 
 // Card dimensions
-const CARD_W      = 220;
-const COVER_H     = 148;
+const CARD_W_COMPACT = 220;
+const COVER_H_COMPACT = 148;
 const STORY_SIZE  = 52;
 
 interface ButcherMiniSectionProps {
   limit?:       number;
   showStories?: boolean;
+  size?:        'compact' | 'hero';
 }
 
 export function ButcherMiniSection({
   limit = 6,
   showStories = true,
+  size = 'compact',
 }: ButcherMiniSectionProps) {
   const router      = useRouter();
-  const { scheme }  = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
   const s           = useThemedStyles(({ colors }) => createStyles(colors));
-  const cardOverlay = imageCardOverlayStrong(scheme);
+  const isHero = size === 'hero';
+  const CARD_W = isHero ? Math.round(screenWidth * 0.84) : CARD_W_COMPACT;
+  const COVER_H = isHero ? 210 : COVER_H_COMPACT;
 
   const { filteredButchers, stories, loading } = useButcher();
   const ranked = filteredButchers.slice(0, limit);
 
   return (
-    <View style={s.wrapper}>
+    <View style={[s.wrapper, isHero && s.wrapperHero]}>
 
       {/* ── Section header ─────────────────────────────────────────── */}
       <View style={s.header}>
         <View style={s.headerLeft}>
           <Text style={s.title}>الملاحم</Text>
-          <Text style={s.subtitle}>لحوم طازجة قريبة منك</Text>
+          {!isHero ? <Text style={s.subtitle}>لحوم طازجة قريبة منك</Text> : null}
         </View>
         <Pressable style={s.seeAllBtn} onPress={() => router.push('/butchers')}>
           <Text style={s.seeAllText}>عرض الكل</Text>
@@ -121,11 +123,14 @@ export function ButcherMiniSection({
         snapToAlignment="start"
       >
         {loading && ranked.length === 0 ? (
-          <View style={s.skeleton}>
+          <View style={[s.skeleton, { width: CARD_W, height: COVER_H + (isHero ? 0 : 80) }]}>
             <Text style={s.skeletonText}>جاري التحميل...</Text>
           </View>
         ) : ranked.length === 0 ? (
-          <Pressable style={s.skeleton} onPress={() => router.push('/butchers')}>
+          <Pressable
+            style={[s.skeleton, { width: CARD_W, height: COVER_H + (isHero ? 0 : 80) }]}
+            onPress={() => router.push('/butchers')}
+          >
             <AppIcon name="storefront-outline" size={26} color={colors.electricBright} />
             <Text style={s.skeletonText}>لا توجد ملاحم حالياً</Text>
           </Pressable>
@@ -140,39 +145,44 @@ export function ButcherMiniSection({
             return (
               <Pressable
                 key={butcher.id}
-                style={({ pressed }) => [s.card, pressed && { opacity: 0.9 }]}
+                style={({ pressed }) => [
+                  s.card,
+                  { width: CARD_W },
+                  isHero && s.cardHero,
+                  pressed && { opacity: 0.9 },
+                ]}
                 onPress={() =>
                   router.push({ pathname: '/butchers/[id]', params: { id: butcher.id } })
                 }
               >
-                {/* ── Cover image area ──────────────────────────── */}
-                <View style={s.coverWrap}>
+                <View style={[s.coverWrap, { height: COVER_H }]}>
                   <Image
                     source={uriSource(butcher.cover || butcher.logo)}
                     style={s.cover}
                     contentFit="cover"
                   />
 
-                  {/* Bottom gradient overlay */}
                   <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.55)']}
-                    style={[StyleSheet.absoluteFill, { top: '40%' }]}
+                    colors={['transparent', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.88)']}
+                    locations={[0.2, 0.55, 1]}
+                    style={StyleSheet.absoluteFill}
                   />
 
-                  {/* Top row: heart  |  rating + New */}
                   <View style={s.topRow}>
-                    {/* Heart (left in RTL = visual right) */}
+                    {isNew ? (
+                      <View style={s.newBadge}>
+                        <Text style={s.newBadgeText}>جديد</Text>
+                      </View>
+                    ) : (
+                      <View />
+                    )}
                     <View style={s.heartBtn}>
-                      <AppIcon name="heart-outline" size={15} color="#fff" />
+                      <AppIcon name="heart-outline" size={isHero ? 17 : 15} color="#fff" />
                     </View>
+                  </View>
 
-                    {/* Rating chip + New badge */}
+                  {!isHero ? (
                     <View style={s.topRight}>
-                      {isNew && (
-                        <View style={s.newBadge}>
-                          <Text style={s.newBadgeText}>جديد</Text>
-                        </View>
-                      )}
                       <View style={s.ratingChip}>
                         <AppIcon name="star" size={11} color={colors.gold} />
                         <Text style={s.ratingText}>{butcher.rating.toFixed(1)}</Text>
@@ -183,16 +193,16 @@ export function ButcherMiniSection({
                         </Text>
                       </View>
                     </View>
-                  </View>
+                  ) : null}
 
-                  {/* Open/closed pill */}
                   <View
                     style={[
                       s.statusPill,
+                      isHero && s.statusPillHero,
                       {
                         backgroundColor: butcher.workingHours.isOpen
-                          ? 'rgba(16,185,129,0.85)'
-                          : 'rgba(239,68,68,0.85)',
+                          ? 'rgba(16,185,129,0.9)'
+                          : 'rgba(239,68,68,0.9)',
                       },
                     ]}
                   >
@@ -202,8 +212,37 @@ export function ButcherMiniSection({
                     </Text>
                   </View>
 
-                  {/* Bottom badges row: "الأكثر تفضيلاً" | "مميز" */}
-                  {(isTopRated || isFeatured) && (
+                  {isHero ? (
+                    <View style={s.heroOverlay}>
+                      <View style={s.heroRatingRow}>
+                        <View style={s.ratingChip}>
+                          <AppIcon name="star" size={12} color={colors.gold} />
+                          <Text style={s.ratingText}>{butcher.rating.toFixed(1)}</Text>
+                          <Text style={s.ratingCount}>
+                            ({butcher.totalOrders > 999
+                              ? (butcher.totalOrders / 1000).toFixed(1) + 'k'
+                              : butcher.totalOrders})
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={s.heroName} numberOfLines={1}>{butcher.nameAr}</Text>
+                      <View style={s.heroMetaRow}>
+                        <View style={s.metaItem}>
+                          <AppIcon name="map-marker-outline" size={12} color="rgba(255,255,255,0.9)" />
+                          <Text style={s.heroMetaText}>{butcher.cityAr}</Text>
+                        </View>
+                        <View style={s.metaDotLight} />
+                        <View style={s.metaItem}>
+                          <AppIcon name="bicycle-outline" size={12} color="rgba(255,255,255,0.9)" />
+                          <Text style={s.heroMetaText}>
+                            {butcher.workingHours.isOpen ? '20-35 دقيقة' : 'مغلق حالياً'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {!isHero && (isTopRated || isFeatured) && (
                     <View style={s.badgesRow}>
                       {isTopRated && (
                         <View style={s.badgePreferred}>
@@ -221,34 +260,30 @@ export function ButcherMiniSection({
                   )}
                 </View>
 
-                {/* ── Info area ─────────────────────────────────── */}
-                <View style={s.info}>
-                  {/* Name */}
-                  <Text style={s.name} numberOfLines={1}>{butcher.nameAr}</Text>
-
-                  {/* Location / tag line */}
-                  <Text style={s.tagLine} numberOfLines={1}>
-                    {country?.flag} {butcher.cityAr}
-                    {currency ? `  ·  ${currency.symbol}` : ''}
-                  </Text>
-
-                  {/* Meta: orders · delivery time */}
-                  <View style={s.metaRow}>
-                    <View style={s.metaItem}>
-                      <AppIcon name="clock-outline" size={11} color={colors.textMuted} />
-                      <Text style={s.metaText}>
-                        {butcher.workingHours.isOpen ? '20-35 دق' : 'مغلق حالياً'}
-                      </Text>
-                    </View>
-                    <View style={s.metaDot} />
-                    <View style={s.metaItem}>
-                      <AppIcon name="people-outline" size={11} color={colors.textMuted} />
-                      <Text style={s.metaText}>
-                        {butcher.totalOrders.toLocaleString()} طلب
-                      </Text>
+                {!isHero ? (
+                  <View style={s.info}>
+                    <Text style={s.name} numberOfLines={1}>{butcher.nameAr}</Text>
+                    <Text style={s.tagLine} numberOfLines={1}>
+                      {country?.flag} {butcher.cityAr}
+                      {currency ? `  ·  ${currency.symbol}` : ''}
+                    </Text>
+                    <View style={s.metaRow}>
+                      <View style={s.metaItem}>
+                        <AppIcon name="clock-outline" size={11} color={colors.textMuted} />
+                        <Text style={s.metaText}>
+                          {butcher.workingHours.isOpen ? '20-35 دق' : 'مغلق حالياً'}
+                        </Text>
+                      </View>
+                      <View style={s.metaDot} />
+                      <View style={s.metaItem}>
+                        <AppIcon name="people-outline" size={11} color={colors.textMuted} />
+                        <Text style={s.metaText}>
+                          {butcher.totalOrders.toLocaleString()} طلب
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
+                ) : null}
               </Pressable>
             );
           })
@@ -262,6 +297,7 @@ export function ButcherMiniSection({
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     wrapper: { marginVertical: spacing.lg },
+    wrapperHero: { marginTop: spacing.sm, marginBottom: spacing.md },
 
     // Header
     header: {
@@ -347,23 +383,26 @@ function createStyles(colors: ThemeColors) {
 
     // Card
     card: {
-      width: CARD_W,
       backgroundColor: colors.bgSurface,
       borderRadius: radius.xl,
       overflow: 'hidden',
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.borderSoft,
-      // shadow
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.12,
       shadowRadius: 6,
       elevation: 4,
     },
+    cardHero: {
+      borderRadius: radius.xxl,
+      shadowOpacity: 0.22,
+      shadowRadius: 10,
+      elevation: 6,
+    },
 
     // Cover
     coverWrap: {
-      height: COVER_H,
       position: 'relative',
     },
     cover: {
@@ -374,27 +413,32 @@ function createStyles(colors: ThemeColors) {
     // Top row overlays
     topRow: {
       position: 'absolute',
-      top: 8,
-      left: 8,
-      right: 8,
+      top: 10,
+      left: 10,
+      right: 10,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      zIndex: 2,
+    },
+    topRight: {
+      position: 'absolute',
+      top: 10,
+      left: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      zIndex: 2,
     },
     heartBtn: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
+      width: 34,
+      height: 34,
+      borderRadius: 17,
       backgroundColor: 'rgba(0,0,0,0.35)',
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
       borderColor: 'rgba(255,255,255,0.2)',
-    },
-    topRight: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
     },
     newBadge: {
       paddingHorizontal: 6,
@@ -440,6 +484,13 @@ function createStyles(colors: ThemeColors) {
       paddingHorizontal: 7,
       paddingVertical: 3,
       borderRadius: radius.pill,
+      zIndex: 2,
+    },
+    statusPillHero: {
+      top: 88,
+      bottom: undefined,
+      right: 12,
+      left: undefined,
     },
     statusDot: {
       width: 6,
@@ -487,6 +538,42 @@ function createStyles(colors: ThemeColors) {
       fontSize: 9,
     },
 
+    heroOverlay: {
+      position: 'absolute',
+      left: 12,
+      right: 12,
+      bottom: 12,
+      gap: 6,
+      zIndex: 2,
+    },
+    heroRatingRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-start',
+    },
+    heroName: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: '#fff',
+      textAlign: 'right',
+    },
+    heroMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      justifyContent: 'flex-end',
+    },
+    heroMetaText: {
+      ...typography.caption,
+      color: 'rgba(255,255,255,0.92)',
+      fontSize: 12,
+    },
+    metaDotLight: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: 'rgba(255,255,255,0.45)',
+    },
+
     // Info section
     info: {
       padding: spacing.sm,
@@ -532,8 +619,6 @@ function createStyles(colors: ThemeColors) {
 
     // Skeleton / empty
     skeleton: {
-      width: CARD_W,
-      height: COVER_H + 80,
       backgroundColor: colors.bgSurface,
       borderRadius: radius.xl,
       alignItems: 'center',

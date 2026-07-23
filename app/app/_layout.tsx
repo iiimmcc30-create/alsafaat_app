@@ -86,6 +86,7 @@ function RootNavigator() {
         <Stack.Screen name="search" />
         <Stack.Screen name="users/[id]" />
         <Stack.Screen name="sidebar" options={{ animation: 'slide_from_right', presentation: 'transparentModal' }} />
+        <Stack.Screen name="butcher-sidebar" options={{ animation: 'slide_from_right', presentation: 'transparentModal' }} />
         <Stack.Screen name="notifications/index" />
         <Stack.Screen name="subscription" />
         <Stack.Screen name="payment" />
